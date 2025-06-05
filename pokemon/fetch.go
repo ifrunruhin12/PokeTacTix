@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+var legendaryNames = []string{
+	"articuno", "zapdos", "moltres", "mewtwo", "raikou", "entei", "suicune", "lugia", "ho-oh", "regirock", "regice", "registeel", "latias", "latios", "kyogre", "groudon", "rayquaza", "uxie", "mesprit", "azelf", "dialga", "palkia", "heatran", "regigigas", "giratina", "cresselia", "cobalion", "terrakion", "virizion", "tornadus", "thundurus", "reshiram", "zekrom", "landorus", "kyurem", "xerneas", "yveltal", "zygarde", "tapu-koko", "tapu-lele", "tapu-bulu", "tapu-fini", "cosmog", "cosmoem", "solgaleo", "lunala", "necrozma", "zamacenta", "zacian", "eternatus", "kubfu", "urshifu", "regieleki", "regidrago", "glastrier", "spectrier", "calyrex", "enamorus", "ting-lu", "chien-pao", "wo-chien", "chi-yu", "koraidon", "miraidon", "ogerpon",
+}
+
+var mythicalNames = []string{
+	"mew", "celebi", "jirachi", "deoxys", "phione", "manaphy", "darkrai", "shaymin", "arceus", "victini", "keldeo", "meloetta", "genesect", "diancie", "hoopa", "volcanion", "magearna", "marshadow", "zeraora", "meltan", "melmetal", "zarude", "regieleki", "regidrago", "glastrier", "spectrier", "calyrex", "enamorus", "ting-lu", "chien-pao", "wo-chien", "chi-yu", "koraidon", "miraidon", "ogerpon",
+}
+
 func GetMoves(rawMoves []RawMove) []Move {
 	const maxMoves = 4
 	perm := rand.Perm(len(rawMoves))
@@ -74,4 +82,33 @@ func FetchPokemon(name string) (Pokemon, []Move, error) {
 
 	pokeMoves := GetMoves(poke.Moves)
 	return poke, pokeMoves, nil
+}
+
+// FetchRandomPokemonCard returns a random Card. There is a 0.01% chance for a mythical, 0.01% for a legendary, otherwise normal.
+func FetchRandomPokemonCard(_ bool) Card {
+	mythicalOdds := 0.0001  // 0.01%
+	legendaryOdds := 0.0001 // 0.01%
+	maxRetries := 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		roll := rand.Float64()
+		var name string
+		if roll < mythicalOdds {
+			// Mythical
+			name = mythicalNames[rand.Intn(len(mythicalNames))]
+		} else if roll < mythicalOdds+legendaryOdds {
+			// Legendary
+			name = legendaryNames[rand.Intn(len(legendaryNames))]
+		} else {
+			// Normal
+			id := rand.Intn(898) + 1 // Gen 1-8, skip forms
+			name = fmt.Sprintf("%d", id)
+		}
+		poke, moves, err := FetchPokemon(name)
+		if err != nil {
+			continue
+		}
+		return BuildCardFromPokemon(poke, moves)
+	}
+	// Fallback dummy card
+	return Card{Name: "MissingNo", HP: 33, Types: []string{"???"}}
 }

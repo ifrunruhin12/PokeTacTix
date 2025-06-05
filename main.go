@@ -1,22 +1,23 @@
 package main
 
 import (
-	"fmt"
+	"bufio"
+	"os"
 	"pokemon-cli/game"
-	"pokemon-cli/pokemon"
 )
 
 func main() {
-	fmt.Print("Enter the name of the Pokémon: ")
-	var name string
-	fmt.Scan(&name)
+	game.PrintWelcome()
 
-	poke, moves, err := pokemon.FetchPokemon(name)
-	if err != nil {
-		fmt.Println(err)
-		return
+	scanner := bufio.NewScanner(os.Stdin)
+	state := &game.GameState{}
+
+	for {
+		print("\n> ")
+		if !scanner.Scan() {
+			break
+		}
+		input := scanner.Text()
+		game.HandleCommand(input, scanner, state)
 	}
-
-	card := game.BuildCardFromPokemon(poke, moves)
-	game.PrintCard(card)
 }
