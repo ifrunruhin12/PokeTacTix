@@ -1,4 +1,4 @@
-# Pokemon CLI Card Game (Golang)
+# Pokemon Card Game - PokeTacTix (Golang)
 
 A command-line Pokémon card game built in Go. Fetches real Pokémon data from the PokéAPI, builds game-ready cards, and displays them in the terminal. Future updates will add full battle logic and gameplay!
 
@@ -16,7 +16,7 @@ A command-line Pokémon card game built in Go. Fetches real Pokémon data from t
 
 ## 🗂️ Project Structure
 ```
-pokemon-cli/
+PokeTacTix/
 ├── go.mod
 ├── main.go                      # Entry point: user input, card display
 ├── game/
