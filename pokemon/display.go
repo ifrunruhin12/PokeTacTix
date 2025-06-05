@@ -21,7 +21,7 @@ func DisplayPokemon(poke Pokemon) {
 	}
 
 	fmt.Print("Type(s): ")
-	for i, t := range poke.Type {
+	for i, t := range poke.Types {
 		if i > 0 {
 			fmt.Print(", ")
 		}
@@ -43,4 +43,3 @@ func repeat(char rune, count int) []rune {
 	}
 	return bar
 }
-
