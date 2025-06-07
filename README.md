@@ -144,3 +144,12 @@ PRs and suggestions welcome! This is a learning/fun project.
 ## 📦 Credits
 - [PokéAPI](https://pokeapi.co/) for all Pokémon data
 - Built with Go
+
+---
+
+## © 2024 Ifran Kader Ruhin ([ifrunruhin12](https://github.com/ifrunruhin12))
+This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0).
+It is free to use for personal learning and non-commercial purposes only. Commercial use is strictly prohibited.
+See the LICENSE file for details.
+
+**Note:** This project is currently open source, but may become closed source in the future at the author's discretion.
