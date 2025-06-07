@@ -4,48 +4,623 @@ import (
 	"bufio"
 	"fmt"
 	"math/rand"
-	_"strings"
+	"pokemon-cli/pokemon"
+	"strings"
 )
 
-// ProcessTurn handles both player and AI moves, updates state, and returns a result string.
-func ProcessTurn(playerMove string, aiMove string, player *Player, ai *Player) string {
-	// TODO: Parse moves, call CalculateDamage, update HP/stamina, handle defend/surrender/sacrifice
-	// For now, just print the moves chosen
-	return fmt.Sprintf("Player chose: %s | AI chose: %s", playerMove, aiMove)
+// Main turn/round loop
+func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
+	turn := 1
+	player := state.Player
+	ai := state.AI
+	playerCard := &player.Deck[state.PlayerActiveIdx]
+	aiCard := &ai.Deck[state.AIActiveIdx]
+
+	// Reset sacrifice count for this round
+	if state.SacrificeCount == nil {
+		state.SacrificeCount = make(map[int]int)
+	}
+	state.SacrificeCount[state.PlayerActiveIdx] = 0
+
+	fmt.Printf("\nThe %s Round of the battle has started! It's Turn 1 for both player and AI.\n", ordinal(state.Round))
+	fmt.Println("Choose your move with the correct command. To see all the in-battle commands type 'command --in-battle'.")
+
+	for {
+		if playerCard.HP <= 0 || aiCard.HP <= 0 || state.RoundOver || state.BattleOver {
+			break
+		}
+		fmt.Printf("\n--- Turn %d ---\n", turn)
+		var playerMove, aiMove string
+		var playerMoveIdx, aiMoveIdx int
+		// Odd turns: player chooses first, then AI
+		if turn%2 == 1 {
+			playerMove, playerMoveIdx = getPlayerMove(scanner, state, playerCard)
+			if playerMove == "surrender" {
+				fmt.Println("You surrendered this round!")
+				playerCard.HP = 0
+				state.RoundOver = true
+				break
+			}
+			if playerMove == "surrender all" {
+				break
+			}
+			if playerMove == "sacrifice" {
+				handleSacrifice(state, playerCard)
+				continue
+			}
+			aiMove, aiMoveIdx = getAIMove(playerMove, aiCard, state, state.AIActiveIdx)
+			// AI can use sacrifice if stamina < 50% of max
+			if aiMove == "sacrifice" {
+				handleSacrificeAI(aiCard, state)
+				continue
+			}
+			fmt.Printf("AI chose to %s.\n", aiMove)
+		} else {
+			// Even turns: AI chooses first, then player
+			aiMove, aiMoveIdx = getAIMove("", aiCard, state, state.AIActiveIdx)
+			// AI can use sacrifice if stamina < 50% of max
+			if aiMove == "sacrifice" {
+				handleSacrificeAI(aiCard, state)
+				continue
+			}
+			fmt.Printf("AI chose to %s.\n", aiMove)
+			playerMove, playerMoveIdx = getPlayerMove(scanner, state, playerCard)
+			if playerMove == "surrender" {
+				fmt.Println("You surrendered this round!")
+				playerCard.HP = 0
+				state.RoundOver = true
+				break
+			}
+			if playerMove == "surrender all" {
+				break
+			}
+			if playerMove == "sacrifice" {
+				handleSacrifice(state, playerCard)
+				continue
+			}
+		}
+		// Process moves
+		processTurnResult(playerMove, aiMove, playerMoveIdx, aiMoveIdx, playerCard, aiCard, state)
+		// Show result (only player's HP/stamina lost and damage dealt)
+		fmt.Printf("You lost %d HP and %d stamina this turn. Your current HP: %d, current stamina: %d\n", state.LastHpLost, state.LastStaminaLost, playerCard.HP, playerCard.Stamina)
+		fmt.Printf("You dealt %d damage to the AI.\n", state.LastDamageDealt)
+		// Check for KO
+		if playerCard.HP <= 0 {
+			fmt.Printf("Your %s was knocked out!\n", playerCard.Name)
+			state.RoundOver = true
+			break
+		}
+		if aiCard.HP <= 0 {
+			fmt.Printf("AI's %s was knocked out!\n", aiCard.Name)
+			state.RoundOver = true
+			break
+		}
+		turn++
+	}
+	// End of round
+	showRoundSummary(state, playerCard, aiCard)
+	prepareNextRound(scanner, state)
 }
 
-// CalculateDamage computes the damage dealt from attacker to defender using the chosen move and type multiplier.
-func CalculateDamage(attacker *Player, defender *Player, moveIndex int) int {
-	// TODO: Use attack stat, move power, RollDamagePercent, and TypeMultiplier
-	return 0 // placeholder
+// Get the player's move (attack/defend/surrender/sacrifice/pass)
+func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon.Card) (string, int) {
+	for {
+		fmt.Print("Enter your move (attack/defend/surrender/sacrifice/pass). To see the card you are battling with use the 'card' command. To end/lose the game use 'surrender all' command. You can use the 'switch' command to switch to different pokemon if the requirements met: ")
+		if !scanner.Scan() {
+			return "surrender", 0 // treat EOF as surrender
+		}
+		move := strings.ToLower(strings.TrimSpace(scanner.Text()))
+		if move == "card" {
+			PrintCard(*playerCard)
+			continue // re-prompt without printing the prompt again
+		}
+		if move == "surrender all" {
+			CommandSurrender(scanner, state, true)
+			return "surrender all", 0
+		}
+		if move == "switch" && state.RoundStarted == false && state.SwitchedThisRound == false && state.Round > 1 && playerCard.HP > 0 {
+			CommandSwitch(scanner, state)
+			continue
+		}
+		if move == "attack" {
+			moveIdx := 0
+			if len(playerCard.Moves) > 1 {
+				fmt.Print("Choose a move number: ")
+				if !scanner.Scan() {
+					return "surrender", 0
+				}
+				input := strings.TrimSpace(scanner.Text())
+				if n, err := fmt.Sscanf(input, "%d", &moveIdx); err != nil || n != 1 || moveIdx < 1 || moveIdx > len(playerCard.Moves) {
+					fmt.Println("Invalid move number.")
+					continue
+				}
+				moveIdx--
+			}
+			staminaCost := playerCard.Moves[moveIdx].StaminaCost
+			if playerCard.Stamina < staminaCost {
+				fmt.Println("Not enough stamina to attack. Use 'sacrifice', 'pass', or 'surrender'.")
+				continue
+			}
+			state.CardMovePlayer = moveIdx
+			return "attack", moveIdx
+		}
+		if move == "defend" {
+			defendCost := (playerCard.HPMax + 1) / 2 // Use total HP, not current HP
+			if playerCard.Stamina < defendCost {
+				fmt.Println("Not enough stamina to defend. Use 'sacrifice', 'pass', or 'surrender'.")
+				continue
+			}
+			return "defend", 0
+		}
+		if move == "sacrifice" {
+			idx := state.PlayerActiveIdx
+			if state.SacrificeCount == nil {
+				state.SacrificeCount = make(map[int]int)
+			}
+			count := state.SacrificeCount[idx]
+			var hpCost int
+			if count == 0 {
+				hpCost = 10
+			} else if count == 1 {
+				hpCost = 15
+			} else if count == 2 {
+				hpCost = 20
+			} else {
+				fmt.Println("You can only sacrifice three times per round.")
+				continue
+			}
+			if float64(playerCard.Stamina) >= 0.5*float64(playerCard.HPMax)*2.5 {
+				fmt.Println("You can only use 'sacrifice' when your current stamina is less than 50% of max stamina.")
+				continue
+			}
+			if playerCard.HP <= hpCost {
+				fmt.Printf("Not enough HP to sacrifice. You need at least %d HP.\n", hpCost+1)
+				continue
+			}
+			return "sacrifice", 0
+		}
+		if move == "pass" {
+			return "pass", 0
+		}
+		if move == "surrender" {
+			return "surrender", 0
+		}
+		fmt.Println("Invalid move. Please enter 'attack', 'defend', 'sacrifice', 'pass', 'switch', or 'surrender'.")
+	}
 }
 
-// ChooseAIMove picks a move for the AI (random for now).
-func ChooseAIMove(ai *Player, player *Player) string {
-	// TODO: Add smarter logic later
-	return "attack 1" // placeholder
+// Handle the sacrifice mechanic
+func handleSacrifice(state *GameState, playerCard *pokemon.Card) {
+	idx := state.PlayerActiveIdx
+	if state.SacrificeCount == nil {
+		state.SacrificeCount = make(map[int]int)
+	}
+	count := state.SacrificeCount[idx]
+	maxStamina := int(float64(playerCard.HPMax) * 2.5)
+	if count >= 3 {
+		fmt.Println("You can only sacrifice three times per round.")
+		return
+	}
+	var hpCost int
+	var staminaGain float64
+	switch count {
+	case 0:
+		hpCost = 10
+		staminaGain = 0.5
+	case 1:
+		hpCost = 15
+		staminaGain = 0.25
+	case 2:
+		hpCost = 20
+		staminaGain = 0.15
+	}
+	if float64(playerCard.Stamina) >= 0.5*float64(maxStamina) {
+		fmt.Println("You can only use 'sacrifice' when your current stamina is less than 50% of max stamina.")
+		return
+	}
+	if playerCard.HP <= hpCost {
+		fmt.Printf("Not enough HP to sacrifice. You need at least %d HP.\n", hpCost+1)
+		return
+	}
+	playerCard.HP -= hpCost
+	gain := int(float64(maxStamina) * staminaGain)
+	playerCard.Stamina += gain
+	fmt.Printf("You sacrificed %d HP and gained %d stamina.\n", hpCost, gain)
+	state.SacrificeCount[idx] = count + 1
 }
 
-func StartBattle(player *Player, ai *Player) {
-	fmt.Println("[Battle logic will go here]")
+// AI move logic
+func getAIMove(playerMove string, aiCard *pokemon.Card, state *GameState, aiIdx int) (string, int) {
+	maxStamina := int(float64(aiCard.HPMax) * 2.5)
+	// Check if AI can attack or defend
+	canAttack := false
+	minAttackCost := 9999
+	for _, move := range aiCard.Moves {
+		if aiCard.Stamina >= move.StaminaCost {
+			canAttack = true
+			break
+		}
+		if move.StaminaCost < minAttackCost {
+			minAttackCost = move.StaminaCost
+		}
+	}
+	defendCost := (aiCard.HPMax + 1) / 2
+	canDefend := aiCard.Stamina >= defendCost
+	count := 0
+	if state != nil && state.SacrificeCount != nil {
+		count = state.SacrificeCount[aiIdx]
+	}
+	// If AI can't attack or defend
+	if !canAttack && !canDefend {
+		// Can AI sacrifice?
+		canSacrifice := false
+		var hpCost int
+		if count == 0 {
+			hpCost = 10
+		} else if count == 1 {
+			hpCost = 15
+		} else if count == 2 {
+			hpCost = 20
+		} else {
+			hpCost = 9999
+		}
+		if float64(aiCard.Stamina) < 0.5*float64(maxStamina) && aiCard.HP > hpCost && count < 3 {
+			canSacrifice = true
+		}
+		if canSacrifice {
+			if rand.Float64() < 0.99 {
+				return "sacrifice", 0
+			} else {
+				return "surrender", 0
+			}
+		} else {
+			if rand.Float64() < 0.95 {
+				return "surrender", 0
+			} else {
+				return "pass", 0
+			}
+		}
+	}
+	// If player passed, AI always attacks if possible
+	if playerMove == "pass" && canAttack {
+		moveIdx := rand.Intn(len(aiCard.Moves))
+		return "attack", moveIdx
+	}
+	// If player attacks, AI defends 66% of the time, attacks 34%
+	if playerMove == "attack" {
+		if rand.Float64() < 0.66 && canDefend {
+			return "defend", 0
+		}
+		if canAttack {
+			moveIdx := rand.Intn(len(aiCard.Moves))
+			return "attack", moveIdx
+		}
+	}
+	// If player defends, AI always attacks if possible
+	if playerMove == "defend" && canAttack {
+		moveIdx := rand.Intn(len(aiCard.Moves))
+		return "attack", moveIdx
+	}
+	// Default: attack if possible, else pass
+	if canAttack {
+		moveIdx := rand.Intn(len(aiCard.Moves))
+		return "attack", moveIdx
+	}
+	return "pass", 0
 }
 
-// StartBattleLoop asks the player to choose a Pokémon and AI chooses randomly, then starts the turn loop.
-func StartBattleLoop(scanner *bufio.Scanner, state *GameState) {
-	chosenIdx := state.PlayerActiveIdx
-	// AI chooses randomly
-	state.AIActiveIdx = rand.Intn(len(state.AI.Deck))
-	fmt.Printf("You chose %s. AI chose its Pokémon.\n", state.Player.Deck[chosenIdx].Name)
+// Process the result of a turn
+func processTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, playerCard, aiCard *pokemon.Card, state *GameState) {
+	// Track for player feedback
+	state.LastHpLost = 0
+	state.LastStaminaLost = 0
+	state.LastDamageDealt = 0
+
+	playerDefendCost := (playerCard.HPMax + 1) / 2
+	aiDefendCost := (aiCard.HPMax + 1) / 2
+
+	if playerMove == "pass" && aiMove == "pass" {
+		fmt.Println("Both passed. Nothing happened!")
+		return
+	}
+	if playerMove == "pass" {
+		// AI does its move, player does nothing
+		if aiMove == "attack" {
+			aiDmg := calculateDamage(aiCard, playerCard, false, aiMoveIdx)
+			playerCard.HP -= aiDmg
+			aiCard.Stamina -= aiCard.Moves[aiMoveIdx].StaminaCost
+			state.LastHpLost = aiDmg
+			state.LastStaminaLost = 0
+			state.LastDamageDealt = 0
+			fmt.Printf("You lost %d HP and %d stamina this turn. Your current HP: %d, current stamina: %d\n", aiDmg, 0, playerCard.HP, playerCard.Stamina)
+			fmt.Printf("You dealt 0 damage to the AI.\n")
+		} else if aiMove == "defend" {
+			aiCard.Stamina -= aiDefendCost
+			state.LastHpLost = 0
+			state.LastStaminaLost = 0
+			state.LastDamageDealt = 0
+			fmt.Printf("You lost 0 HP and 0 stamina this turn. Your current HP: %d, current stamina: %d\n", playerCard.HP, playerCard.Stamina)
+			fmt.Printf("You dealt 0 damage to the AI.\n")
+		}
+		return
+	}
+	if aiMove == "pass" {
+		// Player does their move, AI does nothing
+		if playerMove == "attack" {
+			playerDmg := calculateDamage(playerCard, aiCard, false, playerMoveIdx)
+			aiCard.HP -= playerDmg
+			playerCard.Stamina -= playerCard.Moves[playerMoveIdx].StaminaCost
+			state.LastHpLost = 0
+			state.LastStaminaLost = playerCard.Moves[playerMoveIdx].StaminaCost
+			state.LastDamageDealt = playerDmg
+			fmt.Printf("You lost 0 HP and %d stamina this turn. Your current HP: %d, current stamina: %d\n", playerCard.Moves[playerMoveIdx].StaminaCost, playerCard.HP, playerCard.Stamina)
+			fmt.Printf("You dealt %d damage to the AI.\n", playerDmg)
+		} else if playerMove == "defend" {
+			playerCard.Stamina -= playerDefendCost
+			state.LastHpLost = 0
+			state.LastStaminaLost = playerDefendCost
+			state.LastDamageDealt = 0
+			fmt.Printf("You lost 0 HP and %d stamina this turn. Your current HP: %d, current stamina: %d\n", playerDefendCost, playerCard.HP, playerCard.Stamina)
+			fmt.Printf("You dealt 0 damage to the AI.\n")
+		}
+		return
+	}
+	if playerMove == "attack" && aiMove == "attack" {
+		playerDmg := calculateDamage(playerCard, aiCard, false, playerMoveIdx)
+		aiDmg := calculateDamage(aiCard, playerCard, false, aiMoveIdx)
+		aiCard.HP -= playerDmg
+		playerCard.HP -= aiDmg
+		playerCard.Stamina -= playerCard.Moves[playerMoveIdx].StaminaCost
+		aiCard.Stamina -= aiCard.Moves[aiMoveIdx].StaminaCost
+		state.LastHpLost = aiDmg
+		state.LastStaminaLost = playerCard.Moves[playerMoveIdx].StaminaCost
+		state.LastDamageDealt = playerDmg
+	} else if playerMove == "attack" && aiMove == "defend" {
+		playerDmg := calculateDamage(playerCard, aiCard, true, playerMoveIdx)
+		aiCard.Stamina -= aiDefendCost
+		playerCard.Stamina -= playerCard.Moves[playerMoveIdx].StaminaCost
+		if playerDmg <= aiCard.Defense {
+			// AI blocks all damage
+			state.LastHpLost = 0
+			state.LastStaminaLost = playerCard.Moves[playerMoveIdx].StaminaCost
+			state.LastDamageDealt = 0
+		} else {
+			aiCard.HP -= (playerDmg - aiCard.Defense)
+			state.LastHpLost = 0
+			state.LastStaminaLost = playerCard.Moves[playerMoveIdx].StaminaCost
+			state.LastDamageDealt = playerDmg - aiCard.Defense
+		}
+	} else if playerMove == "defend" && aiMove == "attack" {
+		aiDmg := calculateDamage(aiCard, playerCard, true, aiMoveIdx)
+		playerCard.Stamina -= playerDefendCost
+		aiCard.Stamina -= aiCard.Moves[aiMoveIdx].StaminaCost
+		if aiDmg <= playerCard.Defense {
+			// Player blocks all damage
+			state.LastHpLost = 0
+			state.LastStaminaLost = playerDefendCost
+			state.LastDamageDealt = 0
+		} else {
+			playerCard.HP -= (aiDmg - playerCard.Defense)
+			state.LastHpLost = aiDmg - playerCard.Defense
+			state.LastStaminaLost = playerDefendCost
+			state.LastDamageDealt = 0
+		}
+	} else if playerMove == "defend" && aiMove == "defend" {
+		playerCard.Stamina -= playerDefendCost
+		aiCard.Stamina -= aiDefendCost
+		state.LastHpLost = 0
+		state.LastStaminaLost = playerDefendCost
+		state.LastDamageDealt = 0
+	}
+	// Clamp HP and stamina
+	if playerCard.HP < 0 {
+		playerCard.HP = 0
+	}
+	if aiCard.HP < 0 {
+		aiCard.HP = 0
+	}
+	if playerCard.Stamina < 0 {
+		playerCard.Stamina = 0
+	}
+	if aiCard.Stamina < 0 {
+		aiCard.Stamina = 0
+	}
+}
+
+// Calculate damage (probabilities shift with attack stat)
+func calculateDamage(attacker, defender *pokemon.Card, defenderDefending bool, moveIdx int) int {
+	move := attacker.Moves[moveIdx]
+	power := move.Power
+	attackStat := attacker.Attack
+	percent := rollDamagePercent(attackStat)
+	baseDmg := int(float64(power) * percent)
+	if defenderDefending {
+		baseDmg = int(float64(baseDmg) * 0.5)
+	}
+	return baseDmg
+}
+
+// Show round summary
+func showRoundSummary(state *GameState, playerCard, aiCard *pokemon.Card) {
+	fmt.Println("\n--- Round Summary ---")
+	if playerCard.HP <= 0 && aiCard.HP <= 0 {
+		fmt.Println("Both Pokémon were knocked out! It's a draw for this round.")
+	} else if playerCard.HP <= 0 {
+		fmt.Printf("You lost the round. %s is knocked out.\n", playerCard.Name)
+	} else if aiCard.HP <= 0 {
+		fmt.Printf("You won the round! AI's %s is knocked out.\n", aiCard.Name)
+	} else if state.RoundOver {
+		if playerCard.HP <= 0 {
+			fmt.Printf("You lost the round. %s is knocked out.\n", playerCard.Name)
+		} else {
+			fmt.Printf("You won the round! AI's %s is knocked out.\n", aiCard.Name)
+		}
+	} else {
+		fmt.Println("Round ended unexpectedly.")
+	}
+}
+
+// Prepare for the next round or end the battle
+func prepareNextRound(scanner *bufio.Scanner, state *GameState) {
+	player := state.Player
+	ai := state.AI
+	// Check if either side has usable Pokémon left
+	playerAlive := false
+	for _, c := range player.Deck {
+		if c.HP > 0 {
+			playerAlive = true
+			break
+		}
+	}
+	aiAlive := false
+	for _, c := range ai.Deck {
+		if c.HP > 0 {
+			aiAlive = true
+			break
+		}
+	}
+	if !playerAlive || !aiAlive || state.BattleOver {
+		fmt.Println("\n--- Battle Over ---")
+		if !playerAlive && !aiAlive {
+			fmt.Println("It's a draw! Both sides are out of Pokémon.")
+		} else if !playerAlive {
+			fmt.Println("You lost the battle. All your Pokémon are knocked out or surrendered.")
+		} else {
+			fmt.Println("You won the battle! The AI is out of Pokémon.")
+		}
+		// Reset all battle-related state
+		state.BattleStarted = false
+		state.InBattle = false
+		state.HaveCard = false
+		state.Round = 0
+		state.PlayerActiveIdx = 0
+		state.AIActiveIdx = 0
+		state.CardMovePlayer = 0
+		state.CardMoveAI = 0
+		state.CurrentMovetype = ""
+		state.RoundStarted = false
+		state.SwitchedThisRound = false
+		state.BattleOver = false
+		state.RoundOver = false
+		state.SacrificeCount = nil
+		return
+	}
+	// Next round
+	state.Round++
+	state.RoundOver = false
+	state.RoundStarted = false
+	state.SwitchedThisRound = false
+	fmt.Printf("\nPrepare for the %s round.\n", ordinal(state.Round))
+	// Winner can switch, loser must choose
+	if state.Player.Deck[state.PlayerActiveIdx].HP > 0 {
+		fmt.Println("You can use 'switch' to change your Pokémon, or continue with the same one (HP and stamina are not restored).")
+	} else {
+		fmt.Println("Your Pokémon is knocked out. Use 'choose' to pick a new one (cannot pick knocked out Pokémon).")
+		for {
+			fmt.Print("Enter the number of the card you want to choose: ")
+			if !scanner.Scan() {
+				return
+			}
+			input := strings.TrimSpace(scanner.Text())
+			var idx int
+			if n, err := fmt.Sscanf(input, "%d", &idx); err == nil && n == 1 && idx >= 1 && idx <= 5 {
+				idx--
+				if state.Player.Deck[idx].HP > 0 {
+					state.PlayerActiveIdx = idx
+					break
+				} else {
+					fmt.Println("That Pokémon is knocked out. Choose another.")
+				}
+			} else {
+				fmt.Println("Invalid card number. Please enter a number between 1 and 5.")
+			}
+		}
+	}
+	// AI chooses next available or switches if low HP/stamina
+	aiCurrent := &state.AI.Deck[state.AIActiveIdx]
+	aiShouldSwitch := false
+	if aiCurrent.HP > 0 {
+		lowHP := float64(aiCurrent.HP) < 0.3*float64(aiCurrent.HPMax)
+		lowStamina := float64(aiCurrent.Stamina) < 0.3*float64(aiCurrent.Stamina)
+		if lowHP || lowStamina {
+			bestIdx := state.AIActiveIdx
+			bestScore := aiCurrent.HP + aiCurrent.Stamina
+			for i, c := range state.AI.Deck {
+				if c.HP > 0 && (c.HP+c.Stamina) > bestScore {
+					bestIdx = i
+					bestScore = c.HP + c.Stamina
+				}
+			}
+			if bestIdx != state.AIActiveIdx {
+				state.AIActiveIdx = bestIdx
+				aiShouldSwitch = true
+			}
+		}
+	} else {
+		// AI's current is KO, must pick next available
+		for i, c := range state.AI.Deck {
+			if c.HP > 0 {
+				state.AIActiveIdx = i
+				break
+			}
+		}
+	}
+	if aiShouldSwitch {
+		fmt.Printf("AI switched to %s for this round.\n", state.AI.Deck[state.AIActiveIdx].Name)
+	}
+	// Start next round
 	StartTurnLoop(scanner, state)
 }
 
-// StartTurnLoop is a placeholder for the turn loop logic.
-func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
-	fmt.Println("[Turn loop will go here]")
-	fmt.Println(state)
-	fmt.Println(state.Player.Deck[state.PlayerActiveIdx].Name)
-	fmt.Println(state.Player.Deck[state.PlayerActiveIdx].HP)
-	fmt.Println(state.AI.Deck[state.AIActiveIdx].Name)
-	fmt.Println(state.AI.Deck[state.AIActiveIdx].HP)
-	fmt.Println(state.Player.Deck[state.PlayerActiveIdx].Moves[state.CardMovePlayer].Name) //print the attack move name for the pokemon
+// AI sacrifice logic
+func handleSacrificeAI(aiCard *pokemon.Card, state *GameState) {
+	aiIdx := state.AIActiveIdx
+	if state.SacrificeCount == nil {
+		state.SacrificeCount = make(map[int]int)
+	}
+	count := state.SacrificeCount[aiIdx]
+	maxStamina := int(float64(aiCard.HPMax) * 2.5)
+	if count >= 3 {
+		return
+	}
+	var hpCost int
+	var staminaGain float64
+	switch count {
+	case 0:
+		hpCost = 10
+		staminaGain = 0.5
+	case 1:
+		hpCost = 15
+		staminaGain = 0.25
+	case 2:
+		hpCost = 20
+		staminaGain = 0.15
+	}
+	if float64(aiCard.Stamina) >= 0.5*float64(maxStamina) {
+		return
+	}
+	if aiCard.HP <= hpCost {
+		return
+	}
+	aiCard.HP -= hpCost
+	gain := int(float64(maxStamina) * staminaGain)
+	aiCard.Stamina += gain
+	state.SacrificeCount[aiIdx] = count + 1
+}
+
+// Helper to get ordinal suffix for round numbers
+func ordinal(n int) string {
+	if n%100 >= 11 && n%100 <= 13 {
+		return fmt.Sprintf("%dth", n)
+	}
+	switch n % 10 {
+	case 1:
+		return fmt.Sprintf("%dst", n)
+	case 2:
+		return fmt.Sprintf("%dnd", n)
+	case 3:
+		return fmt.Sprintf("%drd", n)
+	default:
+		return fmt.Sprintf("%dth", n)
+	}
 }

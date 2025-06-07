@@ -23,8 +23,16 @@ func HandleCommand(input string, scanner *bufio.Scanner, state *GameState) {
 		CommandCardChooser(scanner, state)
 	case "attack":
 		CommandMovesAttack(scanner, state)
+	case "defend":
+		CommandDefendMove(state)
 	case "exit":
-		CommandExit()
+		CommandExit(state)
+	case "switch":
+		CommandSwitch(scanner, state)
+	case "surrender":
+		CommandSurrender(scanner, state, false)
+	case "surrender all":
+		CommandSurrender(scanner, state, true)
 	default:
 		CommandDefault()
 	}

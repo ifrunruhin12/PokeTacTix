@@ -17,8 +17,12 @@ func CommandListInBattle(state *GameState) {
 	fmt.Println("2. card     - Show the current card of the player")
 	fmt.Println("3. attack   - Choose a move to attack with")
 	fmt.Println("4. choose   - Choose a card to play")
-	fmt.Println("5. command --in-battle - Show this command list")
-	fmt.Println("6. exit     - Exit the game")
+	fmt.Println("5. switch   - Switch your active Pokémon before the round starts")
+	fmt.Println("6. surrender - Surrender this round (you lose the round)")
+	fmt.Println("7. surrender all - Surrender the whole battle (you lose the battle)")
+	fmt.Println("8. defend   - Choose to defend against an attack")
+	fmt.Println("9. command --in-battle - Show this command list")
+	fmt.Println("10. exit     - Exit the game")
 }
 
 func CommandCardChooser(scanner *bufio.Scanner, state *GameState) {
@@ -38,7 +42,7 @@ func CommandCardChooser(scanner *bufio.Scanner, state *GameState) {
 		fmt.Println("Invalid card number. Please enter a number between 1 and 5.")
 	}
 	state.HaveCard = true
-	StartBattleLoop(scanner, state)
+	StartTurnLoop(scanner, state)
 }
 
 func CommandMovesAttack(scanner *bufio.Scanner, state *GameState) {
@@ -67,6 +71,19 @@ func CommandMovesAttack(scanner *bufio.Scanner, state *GameState) {
 	state.CurrentMovetype = "attack"
 }
 
+func CommandDefendMove(state *GameState) {
+	if !state.BattleStarted {
+		fmt.Println("You need to start a battle first with the 'battle' command.")
+		return
+	}
+
+	if !state.HaveCard {
+		fmt.Println("You need to choose a card first with the 'choose' command and then attack.")
+		return
+	}
+	state.CurrentMovetype = "defend"
+}
+
 func CommandCardAll(state *GameState) {
 	if !state.BattleStarted {
 		fmt.Println("You need to start a battle first with the 'battle' command.")
@@ -89,4 +106,75 @@ func CommandCurrentCard(state *GameState) {
 		return
 	}
 	PrintCard(state.Player.AllCards()[state.PlayerActiveIdx])
+}
+
+// CommandSwitch allows the player to switch their active Pokémon before the round starts.
+func CommandSwitch(scanner *bufio.Scanner, state *GameState) {
+	if !state.BattleStarted {
+		fmt.Println("You need to start a battle first with the 'battle' command.")
+		return
+	}
+	if state.Round == 1 {
+		fmt.Println("You cannot switch before the first round. Use 'choose' to pick your first Pokémon.")
+		return
+	}
+	if !state.HaveCard {
+		fmt.Println("You need to choose a card first with the 'choose' command before you can switch.")
+		return
+	}
+	if state.RoundStarted {
+		fmt.Println("You can only switch before the round starts. Wait for the next round.")
+		return
+	}
+	if state.SwitchedThisRound {
+		fmt.Println("You have already switched this round.")
+		return
+	}
+	fmt.Print("Enter the number of the card you want to switch to: ")
+	if !scanner.Scan() {
+		return
+	}
+	input := strings.TrimSpace(scanner.Text())
+	var idx int
+	if n, err := fmt.Sscanf(input, "%d", &idx); err == nil && n == 1 && idx >= 1 && idx <= 5 {
+		idx-- // 1-based to 0-based
+		if idx == state.PlayerActiveIdx {
+			fmt.Println("You are already using this Pokémon.")
+			return
+		}
+		// Only allow switch if the chosen Pokémon is not knocked out
+		if state.Player.Deck[idx].HP <= 0 {
+			fmt.Println("You cannot switch to a knocked out Pokémon.")
+			return
+		}
+		state.PlayerActiveIdx = idx
+		fmt.Printf("You switched to %s. HP and Stamina remain as before.\n", state.Player.Deck[idx].Name)
+		state.SwitchedThisRound = true
+	} else {
+		fmt.Println("Invalid card number. Please enter a number between 1 and 5.")
+	}
+}
+
+// CommandSurrender handles surrendering the round or the whole battle.
+func CommandSurrender(scanner *bufio.Scanner, state *GameState, surrenderAll bool) {
+	if !state.BattleStarted {
+		fmt.Println("You need to start a battle first with the 'battle' command.")
+		return
+	}
+	if surrenderAll {
+		fmt.Println("You have surrendered the entire battle. You lose!")
+		state.BattleStarted = false
+		state.InBattle = false
+		state.BattleOver = true
+		return
+	}
+	// Surrender just the round
+	if state.RoundStarted {
+		fmt.Println("You have surrendered this round. You lose the round!")
+		state.Player.Deck[state.PlayerActiveIdx].HP = 0 // Mark current Pokémon as KO
+		state.RoundOver = true
+		// Next: prompt for choose for next round, handled in battle loop
+	} else {
+		fmt.Println("You can only surrender during a round.")
+	}
 }

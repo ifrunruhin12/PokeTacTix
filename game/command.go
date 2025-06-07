@@ -9,23 +9,31 @@ import (
 )
 
 type GameState struct {
-	BattleStarted   bool
-	Player          *Player
-	AI              *Player
-	PlayerName      string
-	InBattle        bool
-	HaveCard        bool
-	Round           int
-	PlayerActiveIdx int
-	AIActiveIdx     int
-	CardMovePlayer  int
-	CardMoveAI      int
-	CurrentMovetype string
+	BattleStarted     bool
+	Player            *Player
+	AI                *Player
+	PlayerName        string
+	InBattle          bool
+	HaveCard          bool
+	Round             int
+	PlayerActiveIdx   int
+	AIActiveIdx       int
+	CardMovePlayer    int
+	CardMoveAI        int
+	CurrentMovetype   string
+	RoundStarted      bool
+	SwitchedThisRound bool
+	BattleOver        bool
+	RoundOver         bool
+	SacrificeCount    map[int]int // key: PlayerActiveIdx, value: number of sacrifices for that Pokémon
+	LastHpLost        int
+	LastStaminaLost   int
+	LastDamageDealt   int
 }
 
 func CommandList(state *GameState) {
 	if state.BattleStarted {
-		fmt.Println("You are in a battle now. Use 'command --in-game' to see the available commands")
+		fmt.Println("You are in a battle now. Use 'command --in-battle' to see the available commands")
 		return
 	}
 
@@ -86,7 +94,11 @@ func CommandBattle(scanner *bufio.Scanner, state *GameState) {
 	state.Round = 1
 }
 
-func CommandExit() {
+func CommandExit(state *GameState) {
+	if state != nil && state.BattleStarted {
+		fmt.Println("You need to finish the battle first before exiting. Use 'surrender all' to immediately lose and exit.")
+		return
+	}
 	fmt.Println("Thanks for playing! Goodbye.")
 	os.Exit(0)
 }
