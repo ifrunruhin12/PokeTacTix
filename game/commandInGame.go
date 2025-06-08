@@ -115,7 +115,7 @@ func CommandSwitch(scanner *bufio.Scanner, state *GameState) {
 		return
 	}
 	if state.Round == 1 {
-		fmt.Println("You cannot switch before the first round. Use 'choose' to pick your first Pokémon.")
+		fmt.Println("You can't switch your Pokémon right now. The battle just started and your current Pokémon hasn't played a round yet.")
 		return
 	}
 	if !state.HaveCard {
@@ -150,6 +150,7 @@ func CommandSwitch(scanner *bufio.Scanner, state *GameState) {
 		state.PlayerActiveIdx = idx
 		fmt.Printf("You switched to %s. HP and Stamina remain as before.\n", state.Player.Deck[idx].Name)
 		state.SwitchedThisRound = true
+		state.JustSwitched = true
 	} else {
 		fmt.Println("Invalid card number. Please enter a number between 1 and 5.")
 	}
@@ -166,6 +167,7 @@ func CommandSurrender(scanner *bufio.Scanner, state *GameState, surrenderAll boo
 		state.BattleStarted = false
 		state.InBattle = false
 		state.BattleOver = true
+		state.PlayerSurrendered = true
 		return
 	}
 	// Surrender just the round

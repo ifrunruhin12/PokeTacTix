@@ -29,6 +29,8 @@ type GameState struct {
 	LastHpLost        int
 	LastStaminaLost   int
 	LastDamageDealt   int
+	PlayerSurrendered bool // Track if player surrendered the whole battle
+	JustSwitched      bool // true if player just switched and hasn't played a round yet
 }
 
 func CommandList(state *GameState) {
@@ -40,7 +42,7 @@ func CommandList(state *GameState) {
 	fmt.Println("Available commands:")
 	fmt.Println("1. search   - Search for a Pokémon by name and see its card")
 	fmt.Println("2. battle   - Start a 5v5 match against AI (get 5 random cards)")
-	fmt.Println("3. command  - Show this command list\n\t\t--in-battle (Type 'command --in-game' to see the commands available in a battle)")
+	fmt.Println("3. command  - Show this command list\n\t\t--in-battle (Type 'command --in-battle' to see the commands available in a battle)")
 	fmt.Println("4. exit     - Exit the game")
 }
 

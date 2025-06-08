@@ -13,9 +13,6 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 	turn := 1
 	player := state.Player
 	ai := state.AI
-	playerCard := &player.Deck[state.PlayerActiveIdx]
-	aiCard := &ai.Deck[state.AIActiveIdx]
-
 	// Reset sacrifice count for this round
 	if state.SacrificeCount == nil {
 		state.SacrificeCount = make(map[int]int)
@@ -26,6 +23,8 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 	fmt.Println("Choose your move with the correct command. To see all the in-battle commands type 'command --in-battle'.")
 
 	for {
+		playerCard := &player.Deck[state.PlayerActiveIdx]
+		aiCard := &ai.Deck[state.AIActiveIdx]
 		if playerCard.HP <= 0 || aiCard.HP <= 0 || state.RoundOver || state.BattleOver {
 			break
 		}
@@ -54,7 +53,16 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 				handleSacrificeAI(aiCard, state)
 				continue
 			}
+			if aiMove == "surrender" {
+				fmt.Println("AI surrendered this round!")
+				aiCard.HP = 0
+				state.RoundOver = true
+				break
+			}
 			fmt.Printf("AI chose to %s.\n", aiMove)
+			// Re-assign playerCard and aiCard after possible switch
+			playerCard = &player.Deck[state.PlayerActiveIdx]
+			aiCard = &ai.Deck[state.AIActiveIdx]
 		} else {
 			// Even turns: AI chooses first, then player
 			aiMove, aiMoveIdx = getAIMove("", aiCard, state, state.AIActiveIdx)
@@ -62,6 +70,12 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 			if aiMove == "sacrifice" {
 				handleSacrificeAI(aiCard, state)
 				continue
+			}
+			if aiMove == "surrender" {
+				fmt.Println("AI surrendered this round!")
+				aiCard.HP = 0
+				state.RoundOver = true
+				break
 			}
 			fmt.Printf("AI chose to %s.\n", aiMove)
 			playerMove, playerMoveIdx = getPlayerMove(scanner, state, playerCard)
@@ -78,6 +92,9 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 				handleSacrifice(state, playerCard)
 				continue
 			}
+			// Re-assign playerCard and aiCard after possible switch
+			playerCard = &player.Deck[state.PlayerActiveIdx]
+			aiCard = &ai.Deck[state.AIActiveIdx]
 		}
 		// Process moves
 		processTurnResult(playerMove, aiMove, playerMoveIdx, aiMoveIdx, playerCard, aiCard, state)
@@ -98,7 +115,7 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 		turn++
 	}
 	// End of round
-	showRoundSummary(state, playerCard, aiCard)
+	showRoundSummary(state, &player.Deck[state.PlayerActiveIdx], &ai.Deck[state.AIActiveIdx])
 	prepareNextRound(scanner, state)
 }
 
@@ -118,9 +135,25 @@ func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon
 			CommandSurrender(scanner, state, true)
 			return "surrender all", 0
 		}
-		if move == "switch" && state.RoundStarted == false && state.SwitchedThisRound == false && state.Round > 1 && playerCard.HP > 0 {
-			CommandSwitch(scanner, state)
-			continue
+		if move == "switch" {
+			if state.JustSwitched {
+				fmt.Println("You can't switch right after choosing a new Pokémon. Play at least one round first.")
+				continue
+			}
+			if state.RoundStarted {
+				fmt.Println("You can't switch now that you are in the middle of the play.")
+				continue
+			}
+			if state.Round == 1 {
+				fmt.Println("You can't switch your Pokémon right now. The battle just started and your current Pokémon hasn't played a round yet.")
+				continue
+			}
+			if !state.RoundStarted && !state.SwitchedThisRound && state.Round > 1 && playerCard.HP > 0 {
+				CommandSwitch(scanner, state)
+				playerCard = &state.Player.Deck[state.PlayerActiveIdx]
+				state.JustSwitched = true
+				continue
+			}
 		}
 		if move == "attack" {
 			moveIdx := 0
@@ -142,6 +175,7 @@ func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon
 				continue
 			}
 			state.CardMovePlayer = moveIdx
+			state.JustSwitched = false
 			return "attack", moveIdx
 		}
 		if move == "defend" {
@@ -150,6 +184,7 @@ func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon
 				fmt.Println("Not enough stamina to defend. Use 'sacrifice', 'pass', or 'surrender'.")
 				continue
 			}
+			state.JustSwitched = false
 			return "defend", 0
 		}
 		if move == "sacrifice" {
@@ -177,9 +212,11 @@ func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon
 				fmt.Printf("Not enough HP to sacrifice. You need at least %d HP.\n", hpCost+1)
 				continue
 			}
+			state.JustSwitched = false
 			return "sacrifice", 0
 		}
 		if move == "pass" {
+			state.JustSwitched = false
 			return "pass", 0
 		}
 		if move == "surrender" {
@@ -332,15 +369,11 @@ func processTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, 
 			state.LastHpLost = aiDmg
 			state.LastStaminaLost = 0
 			state.LastDamageDealt = 0
-			fmt.Printf("You lost %d HP and %d stamina this turn. Your current HP: %d, current stamina: %d\n", aiDmg, 0, playerCard.HP, playerCard.Stamina)
-			fmt.Printf("You dealt 0 damage to the AI.\n")
 		} else if aiMove == "defend" {
 			aiCard.Stamina -= aiDefendCost
 			state.LastHpLost = 0
 			state.LastStaminaLost = 0
 			state.LastDamageDealt = 0
-			fmt.Printf("You lost 0 HP and 0 stamina this turn. Your current HP: %d, current stamina: %d\n", playerCard.HP, playerCard.Stamina)
-			fmt.Printf("You dealt 0 damage to the AI.\n")
 		}
 		return
 	}
@@ -353,15 +386,11 @@ func processTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, 
 			state.LastHpLost = 0
 			state.LastStaminaLost = playerCard.Moves[playerMoveIdx].StaminaCost
 			state.LastDamageDealt = playerDmg
-			fmt.Printf("You lost 0 HP and %d stamina this turn. Your current HP: %d, current stamina: %d\n", playerCard.Moves[playerMoveIdx].StaminaCost, playerCard.HP, playerCard.Stamina)
-			fmt.Printf("You dealt %d damage to the AI.\n", playerDmg)
 		} else if playerMove == "defend" {
 			playerCard.Stamina -= playerDefendCost
 			state.LastHpLost = 0
 			state.LastStaminaLost = playerDefendCost
 			state.LastDamageDealt = 0
-			fmt.Printf("You lost 0 HP and %d stamina this turn. Your current HP: %d, current stamina: %d\n", playerDefendCost, playerCard.HP, playerCard.Stamina)
-			fmt.Printf("You dealt 0 damage to the AI.\n")
 		}
 		return
 	}
@@ -464,6 +493,28 @@ func showRoundSummary(state *GameState, playerCard, aiCard *pokemon.Card) {
 func prepareNextRound(scanner *bufio.Scanner, state *GameState) {
 	player := state.Player
 	ai := state.AI
+	// Check if player surrendered the whole battle
+	if state.PlayerSurrendered {
+		fmt.Println("\n--- Battle Over ---")
+		fmt.Println("Player fully surrendered. AI won the battle.")
+		// Reset all battle-related state
+		state.BattleStarted = false
+		state.InBattle = false
+		state.HaveCard = false
+		state.Round = 0
+		state.PlayerActiveIdx = 0
+		state.AIActiveIdx = 0
+		state.CardMovePlayer = 0
+		state.CardMoveAI = 0
+		state.CurrentMovetype = ""
+		state.RoundStarted = false
+		state.SwitchedThisRound = false
+		state.BattleOver = false
+		state.RoundOver = false
+		state.SacrificeCount = nil
+		state.PlayerSurrendered = false
+		return
+	}
 	// Check if either side has usable Pokémon left
 	playerAlive := false
 	for _, c := range player.Deck {
@@ -527,6 +578,7 @@ func prepareNextRound(scanner *bufio.Scanner, state *GameState) {
 				idx--
 				if state.Player.Deck[idx].HP > 0 {
 					state.PlayerActiveIdx = idx
+					state.JustSwitched = true
 					break
 				} else {
 					fmt.Println("That Pokémon is knocked out. Choose another.")
