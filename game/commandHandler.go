@@ -13,6 +13,8 @@ func HandleCommand(input string, scanner *bufio.Scanner, state *GameState) {
 		CommandListInBattle(state)
 	case "search":
 		CommandSearch(scanner, state)
+	case "version":
+		CommandVersion()
 	case "battle":
 		CommandBattle(scanner, state)
 	case "card all":
