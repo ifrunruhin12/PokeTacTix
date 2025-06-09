@@ -136,25 +136,29 @@ func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon
 			return "surrender all", 0
 		}
 		if move == "switch" {
+			// Switch logic - only allow at turn 1, after playing a round, and if current pokemon won previous round
+			if state.TurnNumber > 1 {
+				fmt.Println("You can only switch at the beginning of a round (Turn 1). Wait for the next round.")
+				continue
+			}
 			if state.JustSwitched {
 				fmt.Println("You can't switch right after choosing a new Pokémon. Play at least one round first.")
 				continue
 			}
-			if state.RoundStarted {
-				fmt.Println("You can't switch now that you are in the middle of the play.")
+			if !state.HasPlayedRound {
+				fmt.Println("You can't switch your Pokémon right now. Your current Pokémon needs to play at least one complete round first.")
 				continue
 			}
-			if state.Round == 1 {
-				fmt.Println("You can't switch your Pokémon right now. The battle just started and your current Pokémon hasn't played a round yet.")
+			if playerCard.HP <= 0 {
+				fmt.Println("Your current Pokémon is knocked out. Use 'choose' to select a new one instead.")
 				continue
 			}
-			if !state.RoundStarted && !state.SwitchedThisRound && state.Round > 1 && playerCard.HP > 0 {
-				CommandSwitch(scanner, state)
-				playerCard = &state.Player.Deck[state.PlayerActiveIdx]
-				state.JustSwitched = true
-				continue
-			}
+			CommandSwitch(scanner, state)
+			// Update playerCard reference after potential switch
+			playerCard = &state.Player.Deck[state.PlayerActiveIdx]
+			continue
 		}
+
 		if move == "attack" {
 			moveIdx := 0
 			if len(playerCard.Moves) > 1 {

@@ -31,6 +31,8 @@ type GameState struct {
 	LastDamageDealt   int
 	PlayerSurrendered bool // Track if player surrendered the whole battle
 	JustSwitched      bool // true if player just switched and hasn't played a round yet
+	HasPlayedRound    bool
+	TurnNumber        int
 }
 
 func CommandList(state *GameState) {

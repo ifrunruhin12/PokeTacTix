@@ -114,22 +114,35 @@ func CommandSwitch(scanner *bufio.Scanner, state *GameState) {
 		fmt.Println("You need to start a battle first with the 'battle' command.")
 		return
 	}
-	if state.Round == 1 {
-		fmt.Println("You can't switch your Pokémon right now. The battle just started and your current Pokémon hasn't played a round yet.")
-		return
-	}
 	if !state.HaveCard {
 		fmt.Println("You need to choose a card first with the 'choose' command before you can switch.")
 		return
 	}
-	if state.RoundStarted {
-		fmt.Println("You can only switch before the round starts. Wait for the next round.")
+	
+	// Check if we just switched or chose a new pokemon
+	if state.JustSwitched {
+		fmt.Println("You can't switch right after choosing a new Pokémon. Play at least one round first.")
 		return
 	}
-	if state.SwitchedThisRound {
-		fmt.Println("You have already switched this round.")
+	
+	// Check if we're in the middle of a round (turn > 1)
+	if state.TurnNumber > 1 {
+		fmt.Println("You can only switch at the beginning of a round (Turn 1). Wait for the next round.")
 		return
 	}
+	
+	// Check if current pokemon hasn't played a complete round yet
+	if !state.HasPlayedRound {
+		fmt.Println("You can't switch your Pokémon right now. Your current Pokémon needs to play at least one complete round first.")
+		return
+	}
+	
+	// Check if current pokemon is knocked out (shouldn't be able to switch from KO'd pokemon)
+	if state.Player.Deck[state.PlayerActiveIdx].HP <= 0 {
+		fmt.Println("Your current Pokémon is knocked out. Use 'choose' to select a new one instead.")
+		return
+	}
+	
 	fmt.Print("Enter the number of the card you want to switch to: ")
 	if !scanner.Scan() {
 		return
@@ -149,8 +162,8 @@ func CommandSwitch(scanner *bufio.Scanner, state *GameState) {
 		}
 		state.PlayerActiveIdx = idx
 		fmt.Printf("You switched to %s. HP and Stamina remain as before.\n", state.Player.Deck[idx].Name)
-		state.SwitchedThisRound = true
 		state.JustSwitched = true
+		state.HasPlayedRound = false
 	} else {
 		fmt.Println("Invalid card number. Please enter a number between 1 and 5.")
 	}
