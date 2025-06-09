@@ -1,7 +1,7 @@
 package pokemon
 
 func BuildCardFromPokemon(poke Pokemon, moves []Move) Card {
-	var hp, defense, attack int
+	var hp, defense, attack, speed int
 	for _, stat := range poke.Stats {
 		switch stat.StName.Name {
 		case "hp":
@@ -10,10 +10,13 @@ func BuildCardFromPokemon(poke Pokemon, moves []Move) Card {
 			defense = stat.BaseSt
 		case "attack":
 			attack = stat.BaseSt
+		case "speed":
+			speed = stat.BaseSt
 		}
 	}
 
-	stamina := int(float64(hp) * 2.5)
+	stamina := speed * 2
+
 	hp = hp + int(float64(hp)*0.5) // 50% of HP is added to the card
 
 	types := make([]string, len(poke.Types))
@@ -36,3 +39,4 @@ func BuildCardFromPokemon(poke Pokemon, moves []Move) Card {
 		Sprite:  sprite,
 	}
 }
+

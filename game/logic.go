@@ -465,10 +465,17 @@ func calculateDamage(attacker, defender *pokemon.Card, defenderDefending bool, m
 	move := attacker.Moves[moveIdx]
 	power := move.Power
 	attackStat := attacker.Attack
+
+
 	percent := rollDamagePercent(attackStat)
 	baseDmg := int(float64(power) * percent)
+
+	typeMultiplier := TypeMultiplier(move.Type, defender.Types, attacker.Name)
+	baseDmg = int(float64(baseDmg) * typeMultiplier)
+
+
 	if defenderDefending {
-		baseDmg = int(float64(baseDmg) * 0.5)
+		baseDmg = int(float64(baseDmg) * 0.25)
 	}
 	return baseDmg
 }
