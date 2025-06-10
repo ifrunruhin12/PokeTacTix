@@ -33,6 +33,7 @@ type GameState struct {
 	JustSwitched      bool // true if player just switched and hasn't played a round yet
 	HasPlayedRound    bool
 	TurnNumber        int
+	BattleMode        string // "1v1" or "5v5"
 }
 
 func CommandList(state *GameState) {
@@ -44,7 +45,7 @@ func CommandList(state *GameState) {
 	fmt.Println("Available commands:")
 	fmt.Println("1. search   - Search for a Pokémon by name and see its card")
 	fmt.Println("2. version  - Show the version of the game")
-	fmt.Println("3. battle   - Start a 5v5 match against AI (get 5 random cards)")
+	fmt.Println("3. battle   - Start a 1v1 or 5v5 match against AI (get random cards)")
 	fmt.Println("4. command  - Show this command list\n\t\t--in-battle (Type 'command --in-battle' to see the commands available in a battle)")
 	fmt.Println("5. exit     - Exit the game")
 }
@@ -83,22 +84,54 @@ func CommandBattle(scanner *bufio.Scanner, state *GameState) {
 		return
 	}
 	playerName := strings.TrimSpace(scanner.Text())
-	fmt.Printf("%s, do you want to start the battle? (y/n): ", playerName)
+
+	for {
+		fmt.Print("Choose battle mode (1v1 or 5v5): ")
+		if !scanner.Scan() {
+			return
+		}
+		battleMode := strings.ToLower(strings.TrimSpace(scanner.Text()))
+		if battleMode == "1v1" || battleMode == "5v5" {
+			state.BattleMode = battleMode
+			break
+		}
+		fmt.Println("Invalid battle mode. Please enter '1v1' or '5v5'.")
+	}
+
+	if state.BattleMode == "1v1" {
+		fmt.Printf("%s, do you want to start the 1v1 battle? (y/n): ", playerName)
+	} else {
+		fmt.Printf("%s, do you want to start the 5v5 battle? (y/n): ", playerName)
+	}
+
 	if !scanner.Scan() {
 		return
 	}
+
 	confirm := strings.ToLower(strings.TrimSpace(scanner.Text()))
 	if confirm != "y" && confirm != "yes" {
 		fmt.Println("Battle cancelled.")
 		return
 	}
-	state.Player = NewPlayer(playerName, FetchRandomDeck())
-	state.AI = NewPlayer("AI", FetchRandomDeck())
+
+	if state.BattleMode == "1v1" {
+		playerDeck := []pokemon.Card{FetchRandomCard()}
+		aiDeck := []pokemon.Card{FetchRandomCard()}
+		state.Player = &Player{Name: playerName, Deck: playerDeck}
+		state.AI = &Player{Name: "AI", Deck: aiDeck}
+		fmt.Println("1v1 Battle started! You and AI each have 1 random Pokémon card.")
+		fmt.Println("Use 'card' to view your card and get ready to battle!")
+		StartTurnLoop(scanner, state)
+	} else {
+		state.Player = NewPlayer(playerName, FetchRandomDeck())
+		state.AI = NewPlayer("AI", FetchRandomDeck())
+		fmt.Println("5v5 Battle started! You and AI each have 5 random Pokémon cards.")
+		fmt.Println("Use 'card all' to view your cards and use 'choose' to choose your card to play. (You cannot see AI's cards.)")
+	}
+	
 	state.BattleStarted = true
 	state.PlayerName = playerName
-	fmt.Println("Battle started! You and AI each have 5 random Pokémon cards.")
 	fmt.Println("You are in a Battle with", state.AI.Name)
-	fmt.Println("Use 'card all' to view your cards and use 'choose' to choose your card to play. (You cannot see AI's cards.)")
 	state.InBattle = true
 	state.Round = 1
 }
@@ -114,4 +147,10 @@ func CommandExit(state *GameState) {
 
 func CommandDefault() {
 	fmt.Println("Unknown command. Type 'command' to see all available commands.")
+}
+
+// Helper function to fetch a single random card
+func FetchRandomCard() pokemon.Card {
+	deck := FetchRandomDeck()
+	return deck[0] // Return the first card from a random deck
 }

@@ -111,9 +111,9 @@ PokeTacTix/
 - [x] In-battle and out-of-battle command separation
 - [x] Prevent exit during battle
 - [x] View current card at any time with 'card' command
-- [ ] **Type Multiplier/Weakness:** Implement real Pokémon type effectiveness (planned)
-- [ ] **Legendary/Mythical Power:** Legendary/mythical Pokémon will do 2x damage to normal Pokémon (planned)
-- [ ] **Stamina Based on Speed:** Stamina will be based on Pokémon speed stat from PokéAPI (planned)
+- [x] **Type Multiplier/Weakness:** Implement real Pokémon type effectiveness (planned)
+- [x] **Legendary/Mythical Power:** Legendary/mythical Pokémon will do 2x damage to normal Pokémon (planned)
+- [x] **Stamina Based on Speed:** Stamina will be based on Pokémon speed stat from PokéAPI (planned)
 - [ ] **1v1 Battles:** Add option for short 1v1 battles against AI (planned)
 - [ ] Build a Go web server using Fiber to serve the game over HTTP
 - [ ] Create a modern frontend using Alpine.js to make the cards look cooler and give the game life

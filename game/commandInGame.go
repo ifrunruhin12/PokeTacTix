@@ -8,22 +8,26 @@ import (
 
 func CommandListInBattle(state *GameState) {
 	if !state.BattleStarted {
-		fmt.Println("You are not in a battle yet. This commands only works when in a battle. Use the command 'battle' to start one.")
+		fmt.Println("You are not in a battle.")
 		return
 	}
 
-	fmt.Println("Available commands:")
-	fmt.Println("1. card all - Show all your cards")
-	fmt.Println("2. card     - Show the current card of the player")
-	fmt.Println("3. attack   - Choose a move to attack with")
-	fmt.Println("4. choose   - Choose a card to play")
-	fmt.Println("5. switch   - Switch your active Pokémon before the round starts")
-	fmt.Println("6. surrender - Surrender this round (you lose the round)")
-	fmt.Println("7. surrender all - Surrender the whole battle (you lose the battle)")
-	fmt.Println("8. defend   - Choose to defend against an attack")
-	fmt.Println("9. command --in-battle - Show this command list")
-	fmt.Println("10. exit     - Exit the game")
+	fmt.Println("Available commands in battle:")
+	fmt.Println("1. attack    - Attack the opponent")
+	fmt.Println("2. defend    - Defend against opponent's attack")
+	fmt.Println("3. sacrifice - Sacrifice HP to gain stamina (when stamina < 50%)")
+	fmt.Println("4. pass      - Do nothing this turn")
+	fmt.Println("5. surrender - Surrender current round")
+	fmt.Println("6. surrender all - Surrender the entire battle")
+	fmt.Println("7. card      - View your current active card")
+	
+	if state.BattleMode == "5v5" {
+		fmt.Println("8. card all  - View all your cards")
+		fmt.Println("9. choose    - Choose which card to play")
+		fmt.Println("10. switch   - Switch to a different Pokémon (only at start of round)")
+	}
 }
+
 
 func CommandCardChooser(scanner *bufio.Scanner, state *GameState) {
 	if !state.BattleStarted {
@@ -97,15 +101,21 @@ func CommandCardAll(state *GameState) {
 
 func CommandCurrentCard(state *GameState) {
 	if !state.BattleStarted {
-		fmt.Println("You need to start a battle first with the 'battle' command.")
+		fmt.Println("You are not in a battle.")
 		return
 	}
-
-	if !state.HaveCard {
-		fmt.Println("You need to choose a card first with the 'choose' command.")
-		return
+	
+	if state.BattleMode == "1v1" {
+		// In 1v1, there's only one card at index 0
+		PrintCard(state.Player.Deck[0])
+	} else {
+		// In 5v5, show the active card
+		if !state.HaveCard {
+			fmt.Println("You haven't chosen a card yet. Use 'choose' to select one.")
+			return
+		}
+		PrintCard(state.Player.Deck[state.PlayerActiveIdx])
 	}
-	PrintCard(state.Player.AllCards()[state.PlayerActiveIdx])
 }
 
 // CommandSwitch allows the player to switch their active Pokémon before the round starts.

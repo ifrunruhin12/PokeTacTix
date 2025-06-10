@@ -19,15 +19,23 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 	}
 	state.SacrificeCount[state.PlayerActiveIdx] = 0
 
-	fmt.Printf("\nThe %s Round of the battle has started! It's Turn 1 for both player and AI.\n", ordinal(state.Round))
+	if state.BattleMode == "1v1" {
+		fmt.Printf("\nThe 1v1 battle has started! It's Turn 1 for both player and AI.\n")
+		fmt.Println("This battle will continue until one Pokémon is knocked out or surrenders.")
+	} else {
+		fmt.Printf("\nThe %s Round of the battle has started! It's Turn 1 for both player and AI.\n", ordinal(state.Round))
+	}
+
 	fmt.Println("Choose your move with the correct command. To see all the in-battle commands type 'command --in-battle'.")
 
 	for {
 		playerCard := &player.Deck[state.PlayerActiveIdx]
 		aiCard := &ai.Deck[state.AIActiveIdx]
+
 		if playerCard.HP <= 0 || aiCard.HP <= 0 || state.RoundOver || state.BattleOver {
 			break
 		}
+
 		fmt.Printf("\n--- Turn %d ---\n", turn)
 		var playerMove, aiMove string
 		var playerMoveIdx, aiMoveIdx int
@@ -115,14 +123,40 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 		turn++
 	}
 	// End of round
-	showRoundSummary(state, &player.Deck[state.PlayerActiveIdx], &ai.Deck[state.AIActiveIdx])
-	prepareNextRound(scanner, state)
+	if state.BattleMode == "1v1" {
+		showBattleResult(state, &player.Deck[0], &ai.Deck[0])
+		resetBattleState(state)
+	} else {
+		showRoundSummary(state, &player.Deck[state.PlayerActiveIdx], &ai.Deck[state.AIActiveIdx])
+		prepareNextRound(scanner, state)
+	}
+}
+
+
+//Function to show battle result of 1v1 battle
+func showBattleResult(state *GameState, playerCard, aiCard *pokemon.Card) {
+	fmt.Println("\n--- Battle Over ---")
+		if playerCard.HP <= 0 && aiCard.HP <= 0 {
+		fmt.Println("It's a draw! Both Pokémon were knocked out.")
+	} else if playerCard.HP <= 0 {
+		fmt.Printf("You lost the battle. %s was knocked out.\n", playerCard.Name)
+	} else if aiCard.HP <= 0 {
+		fmt.Printf("You won the battle! AI's %s was knocked out.\n", aiCard.Name)
+	} else if state.PlayerSurrendered {
+		fmt.Println("You surrendered the battle. AI wins.")
+	} else {
+		fmt.Println("Battle ended unexpectedly.")
+	}
 }
 
 // Get the player's move (attack/defend/surrender/sacrifice/pass)
 func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon.Card) (string, int) {
 	for {
-		fmt.Print("Enter your move (attack/defend/surrender/sacrifice/pass). To see the card you are battling with use the 'card' command. To end/lose the game use 'surrender all' command. You can use the 'switch' command to switch to different pokemon if the requirements met: ")
+		if state.BattleMode == "5v5" {
+			fmt.Print("Enter your move (attack/defend/surrender/sacrifice/pass). To see the card you are battling with use the 'card' command. To end/lose the game use 'surrender all' command. You can use the 'switch' command to switch to different pokemon if the requirements met: ")
+		} else {
+			fmt.Print("Enter your move (attack/defend/surrender/sacrifice/pass). To see the card you are battling with use the 'card' command. To end/lose the game use 'surrender all' command: ")
+		}
 		if !scanner.Scan() {
 			return "surrender", 0 // treat EOF as surrender
 		}
@@ -136,6 +170,10 @@ func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon
 			return "surrender all", 0
 		}
 		if move == "switch" {
+			if state.BattleMode == "1v1" {
+				fmt.Println("'switch' is not available in 1v1 battles. You only have one Pokémon.")
+				continue
+			}
 			// Switch logic - only allow at turn 1, after playing a round, and if current pokemon won previous round
 			if state.TurnNumber > 1 {
 				fmt.Println("You can only switch at the beginning of a round (Turn 1). Wait for the next round.")
@@ -502,6 +540,9 @@ func showRoundSummary(state *GameState, playerCard, aiCard *pokemon.Card) {
 
 // Prepare for the next round or end the battle
 func prepareNextRound(scanner *bufio.Scanner, state *GameState) {
+	if state.BattleMode == "1v1" {
+		return
+	}
 	player := state.Player
 	ai := state.AI
 	// Check if player surrendered the whole battle
@@ -509,23 +550,10 @@ func prepareNextRound(scanner *bufio.Scanner, state *GameState) {
 		fmt.Println("\n--- Battle Over ---")
 		fmt.Println("Player fully surrendered. AI won the battle.")
 		// Reset all battle-related state
-		state.BattleStarted = false
-		state.InBattle = false
-		state.HaveCard = false
-		state.Round = 0
-		state.PlayerActiveIdx = 0
-		state.AIActiveIdx = 0
-		state.CardMovePlayer = 0
-		state.CardMoveAI = 0
-		state.CurrentMovetype = ""
-		state.RoundStarted = false
-		state.SwitchedThisRound = false
-		state.BattleOver = false
-		state.RoundOver = false
-		state.SacrificeCount = nil
-		state.PlayerSurrendered = false
+		resetBattleState(state)
 		return
 	}
+
 	// Check if either side has usable Pokémon left
 	playerAlive := false
 	for _, c := range player.Deck {
@@ -551,22 +579,10 @@ func prepareNextRound(scanner *bufio.Scanner, state *GameState) {
 			fmt.Println("You won the battle! The AI is out of Pokémon.")
 		}
 		// Reset all battle-related state
-		state.BattleStarted = false
-		state.InBattle = false
-		state.HaveCard = false
-		state.Round = 0
-		state.PlayerActiveIdx = 0
-		state.AIActiveIdx = 0
-		state.CardMovePlayer = 0
-		state.CardMoveAI = 0
-		state.CurrentMovetype = ""
-		state.RoundStarted = false
-		state.SwitchedThisRound = false
-		state.BattleOver = false
-		state.RoundOver = false
-		state.SacrificeCount = nil
+		resetBattleState(state)
 		return
 	}
+
 	// Next round
 	state.Round++
 	state.RoundOver = false
@@ -686,4 +702,24 @@ func ordinal(n int) string {
 	default:
 		return fmt.Sprintf("%dth", n)
 	}
+}
+
+// Helper function to reset battle state
+func resetBattleState(state *GameState) {
+	state.BattleStarted = false
+	state.InBattle = false
+	state.HaveCard = false
+	state.Round = 0
+	state.PlayerActiveIdx = 0
+	state.AIActiveIdx = 0
+	state.CardMovePlayer = 0
+	state.CardMoveAI = 0
+	state.CurrentMovetype = ""
+	state.RoundStarted = false
+	state.SwitchedThisRound = false
+	state.BattleOver = false
+	state.RoundOver = false
+	state.SacrificeCount = nil
+	state.PlayerSurrendered = false
+	state.BattleMode = ""
 }
