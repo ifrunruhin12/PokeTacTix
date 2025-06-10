@@ -43,11 +43,21 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 		if turn%2 == 1 {
 			playerMove, playerMoveIdx = getPlayerMove(scanner, state, playerCard)
 			if playerMove == "surrender" {
-				fmt.Println("You surrendered this round!")
-				playerCard.HP = 0
-				state.RoundOver = true
-				break
+				if state.BattleMode == "1v1" {
+					fmt.Println("You surrendered the battle!")
+					state.BattleStarted = false
+					state.InBattle = false
+					state.BattleOver = true
+					state.PlayerSurrendered = true
+					break
+				} else {
+					fmt.Println("You surrendered this round!")
+					playerCard.HP = 0
+					state.RoundOver = true
+					break
+				}
 			}
+
 			if playerMove == "surrender all" {
 				break
 			}
@@ -62,10 +72,16 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 				continue
 			}
 			if aiMove == "surrender" {
-				fmt.Println("AI surrendered this round!")
-				aiCard.HP = 0
-				state.RoundOver = true
-				break
+				if state.BattleMode == "1v1" {
+					fmt.Println("AI surrendered the battle!")
+					state.BattleOver = true
+					break
+				} else {
+					fmt.Println("AI surrendered this round!")
+					aiCard.HP = 0
+					state.RoundOver = true
+					break
+				}
 			}
 			fmt.Printf("AI chose to %s.\n", aiMove)
 			// Re-assign playerCard and aiCard after possible switch
@@ -80,19 +96,36 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 				continue
 			}
 			if aiMove == "surrender" {
-				fmt.Println("AI surrendered this round!")
-				aiCard.HP = 0
-				state.RoundOver = true
-				break
+				if state.BattleMode == "1v1" {
+					fmt.Println("AI surrendered the battle!")
+					state.BattleOver = true
+					break
+				} else {
+					fmt.Println("AI surrendered this round!")
+					aiCard.HP = 0
+					state.RoundOver = true
+					break
+				}
 			}
 			fmt.Printf("AI chose to %s.\n", aiMove)
 			playerMove, playerMoveIdx = getPlayerMove(scanner, state, playerCard)
+
 			if playerMove == "surrender" {
-				fmt.Println("You surrendered this round!")
-				playerCard.HP = 0
-				state.RoundOver = true
-				break
+				if state.BattleMode == "1v1" {
+					fmt.Println("You surrendered the battle!")
+					state.BattleStarted = false
+					state.InBattle = false
+					state.BattleOver = true
+					state.PlayerSurrendered = true
+					break
+				} else {
+					fmt.Println("You surrendered this round!")
+					playerCard.HP = 0
+					state.RoundOver = true
+					break
+				}
 			}
+
 			if playerMove == "surrender all" {
 				break
 			}
@@ -166,6 +199,10 @@ func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon
 			continue // re-prompt without printing the prompt again
 		}
 		if move == "surrender all" {
+			if state.BattleMode == "1v1" {
+				fmt.Println("'surrender all' is not available in 1v1 battles. Use 'surrender' to end the battle.")
+				continue
+			}
 			CommandSurrender(scanner, state, true)
 			return "surrender all", 0
 		}
@@ -221,7 +258,7 @@ func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon
 			return "attack", moveIdx
 		}
 		if move == "defend" {
-			defendCost := (playerCard.HPMax + 1) / 2 // Use total HP, not current HP
+			defendCost := playerCard.Defense - int(float64(playerCard.Defense) * 0.75)
 			if playerCard.Stamina < defendCost {
 				fmt.Println("Not enough stamina to defend. Use 'sacrifice', 'pass', or 'surrender'.")
 				continue
@@ -246,7 +283,7 @@ func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon
 				fmt.Println("You can only sacrifice three times per round.")
 				continue
 			}
-			if float64(playerCard.Stamina) >= 0.5*float64(playerCard.HPMax)*2.5 {
+			if float64(playerCard.Stamina) >= 0.5 * float64(playerCard.Speed * 2) {
 				fmt.Println("You can only use 'sacrifice' when your current stamina is less than 50% of max stamina.")
 				continue
 			}
@@ -264,7 +301,11 @@ func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon
 		if move == "surrender" {
 			return "surrender", 0
 		}
-		fmt.Println("Invalid move. Please enter 'attack', 'defend', 'sacrifice', 'pass', 'switch', or 'surrender'.")
+		if state.BattleMode == "5v5" {
+			fmt.Println("Invalid move. Please enter 'attack', 'defend', 'sacrifice', 'pass', 'switch', or 'surrender'.")
+		} else {
+			fmt.Println("Invalid move. Please enter 'attack', 'defend', 'sacrifice', 'pass', or 'surrender'.")
+		}
 	}
 }
 
@@ -275,7 +316,7 @@ func handleSacrifice(state *GameState, playerCard *pokemon.Card) {
 		state.SacrificeCount = make(map[int]int)
 	}
 	count := state.SacrificeCount[idx]
-	maxStamina := int(float64(playerCard.HPMax) * 2.5)
+	maxStamina := playerCard.Speed * 2
 	if count >= 3 {
 		fmt.Println("You can only sacrifice three times per round.")
 		return
@@ -310,7 +351,7 @@ func handleSacrifice(state *GameState, playerCard *pokemon.Card) {
 
 // AI move logic
 func getAIMove(playerMove string, aiCard *pokemon.Card, state *GameState, aiIdx int) (string, int) {
-	maxStamina := int(float64(aiCard.HPMax) * 2.5)
+	maxStamina := aiCard.Speed * 2
 	// Check if AI can attack or defend
 	canAttack := false
 	minAttackCost := 9999
@@ -323,7 +364,7 @@ func getAIMove(playerMove string, aiCard *pokemon.Card, state *GameState, aiIdx 
 			minAttackCost = move.StaminaCost
 		}
 	}
-	defendCost := (aiCard.HPMax + 1) / 2
+	defendCost := aiCard.Defense - int(float64(aiCard.Defense) * 0.75)
 	canDefend := aiCard.Stamina >= defendCost
 	count := 0
 	if state != nil && state.SacrificeCount != nil {

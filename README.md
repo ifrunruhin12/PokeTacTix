@@ -114,7 +114,7 @@ PokeTacTix/
 - [x] **Type Multiplier/Weakness:** Implement real Pokémon type effectiveness (planned)
 - [x] **Legendary/Mythical Power:** Legendary/mythical Pokémon will do 2x damage to normal Pokémon (planned)
 - [x] **Stamina Based on Speed:** Stamina will be based on Pokémon speed stat from PokéAPI (planned)
-- [ ] **1v1 Battles:** Add option for short 1v1 battles against AI (planned)
+- [x] **1v1 Battles:** Add option for short 1v1 battles against AI (planned)
 - [ ] Build a Go web server using Fiber to serve the game over HTTP
 - [ ] Create a modern frontend using Alpine.js to make the cards look cooler and give the game life
 - [ ] Make cards look awesome with custom styles and dynamic effects

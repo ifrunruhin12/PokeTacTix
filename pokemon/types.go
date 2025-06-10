@@ -42,10 +42,10 @@ type Move struct {
 type Card struct {
 	Name    string
 	HP      int
-	HPMax   int // original max HP
 	Stamina int
 	Defense int
 	Attack  int
+	Speed   int
 	Moves   []Move
 	Types   []string
 	Sprite  string

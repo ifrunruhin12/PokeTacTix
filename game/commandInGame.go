@@ -17,8 +17,14 @@ func CommandListInBattle(state *GameState) {
 	fmt.Println("2. defend    - Defend against opponent's attack")
 	fmt.Println("3. sacrifice - Sacrifice HP to gain stamina (when stamina < 50%)")
 	fmt.Println("4. pass      - Do nothing this turn")
-	fmt.Println("5. surrender - Surrender current round")
-	fmt.Println("6. surrender all - Surrender the entire battle")
+
+	if state.BattleMode == "1v1" {
+		fmt.Println("5. surrender - Surrender the battle")
+	}else {
+		fmt.Println("5. surrender - Surrender current round")
+		fmt.Println("6. surrender all - Surrender the entire battle")
+	}
+
 	fmt.Println("7. card      - View your current active card")
 	
 	if state.BattleMode == "5v5" {

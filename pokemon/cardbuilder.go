@@ -30,10 +30,10 @@ func BuildCardFromPokemon(poke Pokemon, moves []Move) Card {
 	return Card{
 		Name:    poke.Name,
 		HP:      hp,
-		HPMax:   hp,
 		Stamina: stamina,
 		Defense: defense,
 		Attack:  attack,
+		Speed:   speed,
 		Moves:   moves,
 		Types:   types,
 		Sprite:  sprite,
