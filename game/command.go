@@ -114,6 +114,11 @@ func CommandBattle(scanner *bufio.Scanner, state *GameState) {
 		return
 	}
 
+	state.BattleStarted = true
+	state.PlayerName = playerName
+	state.InBattle = true
+	state.Round = 1
+
 	if state.BattleMode == "1v1" {
 		playerDeck := []pokemon.Card{FetchRandomCard()}
 		aiDeck := []pokemon.Card{FetchRandomCard()}
@@ -121,23 +126,21 @@ func CommandBattle(scanner *bufio.Scanner, state *GameState) {
 		state.AI = &Player{Name: "AI", Deck: aiDeck}
 		fmt.Println("1v1 Battle started! You and AI each have 1 random Pokémon card.")
 		fmt.Println("Use 'card' to view your card and get ready to battle!")
+		fmt.Println("You are in a Battle with", state.AI.Name)
 		StartTurnLoop(scanner, state)
 	} else {
 		state.Player = NewPlayer(playerName, FetchRandomDeck())
 		state.AI = NewPlayer("AI", FetchRandomDeck())
 		fmt.Println("5v5 Battle started! You and AI each have 5 random Pokémon cards.")
 		fmt.Println("Use 'card all' to view your cards and use 'choose' to choose your card to play. (You cannot see AI's cards.)")
+		fmt.Println("You are in a Battle with", state.AI.Name)
+		// Note: 5v5 battles don't immediately start the turn loop, they wait for card selection
 	}
-	
-	state.BattleStarted = true
-	state.PlayerName = playerName
-	fmt.Println("You are in a Battle with", state.AI.Name)
-	state.InBattle = true
-	state.Round = 1
 }
 
+
 func CommandExit(state *GameState) {
-	if state != nil && state.BattleStarted {
+	if state != nil && (state.BattleStarted || state.InBattle) {
 		fmt.Println("You need to finish the battle first before exiting. Use 'surrender all' to immediately lose and exit.")
 		return
 	}

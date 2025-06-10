@@ -42,6 +42,7 @@ type Move struct {
 type Card struct {
 	Name    string
 	HP      int
+	HPMax   int
 	Stamina int
 	Defense int
 	Attack  int

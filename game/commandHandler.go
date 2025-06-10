@@ -50,8 +50,16 @@ func HandleCommand(input string, scanner *bufio.Scanner, state *GameState) {
 		}
 		CommandSwitch(scanner, state)
 	case "surrender":
+		if state.BattleStarted && state.BattleMode == "1v1" {
+			CommandSurrender(scanner, state, true)
+		}
 		CommandSurrender(scanner, state, false)
 	case "surrender all":
+		if state.BattleStarted && state.BattleMode == "1v1" {
+			fmt.Println("'surrender all' is not available in 1v1 battles. Use 'surrender' to end the battle.")
+			return
+		}
+		// Only allow in 5v5 battles
 		CommandSurrender(scanner, state, true)
 	default:
 		CommandDefault()

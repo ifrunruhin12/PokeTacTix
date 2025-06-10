@@ -74,6 +74,8 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 			if aiMove == "surrender" {
 				if state.BattleMode == "1v1" {
 					fmt.Println("AI surrendered the battle!")
+					state.BattleStarted = false
+					state.InBattle = false
 					state.BattleOver = true
 					break
 				} else {
@@ -98,6 +100,8 @@ func StartTurnLoop(scanner *bufio.Scanner, state *GameState) {
 			if aiMove == "surrender" {
 				if state.BattleMode == "1v1" {
 					fmt.Println("AI surrendered the battle!")
+					state.BattleStarted = false
+					state.InBattle = false
 					state.BattleOver = true
 					break
 				} else {
@@ -188,7 +192,7 @@ func getPlayerMove(scanner *bufio.Scanner, state *GameState, playerCard *pokemon
 		if state.BattleMode == "5v5" {
 			fmt.Print("Enter your move (attack/defend/surrender/sacrifice/pass). To see the card you are battling with use the 'card' command. To end/lose the game use 'surrender all' command. You can use the 'switch' command to switch to different pokemon if the requirements met: ")
 		} else {
-			fmt.Print("Enter your move (attack/defend/surrender/sacrifice/pass). To see the card you are battling with use the 'card' command. To end/lose the game use 'surrender all' command: ")
+			fmt.Print("Enter your move (attack/defend/surrender/sacrifice/pass). To see the card you are battling with use the 'card' command. To end/lose the game use 'surrender' command: ")
 		}
 		if !scanner.Scan() {
 			return "surrender", 0 // treat EOF as surrender
@@ -762,5 +766,9 @@ func resetBattleState(state *GameState) {
 	state.RoundOver = false
 	state.SacrificeCount = nil
 	state.PlayerSurrendered = false
+	state.JustSwitched = false   
+	state.HasPlayedRound = false      
+	state.TurnNumber = 0            
 	state.BattleMode = ""
+	state.PlayerName = ""           
 }
