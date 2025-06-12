@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"pokemon-cli/pokemon"
+	"regexp"
 	"strings"
 )
 
@@ -73,17 +74,40 @@ func CommandSearch(scanner *bufio.Scanner, state *GameState) {
 	PrintCard(card)
 }
 
+func validatePlayerName(name string) bool {
+	if len(name) == 0 || len(name) > 10{
+		return false
+	}
+	validName := regexp.MustCompile(`^[a-zA-Z0-9]+$`)
+	return validName.MatchString(name)
+}
+
 func CommandBattle(scanner *bufio.Scanner, state *GameState) {
 	if state.BattleStarted {
 		fmt.Println("A battle is already in progress.")
 		return
 	}
 
-	fmt.Print("Enter your name: ")
-	if !scanner.Scan() {
-		return
+	var playerName string
+	for {
+		fmt.Print("Enter your name (max 10 characters, letters/numbers only, no spaces): ")
+		if !scanner.Scan() {
+			return
+		}
+		playerName = strings.TrimSpace(scanner.Text())
+		
+		if validatePlayerName(playerName) {
+			break
+		}
+		
+		if len(playerName) == 0 {
+			fmt.Println("Name cannot be empty. Please try again.")
+		} else if len(playerName) > 10 {
+			fmt.Println("Name is too long. Maximum 10 characters allowed. Please try again.")
+		} else {
+			fmt.Println("Invalid name. Only letters and numbers are allowed (no spaces or special characters). Please try again.")
+		}
 	}
-	playerName := strings.TrimSpace(scanner.Text())
 
 	for {
 		fmt.Print("Choose battle mode (1v1 or 5v5): ")
