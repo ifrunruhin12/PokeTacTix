@@ -1,0 +1,19 @@
+{{template "layouts/main"}}
+
+<div class="container" x-data="{ showSearch: false, searchQuery: '' }">
+    <h1>Welcome to PokeTacTix</h1>
+    <div class="commands">
+        <button @click="showSearch = true" class="btn">Search</button>
+        <button class="btn">Battle</button>
+    </div>
+
+    <div x-show="showSearch" class="search-modal" @click.away="showSearch = false">
+        <div class="search-content">
+            <h2>Search Pokemon</h2>
+            <form @submit.prevent="window.location.href = '/pokemon?name=' + searchQuery.toLowerCase()">
+                <input type="text" x-model="searchQuery" placeholder="Enter Pokemon name (e.g., pikachu)" class="search-input">
+                <button type="submit" class="btn search-btn">Search</button>
+            </form>
+        </div>
+    </div>
+</div> 

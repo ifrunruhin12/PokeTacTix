@@ -52,7 +52,7 @@ func CommandList(state *GameState) {
 }
 
 func CommandVersion() {
-	fmt.Println("Version 0.0.1(alpha)")
+	fmt.Println("Version 1.0.0(alpha)")
 }
 
 func CommandSearch(scanner *bufio.Scanner, state *GameState) {

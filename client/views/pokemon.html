@@ -1,0 +1,67 @@
+{{template "layouts/main"}}
+
+<div class="container">
+    <div class="pokemon-card">
+        <div class="pokemon-header">
+            <h2>{{.Pokemon.Name}}</h2>
+            <div class="types">
+                {{range .Pokemon.Types}}
+                <span class="type {{.}}">{{.}}</span>
+                {{end}}
+            </div>
+        </div>
+        
+        <div class="pokemon-image">
+            <img src="{{.Pokemon.Sprite}}" alt="{{.Pokemon.Name}}">
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <span class="stat-label">HP</span>
+                <div class="stat-bar">
+                    <div class="stat-fill" style="--width: {{percentage .Pokemon.HP 255}}%"></div>
+                </div>
+                <span class="stat-value">{{.Pokemon.HP}}</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Stamina</span>
+                <div class="stat-bar">
+                    <div class="stat-fill" style="--width: {{percentage .Pokemon.Stamina 255}}%"></div>
+                </div>
+                <span class="stat-value">{{.Pokemon.Stamina}}</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Attack</span>
+                <div class="stat-bar">
+                    <div class="stat-fill" style="--width: {{percentage .Pokemon.Attack 255}}%"></div>
+                </div>
+                <span class="stat-value">{{.Pokemon.Attack}}</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Defense</span>
+                <div class="stat-bar">
+                    <div class="stat-fill" style="--width: {{percentage .Pokemon.Defense 255}}%"></div>
+                </div>
+                <span class="stat-value">{{.Pokemon.Defense}}</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Speed</span>
+                <div class="stat-bar">
+                    <div class="stat-fill" style="--width: {{percentage .Pokemon.Speed 255}}%"></div>
+                </div>
+                <span class="stat-value">{{.Pokemon.Speed}}</span>
+            </div>
+        </div>
+
+        <div class="moves">
+            <h3>Moves</h3>
+            <div class="moves-list">
+                {{range .Pokemon.Moves}}
+                <span class="move">{{.Name}} (Power: {{.Power}}, Type: {{.Type}})</span>
+                {{end}}
+            </div>
+        </div>
+
+        <a href="/" class="btn back-btn">Back to Home</a>
+    </div>
+</div> 
