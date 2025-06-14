@@ -1,8 +1,8 @@
 :root {
     --primary-color: #2a75bb;
     --secondary-color: #ffcb05;
-    --background-color: #f5f5f5;
-    --card-background: white;
+    --background-color: rgba(245, 245, 245, 0.9);
+    --card-background: rgba(255, 255, 255, 0.95);
     --text-color: #333;
 }
 
@@ -14,9 +14,13 @@
 
 body {
     font-family: 'Arial', sans-serif;
-    background-color: var(--background-color);
     color: var(--text-color);
     line-height: 1.6;
+    background-image: url('/assets/wallpaper.jpg');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    min-height: 100vh;
 }
 
 .container {
@@ -28,8 +32,46 @@ body {
 
 h1 {
     color: var(--primary-color);
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     font-size: 2.5rem;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.pokeball-icon {
+    width: 40px;
+    height: 40px;
+    vertical-align: middle;
+    animation: spin 3s infinite linear;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.welcome-message {
+    background-color: var(--card-background);
+    padding: 2rem;
+    border-radius: 15px;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.welcome-message p {
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.welcome-message p:last-child {
+    margin-bottom: 0;
 }
 
 .commands {
@@ -91,6 +133,7 @@ h1 {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     max-width: 600px;
     margin: 0 auto;
+    backdrop-filter: blur(5px);
 }
 
 .pokemon-header {
@@ -123,8 +166,13 @@ h1 {
 }
 
 .pokemon-image img {
-    max-width: 200px;
-    height: auto;
+    width: 300px;
+    height: 300px;
+    object-fit: contain;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    -ms-interpolation-mode: nearest-neighbor;
 }
 
 .stats {
@@ -212,3 +260,4 @@ h1 {
 .dark { background-color: #705848; }
 .steel { background-color: #B8B8D0; }
 .fairy { background-color: #EE99AC; } 
+

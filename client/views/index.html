@@ -1,7 +1,13 @@
 {{template "layouts/main"}}
 
 <div class="container" x-data="{ showSearch: false, searchQuery: '' }">
-    <h1>Welcome to PokeTacTix</h1>
+    <h1>Welcome to PokeTacTix <img src="/assets/pokeball.png" alt="Pokeball" class="pokeball-icon"></h1>
+    <div class="welcome-message">
+        <p>🔥PokeTacTix is a game made by Ifrun Kader Ruhin using Golang</p>
+        <p>This is version 1.0.0(alpha) of the game.</p>
+        <p>This is a strategic game where you can play against an AI in a Pokémon battle.</p>
+        <p>You can also search for a Pokémon name to see its card by clicking the "search" button</p>
+    </div>
     <div class="commands">
         <button @click="showSearch = true" class="btn">Search</button>
         <button class="btn">Battle</button>
@@ -17,3 +23,4 @@
         </div>
     </div>
 </div> 
+

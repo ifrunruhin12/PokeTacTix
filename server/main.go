@@ -29,6 +29,7 @@ func main() {
 
 	// Serve static files
 	app.Static("/", "../client/public")
+	app.Static("/assets", "../assets")
 
 	// Home route
 	app.Get("/", func(c *fiber.Ctx) error {
