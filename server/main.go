@@ -38,6 +38,40 @@ func main() {
 		})
 	})
 
+	// Battle setup route
+	app.Get("/battle-setup", func(c *fiber.Ctx) error {
+		return c.Render("battle", fiber.Map{
+			"Title": "Battle Setup",
+		})
+	})
+
+	// Battle route - handles both 1v1 and 5v5
+	app.Get("/battle", func(c *fiber.Ctx) error {
+		mode := c.Query("mode")
+		playerName := c.Query("player")
+
+		// Validate parameters
+		if mode == "" || playerName == "" {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "Mode and player name are required",
+			})
+		}
+
+		if mode != "1v1" && mode != "5v5" {
+			return c.Status(400).JSON(fiber.Map{
+				"error": "Invalid battle mode. Must be '1v1' or '5v5'",
+			})
+		}
+
+		// For now, we'll render a placeholder battle page
+		// You can implement the actual battle logic later
+		return c.Render("battle-arena", fiber.Map{
+			"Title":      fmt.Sprintf("%s Battle", mode),
+			"Mode":       mode,
+			"PlayerName": playerName,
+		})
+	})
+
 	// Search Pokemon API endpoint
 	app.Get("/pokemon", func(c *fiber.Ctx) error {
 		name := c.Query("name")

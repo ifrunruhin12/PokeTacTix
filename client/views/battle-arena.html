@@ -1,0 +1,120 @@
+{{template "layouts/main"}}
+
+<div class="container">
+    <div class="battle-arena-card">
+        <div class="battle-header">
+            <h1>{{.Mode}} Battle Arena</h1>
+            <p>Welcome, <strong>{{.PlayerName}}</strong>!</p>
+        </div>
+
+        <div class="battle-status">
+            <div class="status-message">
+                <h2>🚧 Battle System Coming Soon! 🚧</h2>
+                <p>The battle system is currently under development.</p>
+                <p>Mode: <strong>{{.Mode}}</strong></p>
+                <p>Player: <strong>{{.PlayerName}}</strong></p>
+            </div>
+
+            <div class="coming-features">
+                <h3>Upcoming Features:</h3>
+                <ul>
+                    <li>{{if eq .Mode "1v1"}}Single Pokémon battles{{else}}Team-based 5v5 battles{{end}}</li>
+                    <li>AI opponent with strategic decision making</li>
+                    <li>Turn-based combat system</li>
+                    <li>Move animations and effects</li>
+                    <li>Battle statistics and results</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="battle-actions">
+            <a href="/battle-setup" class="btn btn-primary">Try Different Setup</a>
+            <a href="/" class="btn btn-secondary">Back to Home</a>
+        </div>
+    </div>
+</div>
+
+<style>
+.battle-arena-card {
+    background-color: var(--card-background);
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 800px;
+    margin: 0 auto;
+    backdrop-filter: blur(5px);
+    text-align: center;
+}
+
+.battle-header h1 {
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.battle-header p {
+    font-size: 1.2rem;
+    color: #666;
+    margin-bottom: 2rem;
+}
+
+.status-message {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+
+.status-message h2 {
+    margin-bottom: 1rem;
+}
+
+.coming-features {
+    background-color: rgba(42, 117, 187, 0.1);
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 2rem;
+}
+
+.coming-features h3 {
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+}
+
+.coming-features ul {
+    list-style: none;
+    padding: 0;
+}
+
+.coming-features li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(42, 117, 187, 0.2);
+}
+
+.coming-features li:last-child {
+    border-bottom: none;
+}
+
+.coming-features li:before {
+    content: "⚡ ";
+    color: var(--secondary-color);
+    font-weight: bold;
+}
+
+.battle-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    .battle-actions {
+        flex-direction: column;
+    }
+    
+    .battle-actions .btn {
+        width: 100%;
+    }
+}
+</style>

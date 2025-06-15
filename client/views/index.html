@@ -10,7 +10,7 @@
     </div>
     <div class="commands">
         <button @click="showSearch = true" class="btn">Search</button>
-        <button class="btn">Battle</button>
+        <a href="/battle-setup" class="btn">Battle</a>
     </div>
 
     <div x-show="showSearch" class="search-modal" @click.away="showSearch = false">
@@ -22,5 +22,4 @@
             </form>
         </div>
     </div>
-</div> 
-
+</div>
