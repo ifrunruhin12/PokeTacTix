@@ -1,6 +1,24 @@
 {{template "layouts/main"}}
 
-<div class="container" x-data="{ playerName: '', battleMode: '1v1 battle' }">
+<div class="container" x-data="{ 
+    playerName: '', 
+    battleMode: '1v1 battle',
+    startBattle() {
+        const playerName = this.playerName.trim();
+        const battleMode = this.battleMode;
+        
+        if (!playerName) {
+            alert('Please enter your trainer name!');
+            return;
+        }
+        
+        // Extract mode (1v1 or 5v5) from the selection
+        const mode = battleMode.includes('1v1') ? '1v1' : '5v5';
+        
+        // Redirect to the appropriate battle page
+        window.location.href = `/battle?mode=${mode}&player=${encodeURIComponent(playerName)}`;
+    }
+}">
     <div class="battle-modal">
         <div class="battle-form-card">
             <h2>Start Battle</h2>
@@ -33,21 +51,3 @@
         </div>
     </div>
 </div>
-
-<script>
-function startBattle() {
-    const playerName = this.playerName.trim();
-    const battleMode = this.battleMode;
-    
-    if (!playerName) {
-        alert('Please enter your trainer name!');
-        return;
-    }
-    
-    // Extract mode (1v1 or 5v5) from the selection
-    const mode = battleMode.includes('1v1') ? '1v1' : '5v5';
-    
-    // Redirect to the appropriate battle page
-    window.location.href = `/battle?mode=${mode}&player=${encodeURIComponent(playerName)}`;
-}
-</script>

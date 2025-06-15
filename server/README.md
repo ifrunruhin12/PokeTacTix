@@ -8,12 +8,14 @@ The server is part of a larger project structure:
 ```
 PokeTacTix/
 ├── client/                 # Frontend code (HTML, CSS, templates)
+      ├── public/           # Conatins CSS and JS files
+      ├── views/            # Conatins HTML files
 ├── server/                 # Backend API (Fiber, templates)
-│   ├── main.go             # Server entry point
-│   ├── go.mod              # Go dependencies
-│   └── README.md           # This file
+│   ├── main.go            # Server entry point
+│   └── README.md          # This file
 ├── pokemon/                # Shared Pokemon logic
-└── game/                   # Game logic
+├── game/                   # Game logic
+└── go.mod                  # Go dependency
 ```
 
 ## Prerequisites
