@@ -1,5 +1,5 @@
 // Replace with your actual Railway backend URL
-const BACKEND_URL = "poketactix-production.up.railway.app";
+const BACKEND_URL = "https://poketactix-production.up.railway.app";
 
 // Handle search form on index.html
 document.addEventListener("DOMContentLoaded", function() {
