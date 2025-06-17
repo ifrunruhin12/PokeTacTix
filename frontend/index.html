@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PokeTacTix - Home</title>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container" x-data="{ showSearch: false, searchQuery: '' }">
+        <h1>Welcome to PokeTacTix <img src="assets/pokeball.png" alt="Pokeball" class="pokeball-icon"></h1>
+        <div class="welcome-message">
+            <p>🔥PokeTacTix is a game made by Ifrun Kader Ruhin using Golang</p>
+            <p>This is version 1.0.0(alpha) of the game.</p>
+            <p>This is a strategic game where you can play against an AI in a Pokémon battle.</p>
+            <p>You can also search for a Pokémon name to see its card by clicking the "search" button</p>
+        </div>
+        <div class="commands">
+            <button @click="showSearch = true" class="btn">Search</button>
+            <a href="battle.html" class="btn">Battle</a>
+        </div>
+        <div x-show="showSearch" class="search-modal" @click.away="showSearch = false">
+            <div class="search-content">
+                <h2>Search Pokemon</h2>
+                <form id="searchForm">
+                    <input type="text" x-model="searchQuery" id="searchInput" placeholder="Enter Pokemon name (e.g., pikachu)" class="search-input">
+                    <button type="submit" class="btn search-btn">Search</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html> 
