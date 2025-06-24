@@ -21,7 +21,11 @@
             // Extract mode (1v1 or 5v5) from the selection
             const mode = battleMode.includes('1v1') ? '1v1' : '5v5';
             // Redirect to the appropriate battle page
-            window.location.href = `battle-arena.html?mode=${mode}&player=${encodeURIComponent(playerName)}`;
+            if (mode === '5v5') {
+                window.location.href = 'under-construction.html';
+            } else {
+                window.location.href = `battle-arena.html?mode=${mode}&player=${encodeURIComponent(playerName)}`;
+            }
         }
     }">
         <div class="battle-modal">

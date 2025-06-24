@@ -3,125 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PokeTacTix - Battle Arena</title>
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <title>PokeTacTix - 1v1 Battle</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <div class="battle-arena-card">
-            <div class="battle-header">
-                <h1 id="arenaMode">Battle Arena</h1>
-                <p>Welcome, <strong id="arenaPlayerName"></strong>!</p>
-            </div>
-            <div class="battle-status">
-                <div class="status-message">
-                    <h2>🚧 Battle System Coming Soon! 🚧</h2>
-                    <p>The battle system is currently under development.</p>
-                    <p>Mode: <strong id="arenaModeText"></strong></p>
-                    <p>Player: <strong id="arenaPlayerText"></strong></p>
+    <div class="battle-container">
+        <!-- Battle Header -->
+        <div class="battle-header">
+            <h1>Battle Mode: 1v1</h1>
+            <div class="battle-mode" id="battleModeStatus">Turn 1 - Player's Turn</div>
+        </div>
+
+        <!-- Main Battle Area -->
+        <div class="battle-main">
+            <!-- Player Card (Left) -->
+            <div class="pokemon-card player">
+                <div class="card-title">Player's Card</div>
+                <div class="pokemon-info">
+                    <div class="pokemon-name" id="playerName">Pikachu</div>
+                    <div id="playerTypes"></div>
+                    <div class="pokemon-image">
+                        <img id="playerSprite" src="" alt="Player Pokemon">
+                    </div>
                 </div>
-                <div class="coming-features">
-                    <h3>Upcoming Features:</h3>
-                    <ul>
-                        <li id="arenaFeature1"></li>
-                        <li>AI opponent with strategic decision making</li>
-                        <li>Turn-based combat system</li>
-                        <li>Move animations and effects</li>
-                        <li>Battle statistics and results</li>
-                    </ul>
+                <div class="hp-section">
+                    <div class="hp-label">
+                        <span>HP</span>
+                        <span><span id="playerHP">0</span>/<span id="playerHPMax">0</span></span>
+                    </div>
+                    <div class="hp-bar">
+                        <div class="hp-fill" id="playerHPBar" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="stamina-section">
+                    <div class="stamina-label">
+                        <span>Stamina</span>
+                        <span><span id="playerStamina">0</span>/<span id="playerStaminaMax">0</span></span>
+                    </div>
+                    <div class="stamina-bar">
+                        <div class="stamina-fill" id="playerStaminaBar" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="stats-section">
+                    <div class="stat-row">
+                        <span class="stat-name">Attack:</span>
+                        <span class="stat-value" id="playerAttack">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-name">Defense:</span>
+                        <span class="stat-value" id="playerDefense">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-name">Speed:</span>
+                        <span class="stat-value" id="playerSpeed">0</span>
+                    </div>
                 </div>
             </div>
-            <div class="battle-actions">
-                <a href="battle.html" class="btn btn-primary">Try Different Setup</a>
-                <a href="index.html" class="btn btn-secondary">Back to Home</a>
+
+            <!-- Battle Log (Center) -->
+            <div class="battle-log">
+                <div class="log-header">Battle Log</div>
+                <div class="log-content" id="battleLog">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- AI Card (Right) -->
+            <div class="pokemon-card ai">
+                <div class="card-title">AI Card</div>
+                <div class="pokemon-info">
+                    <div class="pokemon-name" id="aiName">Charizard</div>
+                    <div id="aiTypes"></div>
+                    <div class="pokemon-image">
+                        <img id="aiSprite" src="" alt="AI Pokemon">
+                    </div>
+                </div>
+                <div class="hp-section">
+                    <div class="hp-label">
+                        <span>HP</span>
+                        <span><span id="aiHP">0</span>/<span id="aiHPMax">0</span></span>
+                    </div>
+                    <div class="hp-bar">
+                        <div class="hp-fill" id="aiHPBar" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="stamina-section">
+                    <div class="stamina-label">
+                        <span>Stamina</span>
+                        <span><span id="aiStamina">0</span>/<span id="aiStaminaMax">0</span></span>
+                    </div>
+                    <div class="stamina-bar">
+                        <div class="stamina-fill" id="aiStaminaBar" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="stats-section">
+                    <div class="stat-row">
+                        <span class="stat-name">Attack:</span>
+                        <span class="stat-value" id="aiAttack">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-name">Defense:</span>
+                        <span class="stat-value" id="aiDefense">0</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-name">Speed:</span>
+                        <span class="stat-value" id="aiSpeed">0</span>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <!-- Battle Commands (Bottom) -->
+        <div class="battle-commands" id="battleCommands">
+            <button class="command-btn attack-btn" id="attackBtn">Attack</button>
+            <button class="command-btn defend-btn" id="defendBtn">Defend</button>
+            <button class="command-btn pass-btn" id="passBtn">Pass</button>
+            <button class="command-btn" id="sacrificeBtn" style="background: linear-gradient(45deg, #ffb347, #ffcc33); color: #333;">Sacrifice</button>
+            <button class="command-btn surrender-btn" id="surrenderBtn">Surrender</button>
+        </div>
     </div>
+
+    <!-- Moves Modal -->
+    <div class="moves-modal" id="movesModal">
+        <div class="moves-content">
+            <div class="moves-header">Choose Your Move</div>
+            <div class="moves-grid" id="movesGrid">
+                <!-- Populated by JS -->
+            </div>
+            <button class="cancel-btn" id="cancelMoveBtn">Cancel</button>
+        </div>
+    </div>
+
     <script src="script.js"></script>
-    <style>
-.battle-arena-card {
-    background-color: var(--card-background);
-    border-radius: 15px;
-    padding: 2rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    max-width: 800px;
-    margin: 0 auto;
-    backdrop-filter: blur(5px);
-    text-align: center;
-}
-
-.battle-header h1 {
-    color: var(--primary-color);
-    margin-bottom: 0.5rem;
-}
-
-.battle-header p {
-    font-size: 1.2rem;
-    color: #666;
-    margin-bottom: 2rem;
-}
-
-.status-message {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: white;
-    padding: 2rem;
-    border-radius: 10px;
-    margin-bottom: 2rem;
-}
-
-.status-message h2 {
-    margin-bottom: 1rem;
-}
-
-.coming-features {
-    background-color: rgba(42, 117, 187, 0.1);
-    padding: 1.5rem;
-    border-radius: 10px;
-    margin-bottom: 2rem;
-}
-
-.coming-features h3 {
-    color: var(--primary-color);
-    margin-bottom: 1rem;
-}
-
-.coming-features ul {
-    list-style: none;
-    padding: 0;
-}
-
-.coming-features li {
-    padding: 0.5rem 0;
-    border-bottom: 1px solid rgba(42, 117, 187, 0.2);
-}
-
-.coming-features li:last-child {
-    border-bottom: none;
-}
-
-.coming-features li:before {
-    content: "⚡ ";
-    color: var(--secondary-color);
-    font-weight: bold;
-}
-
-.battle-actions {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-
-@media (max-width: 768px) {
-    .battle-actions {
-        flex-direction: column;
-    }
-    
-    .battle-actions .btn {
-        width: 100%;
-    }
-}
-    </style>
 </body>
 </html> 
