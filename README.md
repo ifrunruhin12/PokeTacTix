@@ -1,4 +1,3 @@
-
 # ◓ PokeTacTix
 
 A turn-based Pokémon card battle game 💥  
@@ -30,6 +29,7 @@ PokeTacTix/
 
 ## ✅ How to Play
 
+### Web version 1.0.0 (alpha)
 1. **Frontend**:  
    Browse to the GitHub Pages URL, which loads the card battlefield.
 
@@ -44,38 +44,33 @@ PokeTacTix/
 
 The frontend uses JS fetch calls to your live backend for everything — no page reloads once loaded.
 
+### CLI version 1.0.0 (alpha) (coming soon)
+
+1. Download the CLI from https://github.com/IfrunRuhin12/PokeTacTix/releases
+2. Run `go run main.go` and follow the prompts
 ---
 
-## 🔧 Setup & Development
+## 🚀 Latest Features (June, 2025)
 
-### Frontend
-- `frontend/`: HTML + Alpine.js + Tailwind CSS  
-- Deploys to GitHub Pages via `gh-pages` branch  
-- **Make sure**: `script.js` points to your Railway domain
-
-### Backend
-- `server/`: Go + Fiber REST API  
-- Endpoints:
-  - `GET /pokemon?name=<name>` → returns JSON card
-  - `POST /battle/start` → starts session
-  - `POST /battle/turn` → progress turn via JSON
-- Deploy on Railway: setup build = `go build -o main ./server`, run = `./main`
-- **Enable CORS** (`app.Use(cors.New())`) so frontend can fetch
-
-### Shared Logic
-- `pokemon/`: Fetch and parse PokeAPI
-- `game/`: Battle engine, moves, card definitions, turn logic
-- Two frontends supported: CLI (via `main.go`) and Web via `server/main.go` and Alpine.js
+- **Modern 1v1 Battle Arena**: Beautiful, card-based UI with colored type badges, responsive layout, and smooth turn flow.
+- **Full Backend Logic**: All game rules (turns, moves, AI, sacrifice, surrender, damage, type multipliers) handled by Go backend for perfect consistency.
+- **Battle Log**: Grouped, turn-by-turn log matching the CLI, with move names and results.
+- **Surrender & Draw**: Surrender ends the battle instantly; draws are detected and shown.
+- **Result Banner**: Shows "You won!", "You lost", or "Draw!" based on the true outcome.
+- **5v5 Mode**: UI placeholder/under construction (coming soon).
+- **Frontend/Backend Sync**: All rules, turn order, and log formatting match between web and CLI.
 
 ---
 
 ## 🔮 What’s Next
 
-- Add 5v5 **team battles**
-- Create battle logs and session history
-- Future-proof with WebSockets for live play!
-- Polish UI/UX, theme based on card types
-- Add custom deck building + save/export features
+- 5v5 **team battles** (full implementation)
+- Account system (login, persistent stats)
+- Multiplayer (PvP, matchmaking, live battles)
+- In-game store (buy/sell cards, cosmetics)
+- Card reveal/hide mechanics (fog of war, secret moves)
+- Deck building and export
+- More polish, animations, and accessibility improvements
 
 ---
 
@@ -91,5 +86,8 @@ Expect new features and fresh rewrites soon.
 ## 📄 License
 
 This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license.  
-You’re free to remix, adapt, and build upon it — just give credit and keep it non-commercial.  
+You're free to remix, adapt, and build upon it — just give credit and keep it non-commercial.  
 Full license text: https://creativecommons.org/licenses/by-nc/4.0/
+
+README.md
+Displaying README.md.
