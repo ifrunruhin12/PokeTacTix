@@ -28,25 +28,52 @@ document.addEventListener("DOMContentLoaded", function() {
                     } else {
                         // Render card (customize as needed)
                         document.getElementById("pokemonCard").innerHTML = `
-                            <div class="pokemon-header">
-                                <h2>${data.Name}</h2>
-                                <div class="types">${data.Types.map(type => `<span class="type ${type}">${type}</span>`).join('')}</div>
+                            <div class="pokemon-card player search" style="margin: 2rem auto;">
+                                <div class="card-title">${data.Name}</div>
+                                <div class="pokemon-info">
+                                    <div class="pokemon-types">
+                                        ${data.Types.map(type => `<span class=\"pokemon-type type-${type.toLowerCase()}\">${type}</span>`).join(' ')}
+                                    </div>
+                                </div>
+                                <div class="pokemon-image" style="width: 160px; height: 160px; margin: 1.5rem auto;">
+                                    <img src="${data.Sprite}" alt="${data.Name}" style="width: 140px; height: 140px; image-rendering: pixelated;">
+                                </div>
+                                <div class="stats-section">
+                                    <div class="stat-row"><span class="stat-name">HP</span>
+                                        <div class="hp-bar"><div class="hp-fill" style="width: ${(data.HP/255)*100}%"></div></div>
+                                        <span class="stat-value">${data.HP}</span>
+                                    </div>
+                                    <div class="stat-row"><span class="stat-name">Stamina</span>
+                                        <div class="stamina-bar"><div class="stamina-fill" style="width: ${(data.Stamina/255)*100}%"></div></div>
+                                        <span class="stat-value">${data.Stamina}</span>
+                                    </div>
+                                    <div class="stat-row"><span class="stat-name">Attack</span>
+                                        <div class="stat-bar"><div class="stat-fill" style="width: ${(data.Attack/255)*100}%"></div></div>
+                                        <span class="stat-value">${data.Attack}</span>
+                                    </div>
+                                    <div class="stat-row"><span class="stat-name">Defense</span>
+                                        <div class="stat-bar"><div class="stat-fill" style="width: ${(data.Defense/255)*100}%"></div></div>
+                                        <span class="stat-value">${data.Defense}</span>
+                                    </div>
+                                    <div class="stat-row"><span class="stat-name">Speed</span>
+                                        <div class="stat-bar"><div class="stat-fill" style="width: ${(data.Speed/255)*100}%"></div></div>
+                                        <span class="stat-value">${data.Speed}</span>
+                                    </div>
+                                </div>
+                                <div class="moves-section">
+                                    <div class="moves-header">Moves</div>
+                                    <div class="moves-grid" style="justify-content: flex-start;">
+                                        ${data.Moves.map(move => `
+                                            <span class="move-btn type-${(move.attack_type || '').toLowerCase()}" style="margin: 0.2rem 0.3rem; cursor: default;">
+                                                <span class="move-name">${move.name}</span>
+                                                <span class="pokemon-type type-${(move.attack_type || '').toLowerCase()}" style="margin-left: 0.5rem;">${move.attack_type}</span>
+                                                <span class="move-details" style="margin-left: 0.5rem;">Power: ${move.power}</span>
+                                            </span>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                                <a href="index.html" class="btn back-btn" style="margin-top: 1.5rem;">Back to Home</a>
                             </div>
-                            <div class="pokemon-image">
-                                <img src="${data.Sprite}" alt="${data.Name}">
-                            </div>
-                            <div class="stats">
-                                <div class="stat"><span class="stat-label">HP</span><div class="stat-bar"><div class="stat-fill" style="width: ${(data.HP/255)*100}%"></div></div><span class="stat-value">${data.HP}</span></div>
-                                <div class="stat"><span class="stat-label">Stamina</span><div class="stat-bar"><div class="stat-fill" style="width: ${(data.Stamina/255)*100}%"></div></div><span class="stat-value">${data.Stamina}</span></div>
-                                <div class="stat"><span class="stat-label">Attack</span><div class="stat-bar"><div class="stat-fill" style="width: ${(data.Attack/255)*100}%"></div></div><span class="stat-value">${data.Attack}</span></div>
-                                <div class="stat"><span class="stat-label">Defense</span><div class="stat-bar"><div class="stat-fill" style="width: ${(data.Defense/255)*100}%"></div></div><span class="stat-value">${data.Defense}</span></div>
-                                <div class="stat"><span class="stat-label">Speed</span><div class="stat-bar"><div class="stat-fill" style="width: ${(data.Speed/255)*100}%"></div></div><span class="stat-value">${data.Speed}</span></div>
-                            </div>
-                            <div class="moves">
-                                <h3>Moves</h3>
-                                <div class="moves-list">${data.Moves.map(move => `<span class="move">${move.name} (Power: ${move.power}, Type: ${move.attack_type})</span>`).join('')}</div>
-                            </div>
-                            <a href="index.html" class="btn back-btn">Back to Home</a>
                         `;
                     }
                 })
@@ -182,7 +209,8 @@ document.addEventListener("DOMContentLoaded", function() {
                         🎉 ${resultMsg} 🎉
                         <br><br>
                         <button class="command-btn attack-btn" onclick="location.reload()" style="margin-right: 1rem;">Play Again</button>
-                        <button class="command-btn defend-btn" onclick="window.location.href='battle.html'">New Battle</button>
+                        <button class="command-btn defend-btn" onclick="window.location.href='battle.html'" style="margin-right: 1rem;">New Battle</button>
+                        <button class="command-btn" onclick="window.location.href='index.html'">Back to Home</button>
                     </div>
                 `;
             }
