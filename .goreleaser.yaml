@@ -24,7 +24,7 @@ archives:
       - LICENSE
       - README.md
 
-checksums:
+checksum:
   name_template: "checksums.txt"
 
 changelog:
