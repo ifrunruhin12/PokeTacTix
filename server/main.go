@@ -3,12 +3,13 @@ package main
 import (
 	"log"
 	"os"
+	"pokemon-cli/game"
+	"pokemon-cli/pokemon"
 	"sync"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/google/uuid"
-	"pokemon-cli/game"
-	"pokemon-cli/pokemon"
 )
 
 var (
@@ -54,7 +55,7 @@ func main() {
 	app.Post("/battle/start", func(c *fiber.Ctx) error {
 		var req struct {
 			PlayerName string `json:"playerName"`
-			AIName    string `json:"aiName"`
+			AIName     string `json:"aiName"`
 		}
 		if err := c.BodyParser(&req); err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})

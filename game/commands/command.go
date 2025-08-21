@@ -1,49 +1,18 @@
-package game
+package commands
 
 import (
 	"bufio"
 	"fmt"
 	"os"
+	"pokemon-cli/game/core"
+	"pokemon-cli/game/models"
+	"pokemon-cli/game/utils"
 	"pokemon-cli/pokemon"
 	"regexp"
 	"strings"
 )
 
-type GameState struct {
-	BattleStarted     bool
-	Player            *Player
-	AI                *Player
-	PlayerName        string
-	InBattle          bool
-	HaveCard          bool
-	Round             int
-	PlayerActiveIdx   int
-	AIActiveIdx       int
-	CardMovePlayer    int
-	CardMoveAI        int
-	CurrentMovetype   string
-	RoundStarted      bool
-	SwitchedThisRound bool
-	BattleOver        bool
-	RoundOver         bool
-	SacrificeCount    map[int]int // key: PlayerActiveIdx, value: number of sacrifices for that Pokémon
-	LastHpLost        int
-	LastStaminaLost   int
-	LastDamageDealt   int
-	PlayerSurrendered bool // Track if player surrendered the whole battle
-	JustSwitched      bool // true if player just switched and hasn't played a round yet
-	HasPlayedRound    bool
-	TurnNumber        int
-	BattleMode        string // "1v1" or "5v5"
-	// --- Web turn-based fields ---
-	PendingPlayerMove   string // Player's chosen move for this turn (web)
-	PendingPlayerMoveIdx int   // Player's chosen move index (web)
-	PendingAIMove       string // AI's chosen move for this turn (web)
-	PendingAIMoveIdx    int    // AI's chosen move index (web)
-	WhoseTurn           string // "player" or "ai" (web)
-}
-
-func CommandList(state *GameState) {
+func CommandList(state *models.GameState) {
 	if state.BattleStarted {
 		fmt.Println("You are in a battle now. Use 'command --in-battle' to see the available commands")
 		return
@@ -61,7 +30,7 @@ func CommandVersion() {
 	fmt.Println("Version 1.0.0(alpha)")
 }
 
-func CommandSearch(scanner *bufio.Scanner, state *GameState) {
+func CommandSearch(scanner *bufio.Scanner, state *models.GameState) {
 	if state.BattleStarted {
 		fmt.Println("No searching pokemons while a battle is in progress.")
 		return
@@ -77,18 +46,18 @@ func CommandSearch(scanner *bufio.Scanner, state *GameState) {
 		return
 	}
 	card := pokemon.BuildCardFromPokemon(poke, moves)
-	PrintCard(card)
+	models.PrintCard(card)
 }
 
 func validatePlayerName(name string) bool {
-	if len(name) == 0 || len(name) > 10{
+	if len(name) == 0 || len(name) > 10 {
 		return false
 	}
 	validName := regexp.MustCompile(`^[a-zA-Z0-9]+$`)
 	return validName.MatchString(name)
 }
 
-func CommandBattle(scanner *bufio.Scanner, state *GameState) {
+func CommandBattle(scanner *bufio.Scanner, state *models.GameState) {
 	if state.BattleStarted {
 		fmt.Println("A battle is already in progress.")
 		return
@@ -101,11 +70,11 @@ func CommandBattle(scanner *bufio.Scanner, state *GameState) {
 			return
 		}
 		playerName = strings.TrimSpace(scanner.Text())
-		
+
 		if validatePlayerName(playerName) {
 			break
 		}
-		
+
 		if len(playerName) == 0 {
 			fmt.Println("Name cannot be empty. Please try again.")
 		} else if len(playerName) > 10 {
@@ -152,15 +121,15 @@ func CommandBattle(scanner *bufio.Scanner, state *GameState) {
 	if state.BattleMode == "1v1" {
 		playerDeck := []pokemon.Card{FetchRandomCard()}
 		aiDeck := []pokemon.Card{FetchRandomCard()}
-		state.Player = &Player{Name: playerName, Deck: playerDeck}
-		state.AI = &Player{Name: "AI", Deck: aiDeck}
+		state.Player = &models.Player{Name: playerName, Deck: playerDeck}
+		state.AI = &models.Player{Name: "AI", Deck: aiDeck}
 		fmt.Println("1v1 Battle started! You and AI each have 1 random Pokémon card.")
 		fmt.Println("Use 'card' to view your card and get ready to battle!")
 		fmt.Println("You are in a Battle with", state.AI.Name)
-		StartTurnLoop(scanner, state)
+		core.StartTurnLoop(scanner, state)
 	} else {
-		state.Player = NewPlayer(playerName, FetchRandomDeck())
-		state.AI = NewPlayer("AI", FetchRandomDeck())
+		state.Player = models.NewPlayer(playerName, utils.FetchRandomDeck())
+		state.AI = models.NewPlayer("AI", utils.FetchRandomDeck())
 		fmt.Println("5v5 Battle started! You and AI each have 5 random Pokémon cards.")
 		fmt.Println("Use 'card all' to view your cards and use 'choose' to choose your card to play. (You cannot see AI's cards.)")
 		fmt.Println("You are in a Battle with", state.AI.Name)
@@ -168,8 +137,7 @@ func CommandBattle(scanner *bufio.Scanner, state *GameState) {
 	}
 }
 
-
-func CommandExit(state *GameState) {
+func CommandExit(state *models.GameState) {
 	if state != nil && (state.BattleStarted || state.InBattle) {
 		fmt.Println("You need to finish the battle first before exiting. Use 'surrender all' to immediately lose and exit.")
 		return
@@ -184,6 +152,6 @@ func CommandDefault() {
 
 // Helper function to fetch a single random card
 func FetchRandomCard() pokemon.Card {
-	deck := FetchRandomDeck()
+	deck := utils.FetchRandomDeck()
 	return deck[0] // Return the first card from a random deck
 }

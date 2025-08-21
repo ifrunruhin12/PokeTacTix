@@ -1,14 +1,15 @@
-package game
+package commands
 
 import (
 	"bufio"
 	"fmt"
+	"pokemon-cli/game/models"
 	"strings"
 )
 
-func HandleCommand(input string, scanner *bufio.Scanner, state *GameState) {
+func HandleCommand(input string, scanner *bufio.Scanner, state *models.GameState) {
 	command := strings.ToLower(strings.TrimSpace(input))
-	
+
 	switch command {
 	case "command":
 		CommandList(state)
