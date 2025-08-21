@@ -89,7 +89,7 @@ func FetchRandomPokemonCard(_ bool) Card {
 	mythicalOdds := 0.0001  // 0.01%
 	legendaryOdds := 0.0001 // 0.01%
 	maxRetries := 3
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for range maxRetries {
 		roll := rand.Float64()
 		var name string
 		if roll < mythicalOdds {

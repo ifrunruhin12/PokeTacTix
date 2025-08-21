@@ -6,7 +6,7 @@ import (
 	"pokemon-cli/pokemon"
 )
 
-// AI move logic
+// GetAIMove gets AI move logic
 func GetAIMove(playerMove string, aiCard *pokemon.Card, state *models.GameState, aiIdx int) (string, int) {
 	maxStamina := aiCard.Speed * 2
 	// Check if AI can attack or defend
@@ -32,13 +32,14 @@ func GetAIMove(playerMove string, aiCard *pokemon.Card, state *models.GameState,
 		// Can AI sacrifice?
 		canSacrifice := false
 		var hpCost int
-		if count == 0 {
+		switch count {
+		case 0:
 			hpCost = 10
-		} else if count == 1 {
+		case 1:
 			hpCost = 15
-		} else if count == 2 {
+		case 2:
 			hpCost = 20
-		} else {
+		default:
 			hpCost = 9999
 		}
 		if float64(aiCard.Stamina) < 0.5*float64(maxStamina) && aiCard.HP > hpCost && count < 3 {
@@ -86,7 +87,7 @@ func GetAIMove(playerMove string, aiCard *pokemon.Card, state *models.GameState,
 	return "pass", 0
 }
 
-// AI sacrifice logic
+// HandleSacrificeAI handles AI sacrifice logic
 func HandleSacrificeAI(aiCard *pokemon.Card, state *models.GameState) {
 	aiIdx := state.AIActiveIdx
 	if state.SacrificeCount == nil {

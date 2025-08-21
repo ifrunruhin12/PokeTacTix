@@ -1,3 +1,4 @@
+// Package commands provides the implementation of various game commands
 package commands
 
 import (
@@ -150,7 +151,7 @@ func CommandDefault() {
 	fmt.Println("Unknown command. Type 'command' to see all available commands.")
 }
 
-// Helper function to fetch a single random card
+// FetchRandomCard function is a helper function to fetch a single random card
 func FetchRandomCard() pokemon.Card {
 	deck := utils.FetchRandomDeck()
 	return deck[0] // Return the first card from a random deck

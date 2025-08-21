@@ -99,13 +99,14 @@ func getPlayerMove(scanner *bufio.Scanner, state *models.GameState, playerCard *
 			}
 			count := state.SacrificeCount[idx]
 			var hpCost int
-			if count == 0 {
+			switch count {
+			case 0:
 				hpCost = 10
-			} else if count == 1 {
+			case 1:
 				hpCost = 15
-			} else if count == 2 {
+			case 2:
 				hpCost = 20
-			} else {
+			default:
 				fmt.Println("You can only sacrifice three times per round.")
 				continue
 			}
@@ -135,7 +136,7 @@ func getPlayerMove(scanner *bufio.Scanner, state *models.GameState, playerCard *
 	}
 }
 
-// Handle the sacrifice mechanic
+// HandleSacrifice handles the sacrifice mechanic
 func HandleSacrifice(state *models.GameState, playerCard *pokemon.Card) {
 	idx := state.PlayerActiveIdx
 	if state.SacrificeCount == nil {

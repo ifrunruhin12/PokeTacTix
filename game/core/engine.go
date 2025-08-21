@@ -1,3 +1,4 @@
+// Package core contains the main game logic for the Pokémon CLI battle system.
 package core
 
 import (
@@ -180,7 +181,7 @@ func StartTurnLoop(scanner *bufio.Scanner, state *models.GameState) {
 	}
 }
 
-// Process the result of a turn
+// ProcessTurnResult Process the result of a turn
 func ProcessTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, playerCard, aiCard *pokemon.Card, state *models.GameState) {
 	// Track for player feedback
 	state.LastHpLost = 0
@@ -196,14 +197,15 @@ func ProcessTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, 
 	}
 	if playerMove == "pass" {
 		// AI does its move, player does nothing
-		if aiMove == "attack" {
+		switch aiMove {
+		case "attack":
 			aiDmg := calculateDamage(aiCard, playerCard, false, aiMoveIdx)
 			playerCard.HP -= aiDmg
 			aiCard.Stamina -= aiCard.Moves[aiMoveIdx].StaminaCost
 			state.LastHpLost = aiDmg
 			state.LastStaminaLost = 0
 			state.LastDamageDealt = 0
-		} else if aiMove == "defend" {
+		case "defend":
 			aiCard.Stamina -= aiDefendCost
 			state.LastHpLost = 0
 			state.LastStaminaLost = 0
@@ -213,14 +215,15 @@ func ProcessTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, 
 	}
 	if aiMove == "pass" {
 		// Player does their move, AI does nothing
-		if playerMove == "attack" {
+		switch playerMove {
+		case "attack":
 			playerDmg := calculateDamage(playerCard, aiCard, false, playerMoveIdx)
 			aiCard.HP -= playerDmg
 			playerCard.Stamina -= playerCard.Moves[playerMoveIdx].StaminaCost
 			state.LastHpLost = 0
 			state.LastStaminaLost = playerCard.Moves[playerMoveIdx].StaminaCost
 			state.LastDamageDealt = playerDmg
-		} else if playerMove == "defend" {
+		case "defend":
 			playerCard.Stamina -= playerDefendCost
 			state.LastHpLost = 0
 			state.LastStaminaLost = playerDefendCost

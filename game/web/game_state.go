@@ -1,3 +1,4 @@
+// Package web provides web-specific state management for PokeTacTix.
 package web
 
 import "pokemon-cli/game/models"
@@ -13,7 +14,7 @@ type TurnState struct {
 }
 
 // buildWebState returns a JSON-serializable map of the current state, turn info and log entries
-func buildWebState(state *models.GameState, turn *TurnState, logEntries []string) map[string]interface{} {
+func buildWebState(state *models.GameState, turn *TurnState, logEntries []string) map[string]any {
 	winner := ""
 	if state.BattleOver {
 		playerCard := &state.Player.Deck[state.PlayerActiveIdx]
@@ -26,7 +27,7 @@ func buildWebState(state *models.GameState, turn *TurnState, logEntries []string
 			winner = "player"
 		}
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"state":      state,
 		"turn":       turn,
 		"log":        logEntries,

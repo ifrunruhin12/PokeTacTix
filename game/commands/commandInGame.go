@@ -125,12 +125,12 @@ func CommandCurrentCard(state *models.GameState) {
 	}
 }
 
-// Delegate to core implementation
+// CommandSwitch Delegate to core implementation
 func CommandSwitch(scanner *bufio.Scanner, state *models.GameState) {
 	core.CommandSwitch(scanner, state)
 }
 
-// Delegate to core implementation
+// CommandSurrender Delegate to core implementation
 func CommandSurrender(scanner *bufio.Scanner, state *models.GameState, surrenderAll bool) {
 	core.CommandSurrender(scanner, state, surrenderAll)
 }

@@ -7,7 +7,7 @@ import (
 )
 
 // ProcessWebMove processes a move for the web API, updates the state, and returns a JSON-serializable result.
-func ProcessWebMove(state *models.GameState, turn *TurnState, move string, moveIdx *int) (map[string]interface{}, error) {
+func ProcessWebMove(state *models.GameState, turn *TurnState, move string, moveIdx *int) (map[string]any, error) {
 	if state == nil || !state.BattleStarted || state.BattleOver {
 		return nil, fmt.Errorf("no active battle or battle is over")
 	}

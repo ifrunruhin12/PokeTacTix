@@ -1,3 +1,4 @@
+// Package pokemon provides functionality to build a Pokémon card from a Pokémon object.
 package pokemon
 
 func BuildCardFromPokemon(poke Pokemon, moves []Move) Card {
@@ -40,4 +41,3 @@ func BuildCardFromPokemon(poke Pokemon, moves []Move) Card {
 		Sprite:  sprite,
 	}
 }
-
