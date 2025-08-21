@@ -44,10 +44,17 @@ PokeTacTix/
 
 The frontend uses JS fetch calls to your live backend for everything — no page reloads once loaded.
 
-### CLI version 1.0.0 (alpha) (coming soon)
+### CLI version 1.0.0 (alpha)
 
 1. Download the CLI from https://github.com/IfrunRuhin12/PokeTacTix/releases
-2. Run `go run main.go` and follow the prompts
+   - Linux: poketactix_linux_amd64, poketactix_linux_arm64
+   - Windows: poketactix_windows_amd64.exe, poketactix_windows_arm64.exe
+   - macOS: poketactix_darwin_amd64, poketactix_darwin_arm64
+2. On Linux/macOS: `chmod +x ./poketactix_*`
+3. Run the binary:
+   - Linux/macOS: `./poketactix_linux_amd64` (or your arch file)
+   - Windows: double-click or `poketactix_windows_amd64.exe` in cmd/PowerShell
+
 ---
 
 ## 🚀 Latest Features (June, 2025)
