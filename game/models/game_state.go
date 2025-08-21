@@ -27,10 +27,4 @@ type GameState struct {
 	HasPlayedRound    bool
 	TurnNumber        int
 	BattleMode        string // "1v1" or "5v5"
-	// --- Web turn-based fields ---
-	PendingPlayerMove    string // Player's chosen move for this turn (web)
-	PendingPlayerMoveIdx int    // Player's chosen move index (web)
-	PendingAIMove        string // AI's chosen move for this turn (web)
-	PendingAIMoveIdx     int    // AI's chosen move index (web)
-	WhoseTurn            string // "player" or "ai" (web)
 }

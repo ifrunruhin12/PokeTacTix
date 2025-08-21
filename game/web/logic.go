@@ -7,7 +7,7 @@ import (
 )
 
 // ProcessWebMove processes a move for the web API, updates the state, and returns a JSON-serializable result.
-func ProcessWebMove(state *models.GameState, move string, moveIdx *int) (map[string]interface{}, error) {
+func ProcessWebMove(state *models.GameState, turn *TurnState, move string, moveIdx *int) (map[string]interface{}, error) {
 	if state == nil || !state.BattleStarted || state.BattleOver {
 		return nil, fmt.Errorf("no active battle or battle is over")
 	}
@@ -16,21 +16,21 @@ func ProcessWebMove(state *models.GameState, move string, moveIdx *int) (map[str
 	logEntries := []string{}
 
 	// At the start of a new turn, add a turn log entry
-	if state.PendingPlayerMove == "" && state.PendingAIMove == "" {
+	if turn.PendingPlayerMove == "" && turn.PendingAIMove == "" {
 		whose := "Player's"
 		if state.TurnNumber%2 == 0 {
 			whose = "AI's"
 		}
 		logEntries = append(logEntries, fmt.Sprintf("Turn %d begins! %s move first.", state.TurnNumber, whose))
 		if state.TurnNumber%2 == 1 {
-			state.WhoseTurn = "player"
+			turn.WhoseTurn = "player"
 		} else {
-			state.WhoseTurn = "ai"
+			turn.WhoseTurn = "ai"
 		}
 	}
 
 	// Only accept moves from the correct actor
-	if state.WhoseTurn == "player" {
+	if turn.WhoseTurn == "player" {
 		if move == "surrender" {
 			state.BattleStarted = false
 			state.InBattle = false
@@ -38,12 +38,12 @@ func ProcessWebMove(state *models.GameState, move string, moveIdx *int) (map[str
 			state.PlayerSurrendered = true
 			logEntries = append(logEntries, "Player surrendered! AI wins the battle!")
 			// Clear pending moves and turn
-			state.PendingPlayerMove = ""
-			state.PendingAIMove = ""
-			state.PendingPlayerMoveIdx = 0
-			state.PendingAIMoveIdx = 0
-			state.WhoseTurn = ""
-			return buildWebState(state, logEntries), nil
+			turn.PendingPlayerMove = ""
+			turn.PendingAIMove = ""
+			turn.PendingPlayerMoveIdx = 0
+			turn.PendingAIMoveIdx = 0
+			turn.WhoseTurn = ""
+			return buildWebState(state, turn, logEntries), nil
 		}
 		if move == "sacrifice" {
 			oldHP := playerCard.HP
@@ -56,39 +56,39 @@ func ProcessWebMove(state *models.GameState, move string, moveIdx *int) (map[str
 			hpLost := oldHP - playerCard.HP
 			staminaGained := playerCard.Stamina - oldStamina
 			logEntries = append(logEntries, fmt.Sprintf("Player sacrificed %d HP and gained %d stamina.", hpLost, staminaGained))
-			return buildWebState(state, logEntries), nil
+			return buildWebState(state, turn, logEntries), nil
 		}
 		// If this is a player turn after AI has acted (even turn), resolve the turn
-		if state.PendingAIMove != "" {
-			state.PendingPlayerMove = move
+		if turn.PendingAIMove != "" {
+			turn.PendingPlayerMove = move
 			if moveIdx != nil {
-				state.PendingPlayerMoveIdx = *moveIdx
+				turn.PendingPlayerMoveIdx = *moveIdx
 			} else {
-				state.PendingPlayerMoveIdx = 0
+				turn.PendingPlayerMoveIdx = 0
 			}
 			// Log player move with move name if attack
 			if move == "attack" {
 				moveName := ""
-				if state.PendingPlayerMoveIdx >= 0 && state.PendingPlayerMoveIdx < len(playerCard.Moves) {
-					moveName = playerCard.Moves[state.PendingPlayerMoveIdx].Name
+				if turn.PendingPlayerMoveIdx >= 0 && turn.PendingPlayerMoveIdx < len(playerCard.Moves) {
+					moveName = playerCard.Moves[turn.PendingPlayerMoveIdx].Name
 				}
 				logEntries = append(logEntries, fmt.Sprintf("Player chose to attack with %s.", moveName))
 			} else {
 				logEntries = append(logEntries, fmt.Sprintf("Player chose %s.", move))
 			}
 			// Log AI move with move name if attack
-			if state.PendingAIMove == "attack" {
+			if turn.PendingAIMove == "attack" {
 				moveName := ""
-				if state.PendingAIMoveIdx >= 0 && state.PendingAIMoveIdx < len(aiCard.Moves) {
-					moveName = aiCard.Moves[state.PendingAIMoveIdx].Name
+				if turn.PendingAIMoveIdx >= 0 && turn.PendingAIMoveIdx < len(aiCard.Moves) {
+					moveName = aiCard.Moves[turn.PendingAIMoveIdx].Name
 				}
 				logEntries = append(logEntries, fmt.Sprintf("AI chose to attack with %s.", moveName))
 			} else {
-				logEntries = append(logEntries, fmt.Sprintf("AI chose %s.", state.PendingAIMove))
+				logEntries = append(logEntries, fmt.Sprintf("AI chose %s.", turn.PendingAIMove))
 			}
 			core.ProcessTurnResult(
-				state.PendingPlayerMove, state.PendingAIMove,
-				state.PendingPlayerMoveIdx, state.PendingAIMoveIdx,
+				turn.PendingPlayerMove, turn.PendingAIMove,
+				turn.PendingPlayerMoveIdx, turn.PendingAIMoveIdx,
 				playerCard, aiCard, state,
 			)
 			if state.LastDamageDealt > 0 {
@@ -108,43 +108,43 @@ func ProcessWebMove(state *models.GameState, move string, moveIdx *int) (map[str
 				logEntries = append(logEntries, "AI's Pokémon was knocked out! Player wins.")
 			}
 			state.TurnNumber++
-			state.PendingPlayerMove = ""
-			state.PendingAIMove = ""
-			state.PendingPlayerMoveIdx = 0
-			state.PendingAIMoveIdx = 0
+			turn.PendingPlayerMove = ""
+			turn.PendingAIMove = ""
+			turn.PendingPlayerMoveIdx = 0
+			turn.PendingAIMoveIdx = 0
 			if !state.BattleOver {
 				if state.TurnNumber%2 == 1 {
-					state.WhoseTurn = "player"
+					turn.WhoseTurn = "player"
 				} else {
-					state.WhoseTurn = "ai"
+					turn.WhoseTurn = "ai"
 				}
 			}
-			return buildWebState(state, logEntries), nil
+			return buildWebState(state, turn, logEntries), nil
 		}
 		// Otherwise, this is a player-first turn: store move, set WhoseTurn to AI
-		state.PendingPlayerMove = move
+		turn.PendingPlayerMove = move
 		if moveIdx != nil {
-			state.PendingPlayerMoveIdx = *moveIdx
+			turn.PendingPlayerMoveIdx = *moveIdx
 		} else {
-			state.PendingPlayerMoveIdx = 0
+			turn.PendingPlayerMoveIdx = 0
 		}
-		state.WhoseTurn = "ai"
-		return buildWebState(state, logEntries), nil
-	} else if state.WhoseTurn == "ai" {
+		turn.WhoseTurn = "ai"
+		return buildWebState(state, turn, logEntries), nil
+	} else if turn.WhoseTurn == "ai" {
 		for {
-			aiMove, aiMoveIdx := core.GetAIMove(state.PendingPlayerMove, aiCard, state, state.AIActiveIdx)
+			aiMove, aiMoveIdx := core.GetAIMove(turn.PendingPlayerMove, aiCard, state, state.AIActiveIdx)
 			if aiMove == "surrender" {
 				state.BattleStarted = false
 				state.InBattle = false
 				state.BattleOver = true
 				logEntries = append(logEntries, "AI surrendered! Player wins the battle!")
 				// Clear pending moves and turn
-				state.PendingPlayerMove = ""
-				state.PendingAIMove = ""
-				state.PendingPlayerMoveIdx = 0
-				state.PendingAIMoveIdx = 0
-				state.WhoseTurn = ""
-				return buildWebState(state, logEntries), nil
+				turn.PendingPlayerMove = ""
+				turn.PendingAIMove = ""
+				turn.PendingPlayerMoveIdx = 0
+				turn.PendingAIMoveIdx = 0
+				turn.WhoseTurn = ""
+				return buildWebState(state, turn, logEntries), nil
 			}
 			if aiMove == "sacrifice" {
 				maxStamina := aiCard.Speed * 2
@@ -163,9 +163,9 @@ func ProcessWebMove(state *models.GameState, move string, moveIdx *int) (map[str
 				continue
 			}
 			// If this is an AI-first turn (even turn), store AI's move, set WhoseTurn to player, and return (do NOT resolve turn yet)
-			if state.PendingPlayerMove == "" {
-				state.PendingAIMove = aiMove
-				state.PendingAIMoveIdx = aiMoveIdx
+			if turn.PendingPlayerMove == "" {
+				turn.PendingAIMove = aiMove
+				turn.PendingAIMoveIdx = aiMoveIdx
 				// Log AI move with move name if attack
 				if aiMove == "attack" {
 					moveName := ""
@@ -176,21 +176,21 @@ func ProcessWebMove(state *models.GameState, move string, moveIdx *int) (map[str
 				} else {
 					logEntries = append(logEntries, fmt.Sprintf("AI chose %s.", aiMove))
 				}
-				state.WhoseTurn = "player"
-				return buildWebState(state, logEntries), nil
+				turn.WhoseTurn = "player"
+				return buildWebState(state, turn, logEntries), nil
 			}
 			// Otherwise, this is AI acting second (player-first turn): resolve the turn
-			state.PendingAIMove = aiMove
-			state.PendingAIMoveIdx = aiMoveIdx
+			turn.PendingAIMove = aiMove
+			turn.PendingAIMoveIdx = aiMoveIdx
 			// Log player move with move name if attack
-			if state.PendingPlayerMove == "attack" {
+			if turn.PendingPlayerMove == "attack" {
 				moveName := ""
-				if state.PendingPlayerMoveIdx >= 0 && state.PendingPlayerMoveIdx < len(playerCard.Moves) {
-					moveName = playerCard.Moves[state.PendingPlayerMoveIdx].Name
+				if turn.PendingPlayerMoveIdx >= 0 && turn.PendingPlayerMoveIdx < len(playerCard.Moves) {
+					moveName = playerCard.Moves[turn.PendingPlayerMoveIdx].Name
 				}
 				logEntries = append(logEntries, fmt.Sprintf("Player chose to attack with %s.", moveName))
 			} else {
-				logEntries = append(logEntries, fmt.Sprintf("Player chose %s.", state.PendingPlayerMove))
+				logEntries = append(logEntries, fmt.Sprintf("Player chose %s.", turn.PendingPlayerMove))
 			}
 			// Log AI move with move name if attack
 			if aiMove == "attack" {
@@ -203,8 +203,8 @@ func ProcessWebMove(state *models.GameState, move string, moveIdx *int) (map[str
 				logEntries = append(logEntries, fmt.Sprintf("AI chose %s.", aiMove))
 			}
 			core.ProcessTurnResult(
-				state.PendingPlayerMove, state.PendingAIMove,
-				state.PendingPlayerMoveIdx, state.PendingAIMoveIdx,
+				turn.PendingPlayerMove, turn.PendingAIMove,
+				turn.PendingPlayerMoveIdx, turn.PendingAIMoveIdx,
 				playerCard, aiCard, state,
 			)
 			if state.LastDamageDealt > 0 {
@@ -224,21 +224,21 @@ func ProcessWebMove(state *models.GameState, move string, moveIdx *int) (map[str
 				logEntries = append(logEntries, "AI's Pokémon was knocked out! Player wins.")
 			}
 			state.TurnNumber++
-			state.PendingPlayerMove = ""
-			state.PendingAIMove = ""
-			state.PendingPlayerMoveIdx = 0
-			state.PendingAIMoveIdx = 0
+			turn.PendingPlayerMove = ""
+			turn.PendingAIMove = ""
+			turn.PendingPlayerMoveIdx = 0
+			turn.PendingAIMoveIdx = 0
 			if !state.BattleOver {
 				if state.TurnNumber%2 == 1 {
-					state.WhoseTurn = "player"
+					turn.WhoseTurn = "player"
 				} else {
-					state.WhoseTurn = "ai"
+					turn.WhoseTurn = "ai"
 				}
 			}
-			return buildWebState(state, logEntries), nil
+			return buildWebState(state, turn, logEntries), nil
 		}
 	} else {
-		return buildWebState(state, logEntries), nil
+		return buildWebState(state, turn, logEntries), nil
 	}
-	return buildWebState(state, logEntries), nil
+	return buildWebState(state, turn, logEntries), nil
 }

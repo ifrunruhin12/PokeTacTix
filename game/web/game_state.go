@@ -2,8 +2,18 @@ package web
 
 import "pokemon-cli/game/models"
 
-// buildWebState returns a JSON-serializable map of the current state and log entries
-func buildWebState(state *models.GameState, logEntries []string) map[string]interface{} {
+// TurnState contains web-only turn-based fields
+// This keeps web transport/session concerns out of core game state.
+type TurnState struct {
+	PendingPlayerMove    string
+	PendingPlayerMoveIdx int
+	PendingAIMove        string
+	PendingAIMoveIdx     int
+	WhoseTurn            string // "player" or "ai"
+}
+
+// buildWebState returns a JSON-serializable map of the current state, turn info and log entries
+func buildWebState(state *models.GameState, turn *TurnState, logEntries []string) map[string]interface{} {
 	winner := ""
 	if state.BattleOver {
 		playerCard := &state.Player.Deck[state.PlayerActiveIdx]
@@ -18,9 +28,10 @@ func buildWebState(state *models.GameState, logEntries []string) map[string]inte
 	}
 	return map[string]interface{}{
 		"state":      state,
+		"turn":       turn,
 		"log":        logEntries,
 		"battleOver": state.BattleOver,
-		"whoseTurn":  state.WhoseTurn,
+		"whoseTurn":  turn.WhoseTurn,
 		"winner":     winner,
 	}
 }

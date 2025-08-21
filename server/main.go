@@ -14,9 +14,15 @@ import (
 )
 
 var (
-	sessions   = make(map[string]*models.GameState)
+	sessions   = make(map[string]*Session)
 	sessionsMu sync.Mutex
 )
+
+// Session holds core game state plus web-only turn state
+type Session struct {
+	State *models.GameState
+	Turn  *web.TurnState
+}
 
 func main() {
 	port := os.Getenv("PORT")
@@ -74,14 +80,14 @@ func main() {
 			AIActiveIdx:     0,
 			BattleStarted:   true,
 			InBattle:        true,
-			WhoseTurn:       "player",
 			TurnNumber:      1,
 		}
+		turn := &web.TurnState{WhoseTurn: "player"}
 		id := uuid.New().String()
 		sessionsMu.Lock()
-		sessions[id] = state
+		sessions[id] = &Session{State: state, Turn: turn}
 		sessionsMu.Unlock()
-		return c.JSON(fiber.Map{"session": id, "state": state})
+		return c.JSON(fiber.Map{"session": id, "state": state, "turn": turn})
 	})
 
 	// POST /battle/move
@@ -95,13 +101,13 @@ func main() {
 			return c.Status(400).JSON(fiber.Map{"error": "Invalid request"})
 		}
 		sessionsMu.Lock()
-		state, ok := sessions[req.Session]
+		sess, ok := sessions[req.Session]
 		sessionsMu.Unlock()
 		if !ok {
 			return c.Status(404).JSON(fiber.Map{"error": "Session not found"})
 		}
 		// Call a function to process the move and update state
-		result, err := web.ProcessWebMove(state, req.Move, req.MoveIdx)
+		result, err := web.ProcessWebMove(sess.State, sess.Turn, req.Move, req.MoveIdx)
 		if err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -112,12 +118,12 @@ func main() {
 	app.Get("/battle/state", func(c *fiber.Ctx) error {
 		session := c.Query("session")
 		sessionsMu.Lock()
-		state, ok := sessions[session]
+		sess, ok := sessions[session]
 		sessionsMu.Unlock()
 		if !ok {
 			return c.Status(404).JSON(fiber.Map{"error": "Session not found"})
 		}
-		return c.JSON(state)
+		return c.JSON(fiber.Map{"state": sess.State, "turn": sess.Turn})
 	})
 
 	log.Printf("Serving on :%s...", port)
