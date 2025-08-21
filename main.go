@@ -4,13 +4,15 @@ import (
 	"bufio"
 	"os"
 	"pokemon-cli/game"
+	"pokemon-cli/game/commands"
+	"pokemon-cli/game/models"
 )
 
 func main() {
 	game.PrintWelcome()
 
 	scanner := bufio.NewScanner(os.Stdin)
-	state := &game.GameState{}
+	state := &models.GameState{}
 
 	for {
 		print("\n> ")
@@ -18,6 +20,6 @@ func main() {
 			break
 		}
 		input := scanner.Text()
-		game.HandleCommand(input, scanner, state)
+		commands.HandleCommand(input, scanner, state)
 	}
 }

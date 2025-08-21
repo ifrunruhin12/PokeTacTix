@@ -3,7 +3,8 @@ package main
 import (
 	"log"
 	"os"
-	"pokemon-cli/game"
+	"pokemon-cli/game/models"
+	"pokemon-cli/game/web"
 	"pokemon-cli/pokemon"
 	"sync"
 
@@ -13,7 +14,7 @@ import (
 )
 
 var (
-	sessions   = make(map[string]*game.GameState)
+	sessions   = make(map[string]*models.GameState)
 	sessionsMu sync.Mutex
 )
 
@@ -63,9 +64,9 @@ func main() {
 		// Use random cards for both player and AI
 		playerCard := pokemon.FetchRandomPokemonCard(false)
 		aiCard := pokemon.FetchRandomPokemonCard(false)
-		player := game.NewPlayer(req.PlayerName, []pokemon.Card{playerCard})
-		ai := game.NewPlayer(req.AIName, []pokemon.Card{aiCard})
-		state := &game.GameState{
+		player := models.NewPlayer(req.PlayerName, []pokemon.Card{playerCard})
+		ai := models.NewPlayer(req.AIName, []pokemon.Card{aiCard})
+		state := &models.GameState{
 			Player:          player,
 			AI:              ai,
 			BattleMode:      "1v1",
@@ -100,7 +101,7 @@ func main() {
 			return c.Status(404).JSON(fiber.Map{"error": "Session not found"})
 		}
 		// Call a function to process the move and update state
-		result, err := game.ProcessWebMove(state, req.Move, req.MoveIdx)
+		result, err := web.ProcessWebMove(state, req.Move, req.MoveIdx)
 		if err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 		}
