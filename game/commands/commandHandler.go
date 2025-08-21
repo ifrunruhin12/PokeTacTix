@@ -53,6 +53,7 @@ func HandleCommand(input string, scanner *bufio.Scanner, state *models.GameState
 	case "surrender":
 		if state.BattleStarted && state.BattleMode == "1v1" {
 			CommandSurrender(scanner, state, true)
+			return
 		}
 		CommandSurrender(scanner, state, false)
 	case "surrender all":
