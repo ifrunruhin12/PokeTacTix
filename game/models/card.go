@@ -1,4 +1,8 @@
-package game
+// This file is part of the pokemon-cli project
+// It defines the PrintCard function to display a Pokémon card's details.
+// It is used to print the card information in a readable format.
+
+package models
 
 import (
 	"fmt"

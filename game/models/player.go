@@ -1,4 +1,6 @@
-package game
+// This file defines the Player model for the Pokémon CLI application.
+
+package models
 
 import (
 	"pokemon-cli/pokemon"

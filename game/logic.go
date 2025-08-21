@@ -787,7 +787,7 @@ func resetBattleState(state *GameState) {
 // ProcessWebMove processes a move for the web API, updates the state, and returns a JSON-serializable result.
 func ProcessWebMove(state *GameState, move string, moveIdx *int) (map[string]interface{}, error) {
 	if state == nil || !state.BattleStarted || state.BattleOver {
-		return nil, fmt.Errorf("No active battle or battle is over")
+		return nil, fmt.Errorf("no active battle or battle is over")
 	}
 	playerCard := &state.Player.Deck[state.PlayerActiveIdx]
 	aiCard := &state.AI.Deck[state.AIActiveIdx]
