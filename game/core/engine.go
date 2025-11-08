@@ -188,8 +188,8 @@ func ProcessTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, 
 	state.LastStaminaLost = 0
 	state.LastDamageDealt = 0
 
-	playerDefendCost := (playerCard.HPMax + 1) / 2
-	aiDefendCost := (aiCard.HPMax + 1) / 2
+	playerDefendCost := GetDefendCost(playerCard.HPMax)
+	aiDefendCost := GetDefendCost(aiCard.HPMax)
 
 	if playerMove == "pass" && aiMove == "pass" {
 		fmt.Println("Both passed. Nothing happened!")

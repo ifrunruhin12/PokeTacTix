@@ -84,7 +84,7 @@ func getPlayerMove(scanner *bufio.Scanner, state *models.GameState, playerCard *
 			return "attack", moveIdx
 		}
 		if move == "defend" {
-			defendCost := playerCard.Defense - int(float64(playerCard.Defense)*0.75)
+			defendCost := GetDefendCost(playerCard.HPMax)
 			if playerCard.Stamina < defendCost {
 				fmt.Println("Not enough stamina to defend. Use 'sacrifice', 'pass', or 'surrender'.")
 				continue

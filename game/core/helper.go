@@ -42,6 +42,12 @@ func showRoundSummary(state *models.GameState, playerCard, aiCard *pokemon.Card)
 	}
 }
 
+// GetDefendCost calculates the stamina cost for defending based on the Pokemon's max HP
+// Formula: (HPMax + 1) / 2
+func GetDefendCost(hpMax int) int {
+	return (hpMax + 1) / 2
+}
+
 // Helper function to reset battle state
 func resetBattleState(state *models.GameState) {
 	state.BattleStarted = false

@@ -21,7 +21,7 @@ func GetAIMove(playerMove string, aiCard *pokemon.Card, state *models.GameState,
 			minAttackCost = move.StaminaCost
 		}
 	}
-	defendCost := aiCard.Defense - int(float64(aiCard.Defense)*0.75)
+	defendCost := GetDefendCost(aiCard.HPMax)
 	canDefend := aiCard.Stamina >= defendCost
 	count := 0
 	if state != nil && state.SacrificeCount != nil {

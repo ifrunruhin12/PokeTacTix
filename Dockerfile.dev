@@ -1,0 +1,22 @@
+FROM golang:1.21-alpine
+
+WORKDIR /app
+
+# Install air for live reload
+RUN go install github.com/cosmtrek/air@latest
+
+# Install build dependencies
+RUN apk add --no-cache git
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Expose port
+EXPOSE 3000
+
+# Run with air for live reload
+CMD ["air", "-c", ".air.toml"]
