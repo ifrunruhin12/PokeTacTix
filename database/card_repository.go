@@ -9,17 +9,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// CardRepository handles player card data operations
 type CardRepository struct {
 	db *pgxpool.Pool
 }
 
-// NewCardRepository creates a new CardRepository
 func NewCardRepository(db *pgxpool.Pool) *CardRepository {
 	return &CardRepository{db: db}
 }
 
-// Create creates a new player card
 func (r *CardRepository) Create(ctx context.Context, card *PlayerCard) (*PlayerCard, error) {
 	query := `
 		INSERT INTO player_cards (
@@ -44,7 +41,6 @@ func (r *CardRepository) Create(ctx context.Context, card *PlayerCard) (*PlayerC
 	return card, nil
 }
 
-// GetByID retrieves a card by ID
 func (r *CardRepository) GetByID(ctx context.Context, id int) (*PlayerCard, error) {
 	query := `
 		SELECT id, user_id, pokemon_name, level, xp, base_hp, base_attack, base_defense, base_speed,
@@ -72,7 +68,6 @@ func (r *CardRepository) GetByID(ctx context.Context, id int) (*PlayerCard, erro
 	return card, nil
 }
 
-// GetUserCards retrieves all cards for a user
 func (r *CardRepository) GetUserCards(ctx context.Context, userID int) ([]*PlayerCard, error) {
 	query := `
 		SELECT id, user_id, pokemon_name, level, xp, base_hp, base_attack, base_defense, base_speed,
@@ -107,7 +102,6 @@ func (r *CardRepository) GetUserCards(ctx context.Context, userID int) ([]*Playe
 	return cards, nil
 }
 
-// GetUserDeck retrieves the user's current deck (5 cards)
 func (r *CardRepository) GetUserDeck(ctx context.Context, userID int) ([]*PlayerCard, error) {
 	query := `
 		SELECT id, user_id, pokemon_name, level, xp, base_hp, base_attack, base_defense, base_speed,
@@ -142,20 +136,17 @@ func (r *CardRepository) GetUserDeck(ctx context.Context, userID int) ([]*Player
 	return cards, nil
 }
 
-// UpdateDeck updates the user's deck configuration
 func (r *CardRepository) UpdateDeck(ctx context.Context, userID int, cardIDs []int) error {
 	if len(cardIDs) != 5 {
 		return fmt.Errorf("deck must contain exactly 5 cards")
 	}
-	
-	// Start transaction
+
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	
-	// Clear current deck
+
 	_, err = tx.Exec(ctx, `
 		UPDATE player_cards
 		SET in_deck = FALSE, deck_position = NULL, updated_at = $1
@@ -164,8 +155,7 @@ func (r *CardRepository) UpdateDeck(ctx context.Context, userID int, cardIDs []i
 	if err != nil {
 		return fmt.Errorf("failed to clear deck: %w", err)
 	}
-	
-	// Set new deck
+
 	for i, cardID := range cardIDs {
 		_, err = tx.Exec(ctx, `
 			UPDATE player_cards
@@ -176,8 +166,7 @@ func (r *CardRepository) UpdateDeck(ctx context.Context, userID int, cardIDs []i
 			return fmt.Errorf("failed to update deck card: %w", err)
 		}
 	}
-	
-	// Commit transaction
+
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -185,18 +174,14 @@ func (r *CardRepository) UpdateDeck(ctx context.Context, userID int, cardIDs []i
 	return nil
 }
 
-// AddXP adds XP to a card and handles level-ups
 func (r *CardRepository) AddXP(ctx context.Context, cardID int, xp int) (*PlayerCard, error) {
-	// Get current card
 	card, err := r.GetByID(ctx, cardID)
 	if err != nil {
 		return nil, err
 	}
-	
-	// Add XP
+
 	card.XP += xp
-	
-	// Check for level-ups
+
 	for card.Level < 50 {
 		xpRequired := 100 * card.Level
 		if card.XP >= xpRequired {
@@ -206,13 +191,11 @@ func (r *CardRepository) AddXP(ctx context.Context, cardID int, xp int) (*Player
 			break
 		}
 	}
-	
-	// Cap XP at max level
+
 	if card.Level >= 50 {
 		card.XP = 0
 	}
-	
-	// Update card
+
 	query := `
 		UPDATE player_cards
 		SET level = $1, xp = $2, updated_at = $3
@@ -227,7 +210,6 @@ func (r *CardRepository) AddXP(ctx context.Context, cardID int, xp int) (*Player
 	return card, nil
 }
 
-// Update updates a card
 func (r *CardRepository) Update(ctx context.Context, card *PlayerCard) error {
 	query := `
 		UPDATE player_cards
@@ -253,7 +235,6 @@ func (r *CardRepository) Update(ctx context.Context, card *PlayerCard) error {
 	return nil
 }
 
-// Delete deletes a card
 func (r *CardRepository) Delete(ctx context.Context, id int) error {
 	query := `DELETE FROM player_cards WHERE id = $1`
 	
@@ -265,7 +246,6 @@ func (r *CardRepository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-// GetHighestLevel returns the highest level card for a user
 func (r *CardRepository) GetHighestLevel(ctx context.Context, userID int) (int, error) {
 	query := `
 		SELECT COALESCE(MAX(level), 1)
@@ -282,7 +262,6 @@ func (r *CardRepository) GetHighestLevel(ctx context.Context, userID int) (int, 
 	return maxLevel, nil
 }
 
-// CountLegendary counts legendary cards owned by user
 func (r *CardRepository) CountLegendary(ctx context.Context, userID int) (int, error) {
 	query := `
 		SELECT COUNT(*)
@@ -299,7 +278,6 @@ func (r *CardRepository) CountLegendary(ctx context.Context, userID int) (int, e
 	return count, nil
 }
 
-// CountMythical counts mythical cards owned by user
 func (r *CardRepository) CountMythical(ctx context.Context, userID int) (int, error) {
 	query := `
 		SELECT COUNT(*)

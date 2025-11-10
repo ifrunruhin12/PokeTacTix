@@ -9,29 +9,24 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// StatsRepository handles player statistics data operations
 type StatsRepository struct {
 	db *pgxpool.Pool
 }
 
-// NewStatsRepository creates a new StatsRepository
 func NewStatsRepository(db *pgxpool.Pool) *StatsRepository {
 	return &StatsRepository{db: db}
 }
 
-// GetOrCreate retrieves player stats or creates if not exists
 func (r *StatsRepository) GetOrCreate(ctx context.Context, userID int) (*PlayerStats, error) {
 	// Try to get existing stats
 	stats, err := r.GetByUserID(ctx, userID)
 	if err == nil {
 		return stats, nil
 	}
-	
-	// Create new stats if not found
+
 	return r.Create(ctx, userID)
 }
 
-// Create creates new player stats
 func (r *StatsRepository) Create(ctx context.Context, userID int) (*PlayerStats, error) {
 	query := `
 		INSERT INTO player_stats (user_id)
@@ -54,7 +49,6 @@ func (r *StatsRepository) Create(ctx context.Context, userID int) (*PlayerStats,
 	return stats, nil
 }
 
-// GetByUserID retrieves player stats by user ID
 func (r *StatsRepository) GetByUserID(ctx context.Context, userID int) (*PlayerStats, error) {
 	query := `
 		SELECT user_id, total_battles_1v1, wins_1v1, losses_1v1,
@@ -80,34 +74,33 @@ func (r *StatsRepository) GetByUserID(ctx context.Context, userID int) (*PlayerS
 	return stats, nil
 }
 
-// RecordBattle updates stats after a battle
 func (r *StatsRepository) RecordBattle(ctx context.Context, userID int, mode string, result string, coinsEarned int) error {
-	// Get or create stats
 	stats, err := r.GetOrCreate(ctx, userID)
 	if err != nil {
 		return err
 	}
-	
-	// Update stats based on mode and result
-	if mode == "1v1" {
+
+	switch mode {
+	case "1v1":
 		stats.TotalBattles1v1++
-		if result == "win" {
+		switch result {
+		case "win":
 			stats.Wins1v1++
-		} else if result == "loss" {
+		case "loss":
 			stats.Losses1v1++
 		}
-	} else if mode == "5v5" {
+	case "5v5":
 		stats.TotalBattles5v5++
-		if result == "win" {
+		switch result {
+		case "win":
 			stats.Wins5v5++
-		} else if result == "loss" {
+		case "loss":
 			stats.Losses5v5++
 		}
 	}
 	
 	stats.TotalCoinsEarned += coinsEarned
-	
-	// Update in database
+
 	query := `
 		UPDATE player_stats
 		SET total_battles_1v1 = $1, wins_1v1 = $2, losses_1v1 = $3,
@@ -129,7 +122,6 @@ func (r *StatsRepository) RecordBattle(ctx context.Context, userID int, mode str
 	return nil
 }
 
-// UpdateHighestLevel updates the highest level achieved
 func (r *StatsRepository) UpdateHighestLevel(ctx context.Context, userID int, level int) error {
 	query := `
 		UPDATE player_stats
@@ -145,7 +137,6 @@ func (r *StatsRepository) UpdateHighestLevel(ctx context.Context, userID int, le
 	return nil
 }
 
-// Update updates player stats
 func (r *StatsRepository) Update(ctx context.Context, stats *PlayerStats) error {
 	query := `
 		UPDATE player_stats
@@ -170,7 +161,6 @@ func (r *StatsRepository) Update(ctx context.Context, stats *PlayerStats) error 
 	return nil
 }
 
-// Delete deletes player stats
 func (r *StatsRepository) Delete(ctx context.Context, userID int) error {
 	query := `DELETE FROM player_stats WHERE user_id = $1`
 	
@@ -182,7 +172,6 @@ func (r *StatsRepository) Delete(ctx context.Context, userID int) error {
 	return nil
 }
 
-// GetAchievements retrieves all achievements with unlock status for a user
 func (r *StatsRepository) GetAchievements(ctx context.Context, userID int) ([]*AchievementWithStatus, error) {
 	query := `
 		SELECT a.id, a.name, a.description, a.icon, a.requirement_type, a.requirement_value,
@@ -216,7 +205,6 @@ func (r *StatsRepository) GetAchievements(ctx context.Context, userID int) ([]*A
 	return achievements, nil
 }
 
-// UnlockAchievement unlocks an achievement for a user
 func (r *StatsRepository) UnlockAchievement(ctx context.Context, userID int, achievementID int) error {
 	query := `
 		INSERT INTO user_achievements (user_id, achievement_id)
@@ -232,28 +220,23 @@ func (r *StatsRepository) UnlockAchievement(ctx context.Context, userID int, ach
 	return nil
 }
 
-// CheckAndUnlockAchievements checks and unlocks achievements based on current stats
 func (r *StatsRepository) CheckAndUnlockAchievements(ctx context.Context, userID int) ([]*Achievement, error) {
-	// Get current stats
 	stats, err := r.GetByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	
-	// Get card stats
+
 	cardRepo := NewCardRepository(r.db)
 	highestLevel, _ := cardRepo.GetHighestLevel(ctx, userID)
 	legendaryCount, _ := cardRepo.CountLegendary(ctx, userID)
 	mythicalCount, _ := cardRepo.CountMythical(ctx, userID)
-	
-	// Get user
+
 	userRepo := NewUserRepository(r.db)
 	user, err := userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	
-	// Get all achievements
+
 	allAchievements, err := r.GetAchievements(ctx, userID)
 	if err != nil {
 		return nil, err

@@ -9,17 +9,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// UserRepository handles user data operations
 type UserRepository struct {
 	db *pgxpool.Pool
 }
 
-// NewUserRepository creates a new UserRepository
 func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-// Create creates a new user
 func (r *UserRepository) Create(ctx context.Context, username, email, passwordHash string) (*User, error) {
 	query := `
 		INSERT INTO users (username, email, password_hash, coins)
@@ -45,7 +42,6 @@ func (r *UserRepository) Create(ctx context.Context, username, email, passwordHa
 	return user, nil
 }
 
-// GetByID retrieves a user by ID
 func (r *UserRepository) GetByID(ctx context.Context, id int) (*User, error) {
 	query := `
 		SELECT id, username, email, password_hash, coins, created_at, updated_at
@@ -74,7 +70,6 @@ func (r *UserRepository) GetByID(ctx context.Context, id int) (*User, error) {
 	return user, nil
 }
 
-// GetByUsername retrieves a user by username
 func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*User, error) {
 	query := `
 		SELECT id, username, email, password_hash, coins, created_at, updated_at
@@ -103,7 +98,6 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*U
 	return user, nil
 }
 
-// GetByEmail retrieves a user by email
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
 		SELECT id, username, email, password_hash, coins, created_at, updated_at
@@ -132,7 +126,6 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, e
 	return user, nil
 }
 
-// Update updates user information
 func (r *UserRepository) Update(ctx context.Context, user *User) error {
 	query := `
 		UPDATE users
@@ -149,7 +142,6 @@ func (r *UserRepository) Update(ctx context.Context, user *User) error {
 	return nil
 }
 
-// UpdateCoins updates user's coin balance
 func (r *UserRepository) UpdateCoins(ctx context.Context, userID int, coins int) error {
 	query := `
 		UPDATE users
@@ -165,7 +157,6 @@ func (r *UserRepository) UpdateCoins(ctx context.Context, userID int, coins int)
 	return nil
 }
 
-// AddCoins adds coins to user's balance
 func (r *UserRepository) AddCoins(ctx context.Context, userID int, amount int) error {
 	query := `
 		UPDATE users
@@ -181,7 +172,6 @@ func (r *UserRepository) AddCoins(ctx context.Context, userID int, amount int) e
 	return nil
 }
 
-// Delete deletes a user (cascade will delete related data)
 func (r *UserRepository) Delete(ctx context.Context, id int) error {
 	query := `DELETE FROM users WHERE id = $1`
 	
@@ -193,7 +183,6 @@ func (r *UserRepository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-// UsernameExists checks if a username already exists
 func (r *UserRepository) UsernameExists(ctx context.Context, username string) (bool, error) {
 	query := `SELECT EXISTS(SELECT 1 FROM users WHERE username = $1)`
 	
@@ -206,7 +195,6 @@ func (r *UserRepository) UsernameExists(ctx context.Context, username string) (b
 	return exists, nil
 }
 
-// EmailExists checks if an email already exists
 func (r *UserRepository) EmailExists(ctx context.Context, email string) (bool, error) {
 	query := `SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)`
 	

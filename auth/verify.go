@@ -8,16 +8,11 @@ import (
 	"pokemon-cli/auth"
 )
 
-// This is a simple verification script to test the auth package functionality
-// Run with: go run auth/verify.go
-
 func main() {
 	fmt.Println("=== Auth Package Verification ===\n")
-	
-	// Set JWT_SECRET for testing
+
 	os.Setenv("JWT_SECRET", "test-secret-key-minimum-32-characters-required-for-security")
-	
-	// Test 1: Password Validation
+
 	fmt.Println("Test 1: Password Validation")
 	service := auth.NewService()
 	
@@ -40,8 +35,7 @@ func main() {
 		}
 		fmt.Printf("  %s Password '%s': valid=%v (expected=%v)\n", status, password, isValid, shouldBeValid)
 	}
-	
-	// Test 2: Username Validation
+
 	fmt.Println("\nTest 2: Username Validation")
 	testUsernames := map[string]bool{
 		"ab":              false, // Too short
@@ -61,8 +55,7 @@ func main() {
 		}
 		fmt.Printf("  %s Username '%s': valid=%v (expected=%v)\n", status, username, isValid, shouldBeValid)
 	}
-	
-	// Test 3: Email Validation
+
 	fmt.Println("\nTest 3: Email Validation")
 	testEmails := map[string]bool{
 		"invalid":              false, // No @
@@ -81,8 +74,7 @@ func main() {
 		}
 		fmt.Printf("  %s Email '%s': valid=%v (expected=%v)\n", status, email, isValid, shouldBeValid)
 	}
-	
-	// Test 4: Password Hashing
+
 	fmt.Println("\nTest 4: Password Hashing and Comparison")
 	password := "SecurePass123!"
 	hash, err := service.HashPassword(password)
@@ -90,16 +82,14 @@ func main() {
 		fmt.Printf("  ✗ Failed to hash password: %v\n", err)
 	} else {
 		fmt.Printf("  ✓ Password hashed successfully\n")
-		
-		// Test correct password
+
 		err = service.ComparePassword(hash, password)
 		if err == nil {
 			fmt.Printf("  ✓ Correct password verified\n")
 		} else {
 			fmt.Printf("  ✗ Failed to verify correct password: %v\n", err)
 		}
-		
-		// Test wrong password
+
 		err = service.ComparePassword(hash, "WrongPassword123!")
 		if err != nil {
 			fmt.Printf("  ✓ Wrong password correctly rejected\n")
@@ -107,8 +97,7 @@ func main() {
 			fmt.Printf("  ✗ Wrong password was accepted (should fail)\n")
 		}
 	}
-	
-	// Test 5: JWT Token Generation and Validation
+
 	fmt.Println("\nTest 5: JWT Token Generation and Validation")
 	jwtService, err := auth.NewJWTService()
 	if err != nil {
@@ -121,8 +110,7 @@ func main() {
 		fmt.Printf("  ✗ Failed to generate token: %v\n", err)
 	} else {
 		fmt.Printf("  ✓ Token generated successfully\n")
-		
-		// Validate token
+
 		claims, err := jwtService.ValidateToken(token)
 		if err != nil {
 			fmt.Printf("  ✗ Failed to validate token: %v\n", err)
@@ -131,8 +119,7 @@ func main() {
 		} else {
 			fmt.Printf("  ✗ Token claims incorrect (UserID=%d, Username=%s)\n", claims.UserID, claims.Username)
 		}
-		
-		// Test invalid token
+
 		_, err = jwtService.ValidateToken("invalid.token.here")
 		if err != nil {
 			fmt.Printf("  ✓ Invalid token correctly rejected\n")
