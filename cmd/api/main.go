@@ -6,14 +6,17 @@ import (
 	"pokemon-cli/internal/battle"
 	"pokemon-cli/internal/cards"
 	"pokemon-cli/internal/database"
+	"pokemon-cli/internal/middleware"
 	"pokemon-cli/internal/pokemon"
 	"pokemon-cli/internal/shop"
+	"pokemon-cli/internal/stats"
 	"pokemon-cli/pkg/config"
 	"pokemon-cli/pkg/logger"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/swagger"
 )
 
 func main() {
@@ -59,17 +62,20 @@ func main() {
 	authRepo := auth.NewRepository(database.GetDB())
 	cardsRepo := cards.NewRepository(database.GetDB())
 	shopRepo := shop.NewRepository(database.GetDB())
+	statsRepo := stats.NewRepository(database.GetDB())
 
 	// Initialize services
 	authService := auth.NewService()
 	cardsService := cards.NewService(cardsRepo)
 	shopService := shop.NewService()
+	statsService := stats.NewService(statsRepo)
 
 	// Initialize handlers
 	authHandler := auth.NewHandler(authService, jwtService, authRepo, cardsService)
 	cardsHandler := cards.NewHandler(cardsService)
 	battleHandler := battle.NewHandler()
 	shopHandler := shop.NewHandler(shopService, shopRepo)
+	statsHandler := stats.NewHandler(statsService)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -89,23 +95,65 @@ func main() {
 
 	// Middleware
 	app.Use(recover.New())
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: func() string {
-			if len(cfg.CORS.AllowedOrigins) > 0 {
-				origins := ""
-				for i, origin := range cfg.CORS.AllowedOrigins {
-					if i > 0 {
-						origins += ","
-					}
-					origins += origin
+	
+	// Add security headers to all responses
+	app.Use(middleware.SecurityHeaders())
+	
+	// HTTPS redirect in production
+	app.Use(middleware.HTTPSRedirect(cfg.Server.Env))
+	
+	// Configure CORS properly based on environment
+	corsConfig := cors.Config{
+		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization",
+		AllowCredentials: true,
+		MaxAge:           3600,
+	}
+	
+	// In production, only allow specific origins
+	if cfg.Server.Env == "production" {
+		if len(cfg.CORS.AllowedOrigins) > 0 {
+			origins := ""
+			for i, origin := range cfg.CORS.AllowedOrigins {
+				if i > 0 {
+					origins += ","
 				}
-				return origins
+				origins += origin
 			}
-			return "*"
-		}(),
-		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders: "Origin,Content-Type,Accept,Authorization",
-	}))
+			corsConfig.AllowOrigins = origins
+			appLogger.Info("CORS configured for production", "origins", origins)
+		} else {
+			// In production without configured origins, deny all cross-origin requests
+			corsConfig.AllowOrigins = ""
+			corsConfig.AllowCredentials = false
+			appLogger.Warn("No CORS origins configured for production - cross-origin requests will be blocked")
+		}
+	} else {
+		// In development, allow localhost origins
+		if len(cfg.CORS.AllowedOrigins) > 0 {
+			origins := ""
+			for i, origin := range cfg.CORS.AllowedOrigins {
+				if i > 0 {
+					origins += ","
+				}
+				origins += origin
+			}
+			corsConfig.AllowOrigins = origins
+			appLogger.Info("CORS configured for development", "origins", origins)
+		} else {
+			// Default development origins - must be explicit when AllowCredentials is true
+			corsConfig.AllowOrigins = "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+			appLogger.Info("CORS configured for development", "origins", corsConfig.AllowOrigins)
+		}
+	}
+	
+	app.Use(cors.New(corsConfig))
+	
+	// Add database to context for all routes
+	app.Use(func(c *fiber.Ctx) error {
+		c.Locals("db", database.GetDB())
+		return c.Next()
+	})
 
 	// Health check endpoint
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -114,6 +162,31 @@ func main() {
 			"env":    cfg.Server.Env,
 		})
 	})
+
+	// Serve the swagger.yaml file
+	app.Get("/api/docs/swagger.yaml", func(c *fiber.Ctx) error {
+		return c.SendFile("./docs/swagger.yaml")
+	})
+	
+	// Swagger API documentation UI - configure to use local spec
+	// Relax CSP for Swagger UI to work properly
+	app.Get("/api/docs/*", func(c *fiber.Ctx) error {
+		// Override CSP for Swagger UI
+		c.Set("Content-Security-Policy", 
+			"default-src 'self'; "+
+			"script-src 'self' 'unsafe-inline' 'unsafe-eval'; "+
+			"style-src 'self' 'unsafe-inline'; "+
+			"img-src 'self' data: https: http:; "+
+			"font-src 'self' data:; "+
+			"connect-src 'self'; "+
+			"frame-ancestors 'none'")
+		return c.Next()
+	}, swagger.New(swagger.Config{
+		URL:         "swagger.yaml",
+		DeepLinking: false,
+		DocExpansion: "list",
+		DefaultModelsExpandDepth: 1,
+	}))
 
 	// Pokemon endpoint (legacy support)
 	app.Get("/pokemon", func(c *fiber.Ctx) error {
@@ -140,6 +213,7 @@ func main() {
 	authMiddleware := auth.Middleware(jwtService)
 	battle.RegisterRoutes(app, battleHandler, authMiddleware)
 	shop.RegisterRoutes(app, shopHandler, authMiddleware)
+	stats.RegisterRoutes(app, statsHandler, authMiddleware)
 
 	// Start server
 	port := cfg.Server.Port

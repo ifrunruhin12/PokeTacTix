@@ -1,0 +1,1426 @@
+openapi: 3.0.3
+info:
+  title: PokeTacTix API
+  description: |
+    PokeTacTix is a Pokemon card battle game API that allows players to collect Pokemon cards, 
+    battle against AI opponents, purchase cards from the shop, and track their progress.
+    
+    ## Authentication
+    Most endpoints require JWT authentication. Include the token in the Authorization header:
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
+    
+    ## Rate Limiting
+    - Login: 5 requests per minute
+    - Register: 3 requests per hour
+    - Shop purchases: 10 requests per minute
+    - Battle moves: 100 requests per minute
+  version: 1.0.0
+  contact:
+    name: PokeTacTix API Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://api.poketactix.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User registration, login, and session management
+  - name: Cards
+    description: Pokemon card collection and deck management
+  - name: Battle
+    description: 1v1 and 5v5 battle operations
+  - name: Shop
+    description: Pokemon card shop and purchases
+  - name: Profile
+    description: Player statistics, history, and achievements
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login endpoint
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: INVALID_CREDENTIALS
+            message:
+              type: string
+              example: Username or password is incorrect
+            details:
+              type: object
+              additionalProperties: true
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 123
+        username:
+          type: string
+          example: trainer_ash
+        email:
+          type: string
+          example: ash@pokemon.com
+        coins:
+          type: integer
+          example: 500
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Move:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Thunderbolt
+        type:
+          type: string
+          example: electric
+        power:
+          type: integer
+          example: 90
+        stamina_cost:
+          type: integer
+          example: 30
+
+    PlayerCard:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 123
+        pokemon_name:
+          type: string
+          example: Pikachu
+        level:
+          type: integer
+          example: 15
+        xp:
+          type: integer
+          example: 450
+        base_hp:
+          type: integer
+          example: 100
+        base_attack:
+          type: integer
+          example: 85
+        base_defense:
+          type: integer
+          example: 70
+        base_speed:
+          type: integer
+          example: 90
+        types:
+          type: array
+          items:
+            type: string
+          example: ["electric"]
+        moves:
+          type: array
+          items:
+            $ref: '#/components/schemas/Move'
+        sprite:
+          type: string
+          example: https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png
+        is_legendary:
+          type: boolean
+          example: false
+        is_mythical:
+          type: boolean
+          example: false
+        in_deck:
+          type: boolean
+          example: true
+        deck_position:
+          type: integer
+          nullable: true
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+
+    BattleCard:
+      type: object
+      properties:
+        card_id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Pikachu
+        hp:
+          type: integer
+          example: 85
+        hp_max:
+          type: integer
+          example: 100
+        stamina:
+          type: integer
+          example: 120
+        stamina_max:
+          type: integer
+          example: 180
+        attack:
+          type: integer
+          example: 85
+        defense:
+          type: integer
+          example: 70
+        speed:
+          type: integer
+          example: 90
+        types:
+          type: array
+          items:
+            type: string
+          example: ["electric"]
+        moves:
+          type: array
+          items:
+            $ref: '#/components/schemas/Move'
+        sprite:
+          type: string
+          example: https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png
+        is_knocked_out:
+          type: boolean
+          example: false
+
+    BattleState:
+      type: object
+      properties:
+        id:
+          type: string
+          example: battle_123abc
+        user_id:
+          type: integer
+          example: 123
+        mode:
+          type: string
+          enum: [1v1, 5v5]
+          example: 5v5
+        player_deck:
+          type: array
+          items:
+            $ref: '#/components/schemas/BattleCard'
+        ai_deck:
+          type: array
+          items:
+            $ref: '#/components/schemas/BattleCard'
+          description: Only active AI Pokemon is fully visible, others are face-down
+        player_active_idx:
+          type: integer
+          example: 0
+        ai_active_idx:
+          type: integer
+          example: 0
+        turn_number:
+          type: integer
+          example: 5
+        whose_turn:
+          type: string
+          enum: [player, ai]
+          example: player
+        battle_over:
+          type: boolean
+          example: false
+        winner:
+          type: string
+          enum: [player, ai, draw]
+          nullable: true
+        round_number:
+          type: integer
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+
+    Rewards:
+      type: object
+      properties:
+        coins_earned:
+          type: integer
+          example: 150
+        xp_gained:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            "1": 15
+            "2": 15
+        level_ups:
+          type: array
+          items:
+            type: integer
+          example: [1]
+        ai_cards:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayerCard'
+          description: Available for selection after 5v5 victory
+
+    BattleResult:
+      type: object
+      properties:
+        state:
+          $ref: '#/components/schemas/BattleState'
+        log:
+          type: array
+          items:
+            type: string
+          example:
+            - "Pikachu used Thunderbolt!"
+            - "It's super effective!"
+            - "Charizard took 45 damage!"
+        battle_over:
+          type: boolean
+          example: false
+        winner:
+          type: string
+          nullable: true
+          enum: [player, ai, draw]
+        rewards:
+          $ref: '#/components/schemas/Rewards'
+          nullable: true
+
+    ShopItem:
+      type: object
+      properties:
+        pokemon_name:
+          type: string
+          example: Mewtwo
+        price:
+          type: integer
+          example: 2500
+        rarity:
+          type: string
+          enum: [common, uncommon, rare, legendary, mythical]
+          example: legendary
+        is_legendary:
+          type: boolean
+          example: true
+        is_mythical:
+          type: boolean
+          example: false
+        sprite:
+          type: string
+          example: https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/150.png
+        types:
+          type: array
+          items:
+            type: string
+          example: ["psychic"]
+        in_stock:
+          type: boolean
+          example: true
+
+    ShopInventory:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShopItem'
+        discount_active:
+          type: boolean
+          example: false
+        discount_percent:
+          type: integer
+          example: 0
+        refresh_time:
+          type: string
+          format: date-time
+
+    PlayerStats:
+      type: object
+      properties:
+        user_id:
+          type: integer
+          example: 123
+        total_battles_1v1:
+          type: integer
+          example: 25
+        wins_1v1:
+          type: integer
+          example: 18
+        losses_1v1:
+          type: integer
+          example: 7
+        total_battles_5v5:
+          type: integer
+          example: 10
+        wins_5v5:
+          type: integer
+          example: 6
+        losses_5v5:
+          type: integer
+          example: 4
+        total_coins_earned:
+          type: integer
+          example: 1500
+        highest_level:
+          type: integer
+          example: 25
+        updated_at:
+          type: string
+          format: date-time
+
+    BattleHistory:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user_id:
+          type: integer
+          example: 123
+        mode:
+          type: string
+          enum: [1v1, 5v5]
+          example: 5v5
+        result:
+          type: string
+          enum: [win, loss, draw]
+          example: win
+        coins_earned:
+          type: integer
+          example: 150
+        duration:
+          type: integer
+          description: Battle duration in seconds
+          example: 180
+        created_at:
+          type: string
+          format: date-time
+
+    Achievement:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: First Victory
+        description:
+          type: string
+          example: Win your first battle
+        icon:
+          type: string
+          example: trophy
+        unlocked:
+          type: boolean
+          example: true
+
+paths:
+  /api/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: |
+        Create a new user account with username, email, and password.
+        Password must meet security requirements:
+        - Minimum 8 characters
+        - At least 1 uppercase letter
+        - At least 1 lowercase letter
+        - At least 1 number
+        - At least 1 special character
+        
+        Upon successful registration, the user receives 5 random starter Pokemon cards.
+        
+        **Rate Limit:** 3 requests per hour per IP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - password
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                  pattern: '^[a-zA-Z0-9_]+$'
+                  example: trainer_ash
+                email:
+                  type: string
+                  format: email
+                  example: ash@pokemon.com
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 100
+                  example: SecurePass123!
+      responses:
+        '201':
+          description: User successfully registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  starter_deck:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlayerCard'
+        '400':
+          description: Invalid input or weak password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                weak_password:
+                  value:
+                    error:
+                      code: WEAK_PASSWORD
+                      message: Password must be at least 8 characters with uppercase, lowercase, number, and special character
+                invalid_username:
+                  value:
+                    error:
+                      code: INVALID_INPUT
+                      message: Username must be 3-50 alphanumeric characters
+        '409':
+          description: Username or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: USER_EXISTS
+                  message: Username or email already registered
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: RATE_LIMIT_EXCEEDED
+                  message: Too many registration attempts. Please try again later.
+
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login to existing account
+      description: |
+        Authenticate with username and password to receive a JWT token.
+        The token expires after 24 hours and must be included in the Authorization header
+        for protected endpoints.
+        
+        **Rate Limit:** 5 requests per minute per IP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: trainer_ash
+                password:
+                  type: string
+                  example: SecurePass123!
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+                    description: JWT token valid for 24 hours
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+              example:
+                user:
+                  id: 123
+                  username: trainer_ash
+                  email: ash@pokemon.com
+                  coins: 500
+                  created_at: "2024-01-15T10:30:00Z"
+                  updated_at: "2024-01-20T14:45:00Z"
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: INVALID_CREDENTIALS
+                  message: Username or password is incorrect
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: RATE_LIMIT_EXCEEDED
+                  message: Too many login attempts. Please try again later.
+
+  /api/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user information
+      description: Retrieve the authenticated user's profile information
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              example:
+                id: 123
+                username: trainer_ash
+                email: ash@pokemon.com
+                coins: 500
+                created_at: "2024-01-15T10:30:00Z"
+                updated_at: "2024-01-20T14:45:00Z"
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing_token:
+                  value:
+                    error:
+                      code: UNAUTHORIZED
+                      message: Missing or invalid authentication token
+                expired_token:
+                  value:
+                    error:
+                      code: TOKEN_EXPIRED
+                      message: JWT token has expired
+                invalid_token:
+                  value:
+                    error:
+                      code: TOKEN_INVALID
+                      message: JWT token is malformed or invalid
+
+  /api/cards:
+    get:
+      tags:
+        - Cards
+      summary: Get user's card collection
+      description: Retrieve all Pokemon cards owned by the authenticated user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Card collection retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cards:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlayerCard'
+              example:
+                cards:
+                  - id: 1
+                    user_id: 123
+                    pokemon_name: Pikachu
+                    level: 15
+                    xp: 450
+                    base_hp: 100
+                    base_attack: 85
+                    base_defense: 70
+                    base_speed: 90
+                    types: ["electric"]
+                    moves:
+                      - name: Thunderbolt
+                        type: electric
+                        power: 90
+                        stamina_cost: 30
+                    sprite: https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png
+                    is_legendary: false
+                    is_mythical: false
+                    in_deck: true
+                    deck_position: 1
+                    created_at: "2024-01-15T10:30:00Z"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/cards/deck:
+    get:
+      tags:
+        - Cards
+      summary: Get current deck
+      description: Retrieve the 5 Pokemon cards currently in the user's battle deck
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Deck retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deck:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlayerCard'
+                    minItems: 5
+                    maxItems: 5
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Cards
+      summary: Update battle deck
+      description: |
+        Update the user's battle deck with exactly 5 Pokemon cards.
+        Cards must be owned by the user and identified by their card IDs.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - card_ids
+              properties:
+                card_ids:
+                  type: array
+                  items:
+                    type: integer
+                  minItems: 5
+                  maxItems: 5
+                  example: [1, 2, 3, 4, 5]
+      responses:
+        '200':
+          description: Deck updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Deck updated successfully
+                  deck:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlayerCard'
+        '400':
+          description: Invalid deck configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                wrong_count:
+                  value:
+                    error:
+                      code: INVALID_DECK
+                      message: Deck must contain exactly 5 cards
+                card_not_found:
+                  value:
+                    error:
+                      code: CARD_NOT_FOUND
+                      message: One or more cards not found or don't belong to user
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/battle/start:
+    post:
+      tags:
+        - Battle
+      summary: Start a new battle
+      description: |
+        Initialize a new battle session in either 1v1 or 5v5 mode.
+        - **1v1**: Single Pokemon battle, quick matches
+        - **5v5**: Full deck battle, strategic gameplay
+        
+        The battle state is stored server-side and can be retrieved using the battle ID.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mode
+              properties:
+                mode:
+                  type: string
+                  enum: [1v1, 5v5]
+                  example: 5v5
+      responses:
+        '200':
+          description: Battle started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BattleState'
+        '400':
+          description: Invalid mode or insufficient cards in deck
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: INVALID_DECK
+                  message: You must have exactly 5 cards in your deck to battle
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/battle/state:
+    get:
+      tags:
+        - Battle
+      summary: Get current battle state
+      description: Retrieve the current state of an active battle session
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: battle_id
+          in: query
+          required: true
+          schema:
+            type: string
+          example: battle_123abc
+      responses:
+        '200':
+          description: Battle state retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BattleState'
+        '404':
+          description: Battle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: BATTLE_NOT_FOUND
+                  message: Battle session doesn't exist or has expired
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/battle/move:
+    post:
+      tags:
+        - Battle
+      summary: Submit a battle move
+      description: |
+        Execute a move in the current battle. Available moves:
+        - **attack**: Use a Pokemon move (requires move_index)
+        - **defend**: Reduce incoming damage, costs stamina
+        - **pass**: Skip turn and restore stamina
+        - **sacrifice**: Knock out current Pokemon to fully restore next Pokemon
+        - **surrender**: End battle immediately (counts as loss)
+        
+        **Rate Limit:** 100 requests per minute
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - battle_id
+                - move
+              properties:
+                battle_id:
+                  type: string
+                  example: battle_123abc
+                move:
+                  type: string
+                  enum: [attack, defend, pass, sacrifice, surrender]
+                  example: attack
+                move_index:
+                  type: integer
+                  description: Required when move is "attack", index of the move to use (0-3)
+                  example: 0
+      responses:
+        '200':
+          description: Move executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BattleResult'
+              example:
+                state:
+                  id: battle_123abc
+                  mode: 5v5
+                  turn_number: 6
+                  whose_turn: ai
+                  battle_over: false
+                log:
+                  - "Pikachu used Thunderbolt!"
+                  - "It's super effective!"
+                  - "Charizard took 45 damage!"
+                battle_over: false
+                winner: null
+                rewards: null
+        '400':
+          description: Invalid move or not player's turn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                not_your_turn:
+                  value:
+                    error:
+                      code: NOT_YOUR_TURN
+                      message: It's not your turn to move
+                invalid_move:
+                  value:
+                    error:
+                      code: INVALID_MOVE
+                      message: Move is not allowed or invalid
+                insufficient_stamina:
+                  value:
+                    error:
+                      code: INSUFFICIENT_STAMINA
+                      message: Not enough stamina for this move
+                battle_over:
+                  value:
+                    error:
+                      code: BATTLE_OVER
+                      message: Cannot make moves in a finished battle
+        '404':
+          description: Battle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/battle/switch:
+    post:
+      tags:
+        - Battle
+      summary: Switch active Pokemon
+      description: |
+        Switch to a different Pokemon in your deck during a 5v5 battle.
+        Only available when:
+        - Current Pokemon is knocked out (forced switch)
+        - You won the previous round (optional switch)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - battle_id
+                - pokemon_index
+              properties:
+                battle_id:
+                  type: string
+                  example: battle_123abc
+                pokemon_index:
+                  type: integer
+                  description: Index of the Pokemon to switch to (0-4)
+                  example: 2
+      responses:
+        '200':
+          description: Pokemon switched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Switched to Charizard
+                  state:
+                    $ref: '#/components/schemas/BattleState'
+        '400':
+          description: Invalid switch request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                pokemon_knocked_out:
+                  value:
+                    error:
+                      code: INVALID_MOVE
+                      message: Cannot switch to a knocked out Pokemon
+                not_5v5:
+                  value:
+                    error:
+                      code: INVALID_MOVE
+                      message: Switching is only available in 5v5 battles
+        '404':
+          description: Battle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/battle/select-reward:
+    post:
+      tags:
+        - Battle
+      summary: Select AI Pokemon after 5v5 victory
+      description: |
+        After winning a 5v5 battle, select one of the AI's Pokemon to add to your collection.
+        The selected Pokemon is added at Level 1 with 0 XP.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - battle_id
+                - pokemon_name
+              properties:
+                battle_id:
+                  type: string
+                  example: battle_123abc
+                pokemon_name:
+                  type: string
+                  example: Charizard
+      responses:
+        '200':
+          description: Pokemon added to collection successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Charizard added to your collection!
+                  card:
+                    $ref: '#/components/schemas/PlayerCard'
+        '400':
+          description: Invalid reward selection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                not_winner:
+                  value:
+                    error:
+                      code: INVALID_MOVE
+                      message: You must win the battle to select a reward
+                not_5v5:
+                  value:
+                    error:
+                      code: INVALID_MOVE
+                      message: Rewards are only available for 5v5 battles
+                already_claimed:
+                  value:
+                    error:
+                      code: INVALID_MOVE
+                      message: Reward already claimed for this battle
+        '404':
+          description: Battle or Pokemon not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/shop/inventory:
+    get:
+      tags:
+        - Shop
+      summary: Get shop inventory
+      description: |
+        Retrieve the current shop inventory with available Pokemon cards for purchase.
+        
+        **Inventory Details:**
+        - Refreshes every 24 hours
+        - 10-15 common/uncommon Pokemon
+        - 5-8 rare Pokemon
+        - 15% chance for 1-2 legendary/mythical Pokemon
+        
+        **Pricing:**
+        - Common: 100 coins
+        - Uncommon: 250 coins
+        - Rare: 500 coins
+        - Legendary: 2500 coins (1500 during discount)
+        - Mythical: 5000 coins (3500 during discount)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Shop inventory retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShopInventory'
+              example:
+                items:
+                  - pokemon_name: Mewtwo
+                    price: 2500
+                    rarity: legendary
+                    is_legendary: true
+                    is_mythical: false
+                    sprite: https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/150.png
+                    types: ["psychic"]
+                    in_stock: true
+                  - pokemon_name: Charizard
+                    price: 500
+                    rarity: rare
+                    is_legendary: false
+                    is_mythical: false
+                    sprite: https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/6.png
+                    types: ["fire", "flying"]
+                    in_stock: true
+                discount_active: false
+                discount_percent: 0
+                refresh_time: "2024-01-21T00:00:00Z"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/shop/purchase:
+    post:
+      tags:
+        - Shop
+      summary: Purchase a Pokemon card
+      description: |
+        Purchase a Pokemon card from the shop using coins.
+        The card is added to your collection at Level 1 with 0 XP.
+        Duplicate purchases are allowed for deck building flexibility.
+        
+        **Rate Limit:** 10 requests per minute
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pokemon_name
+              properties:
+                pokemon_name:
+                  type: string
+                  example: Charizard
+      responses:
+        '200':
+          description: Purchase successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully purchased Charizard!
+                  card:
+                    $ref: '#/components/schemas/PlayerCard'
+                  remaining_coins:
+                    type: integer
+                    example: 250
+        '400':
+          description: Invalid purchase request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '402':
+          description: Insufficient coins
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: INSUFFICIENT_COINS
+                  message: "Not enough coins for this purchase. Required: 500, Available: 250"
+        '404':
+          description: Pokemon not found in shop
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: ITEM_NOT_FOUND
+                  message: Pokemon not available in current shop inventory
+        '410':
+          description: Item out of stock
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: ITEM_OUT_OF_STOCK
+                  message: This Pokemon is no longer available
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/profile/stats:
+    get:
+      tags:
+        - Profile
+      summary: Get player statistics
+      description: |
+        Retrieve comprehensive statistics for the authenticated player including:
+        - Total battles and win/loss records (separated by mode)
+        - Total coins earned
+        - Highest level Pokemon
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerStats'
+              example:
+                user_id: 123
+                total_battles_1v1: 25
+                wins_1v1: 18
+                losses_1v1: 7
+                total_battles_5v5: 10
+                wins_5v5: 6
+                losses_5v5: 4
+                total_coins_earned: 1500
+                highest_level: 25
+                updated_at: "2024-01-20T14:45:00Z"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/profile/history:
+    get:
+      tags:
+        - Profile
+      summary: Get battle history
+      description: |
+        Retrieve the player's recent battle history.
+        Returns the last 20 battles by default.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Number of battles to retrieve
+          example: 20
+      responses:
+        '200':
+          description: Battle history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  history:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BattleHistory'
+              example:
+                history:
+                  - id: 1
+                    user_id: 123
+                    mode: 5v5
+                    result: win
+                    coins_earned: 150
+                    duration: 180
+                    created_at: "2024-01-20T14:30:00Z"
+                  - id: 2
+                    user_id: 123
+                    mode: 1v1
+                    result: win
+                    coins_earned: 50
+                    duration: 60
+                    created_at: "2024-01-20T13:15:00Z"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/profile/achievements:
+    get:
+      tags:
+        - Profile
+      summary: Get player achievements
+      description: |
+        Retrieve all achievements with their unlock status.
+        
+        **Available Achievements:**
+        - First Victory: Win your first battle
+        - Veteran Trainer: Win 10 battles
+        - Elite Trainer: Win 50 battles
+        - Champion: Win 100 battles
+        - Legendary Collector: Obtain a legendary Pokemon
+        - Mythical Master: Obtain a mythical Pokemon
+        - Max Level: Get a Pokemon to level 50
+        - Coin Hoarder: Accumulate 5000 coins
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Achievements retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  achievements:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Achievement'
+              example:
+                achievements:
+                  - id: 1
+                    name: First Victory
+                    description: Win your first battle
+                    icon: trophy
+                    unlocked: true
+                  - id: 2
+                    name: Veteran Trainer
+                    description: Win 10 battles
+                    icon: medal
+                    unlocked: true
+                  - id: 3
+                    name: Elite Trainer
+                    description: Win 50 battles
+                    icon: star
+                    unlocked: false
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

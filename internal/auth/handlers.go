@@ -46,8 +46,19 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 		})
 	}
 
+	// Sanitize inputs
 	req.Username = strings.TrimSpace(req.Username)
 	req.Email = strings.TrimSpace(req.Email)
+	
+	// Additional XSS protection - ensure no HTML tags
+	if strings.Contains(req.Username, "<") || strings.Contains(req.Username, ">") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "INVALID_USERNAME",
+				"message": "Username contains invalid characters",
+			},
+		})
+	}
 	
 	// Validate username
 	if err := h.authService.ValidateUsername(req.Username); err != nil {

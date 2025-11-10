@@ -22,6 +22,7 @@ type BattleState struct {
 	WhoseTurn       string          `json:"whose_turn"`   // "player" or "ai"
 	BattleOver      bool            `json:"battle_over"`
 	Winner          string          `json:"winner"` // "player", "ai", "draw"
+	RewardClaimed   bool            `json:"reward_claimed"` // Track if 5v5 reward has been claimed
 	PendingPlayerMove    string     `json:"pending_player_move"`
 	PendingPlayerMoveIdx int        `json:"pending_player_move_idx"`
 	PendingAIMove        string     `json:"pending_ai_move"`

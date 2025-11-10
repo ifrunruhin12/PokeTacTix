@@ -63,7 +63,7 @@ func Load() *Config {
 			Expiration: getEnvAsDuration("JWT_EXPIRATION", 24*time.Hour),
 		},
 		CORS: CORSConfig{
-			AllowedOrigins: getEnvAsSlice("CORS_ORIGINS", []string{"*"}),
+			AllowedOrigins: getEnvAsSlice("CORS_ORIGINS", []string{}),
 		},
 		RateLimit: RateLimitConfig{
 			Enabled:  getEnvAsBool("RATE_LIMIT_ENABLED", true),

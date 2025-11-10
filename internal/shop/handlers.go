@@ -1,6 +1,9 @@
 package shop
 
 import (
+	"regexp"
+	"strings"
+	
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -16,6 +19,13 @@ func NewHandler(service *Service, repository *Repository) *Handler {
 		service:    service,
 		repository: repository,
 	}
+}
+
+// isValidPokemonName validates Pokemon name format
+func isValidPokemonName(name string) bool {
+	// Pokemon names should only contain letters, hyphens, spaces, and apostrophes
+	matched, _ := regexp.MatchString(`^[a-zA-Z\-\s']+$`, name)
+	return matched
 }
 
 // GetInventory handles GET /api/shop/inventory
@@ -54,12 +64,33 @@ func (h *Handler) Purchase(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate Pokemon name
+	// Sanitize and validate Pokemon name
+	req.PokemonName = strings.TrimSpace(strings.ToLower(req.PokemonName))
+	
 	if req.PokemonName == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{
 				"code":    "INVALID_REQUEST",
 				"message": "Pokemon name is required",
+			},
+		})
+	}
+	
+	// Validate Pokemon name format (only letters, hyphens, and spaces)
+	if !isValidPokemonName(req.PokemonName) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "INVALID_REQUEST",
+				"message": "Invalid Pokemon name format",
+			},
+		})
+	}
+	
+	if len(req.PokemonName) > 100 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "INVALID_REQUEST",
+				"message": "Pokemon name is too long",
 			},
 		})
 	}

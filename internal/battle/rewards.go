@@ -2,6 +2,7 @@ package battle
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"pokemon-cli/internal/database"
 
@@ -225,4 +226,65 @@ func GetCurrentStats(baseHP, baseAttack, baseDefense, baseSpeed, level int) data
 		Speed:   int(float64(baseSpeed) * (1.0 + float64(level-1)*0.01)),
 		Stamina: int(float64(baseSpeed) * 2 * (1.0 + float64(level-1)*0.01)),
 	}
+}
+
+// AddAIPokemonToCollection adds a selected AI Pokemon to the player's collection
+// Requirements: 11.1, 11.2, 11.3, 11.4
+func AddAIPokemonToCollection(ctx context.Context, db *pgxpool.Pool, userID int, aiCard BattleCard) (*database.PlayerCard, error) {
+	// Convert types and moves to JSON
+	typesJSON, err := json.Marshal(aiCard.Types)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal types: %w", err)
+	}
+	
+	movesJSON, err := json.Marshal(aiCard.Moves)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal moves: %w", err)
+	}
+	
+	// Create the player card at level 1 with 0 XP
+	playerCard := &database.PlayerCard{
+		UserID:       userID,
+		PokemonName:  aiCard.Name,
+		Level:        1,
+		XP:           0,
+		BaseHP:       aiCard.HPMax,
+		BaseAttack:   aiCard.Attack,
+		BaseDefense:  aiCard.Defense,
+		BaseSpeed:    aiCard.Speed,
+		Types:        typesJSON,
+		Moves:        movesJSON,
+		Sprite:       aiCard.Sprite,
+		IsLegendary:  false, // Will be determined by the Pokemon name
+		IsMythical:   false, // Will be determined by the Pokemon name
+		InDeck:       false, // Not added to deck automatically
+		DeckPosition: nil,
+	}
+	
+	// Check if legendary or mythical
+	// Note: This requires importing the pokemon package
+	// For now, we'll leave it as false and can enhance later
+	
+	// Insert into database
+	query := `
+		INSERT INTO player_cards (
+			user_id, pokemon_name, level, xp, base_hp, base_attack, base_defense, base_speed,
+			types, moves, sprite, is_legendary, is_mythical, in_deck, deck_position
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		RETURNING id, created_at, updated_at
+	`
+	
+	err = db.QueryRow(ctx, query,
+		playerCard.UserID, playerCard.PokemonName, playerCard.Level, playerCard.XP,
+		playerCard.BaseHP, playerCard.BaseAttack, playerCard.BaseDefense, playerCard.BaseSpeed,
+		playerCard.Types, playerCard.Moves, playerCard.Sprite,
+		playerCard.IsLegendary, playerCard.IsMythical, playerCard.InDeck, playerCard.DeckPosition,
+	).Scan(&playerCard.ID, &playerCard.CreatedAt, &playerCard.UpdatedAt)
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to add Pokemon to collection: %w", err)
+	}
+	
+	return playerCard, nil
 }

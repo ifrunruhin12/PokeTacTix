@@ -83,6 +83,58 @@ The frontend uses JS fetch calls to your live backend for everything — no page
 
 ---
 
+## 📚 API Documentation
+
+The PokeTacTix API is fully documented with **OpenAPI 3.0** (Swagger) specification.
+
+### Interactive Documentation
+
+Once the server is running, access the interactive Swagger UI at:
+```
+http://localhost:3000/api/docs
+```
+
+The Swagger UI provides:
+- **Interactive API testing** - Try endpoints directly from your browser
+- **Request/response examples** - See exactly what to send and expect
+- **Schema definitions** - Understand all data models
+- **Authentication testing** - Test JWT authentication flows
+
+### API Endpoints
+
+The API includes comprehensive endpoints for:
+- **Authentication** (`/api/auth/*`) - Register, login, session management
+- **Cards** (`/api/cards/*`) - Collection and deck management
+- **Battle** (`/api/battle/*`) - 1v1 and 5v5 battle operations
+- **Shop** (`/api/shop/*`) - Pokemon card purchases
+- **Profile** (`/api/profile/*`) - Statistics, history, and achievements
+
+### Quick Start
+
+1. **Register a new account:**
+   ```bash
+   curl -X POST http://localhost:3000/api/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"username":"trainer","email":"trainer@pokemon.com","password":"SecurePass123!"}'
+   ```
+
+2. **Login and get JWT token:**
+   ```bash
+   curl -X POST http://localhost:3000/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"username":"trainer","password":"SecurePass123!"}'
+   ```
+
+3. **Use the token for authenticated requests:**
+   ```bash
+   curl -X GET http://localhost:3000/api/cards \
+     -H "Authorization: Bearer YOUR_JWT_TOKEN"
+   ```
+
+For detailed documentation, see [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)
+
+---
+
 ## 🚀 Latest Features (June, 2025)
 
 - **Modern 1v1 Battle Arena**: Beautiful, card-based UI with colored type badges, responsive layout, and smooth turn flow.
