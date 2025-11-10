@@ -124,7 +124,10 @@ func main() {
 	// Register routes
 	auth.RegisterRoutes(app, authHandler, jwtService)
 	cards.RegisterRoutes(app, cardsHandler, jwtService)
-	battle.RegisterRoutes(app, battleHandler)
+	
+	// Create auth middleware for battle routes
+	authMiddleware := auth.Middleware(jwtService)
+	battle.RegisterRoutes(app, battleHandler, authMiddleware)
 
 	// Start server
 	port := cfg.Server.Port

@@ -199,7 +199,7 @@ func ProcessTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, 
 		// AI does its move, player does nothing
 		switch aiMove {
 		case "attack":
-			aiDmg := calculateDamage(aiCard, playerCard, false, aiMoveIdx)
+			aiDmg := CalculateDamage(aiCard, playerCard, false, aiMoveIdx)
 			playerCard.HP -= aiDmg
 			aiCard.Stamina -= aiCard.Moves[aiMoveIdx].StaminaCost
 			state.LastHpLost = aiDmg
@@ -217,7 +217,7 @@ func ProcessTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, 
 		// Player does their move, AI does nothing
 		switch playerMove {
 		case "attack":
-			playerDmg := calculateDamage(playerCard, aiCard, false, playerMoveIdx)
+			playerDmg := CalculateDamage(playerCard, aiCard, false, playerMoveIdx)
 			aiCard.HP -= playerDmg
 			playerCard.Stamina -= playerCard.Moves[playerMoveIdx].StaminaCost
 			state.LastHpLost = 0
@@ -232,8 +232,8 @@ func ProcessTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, 
 		return
 	}
 	if playerMove == "attack" && aiMove == "attack" {
-		playerDmg := calculateDamage(playerCard, aiCard, false, playerMoveIdx)
-		aiDmg := calculateDamage(aiCard, playerCard, false, aiMoveIdx)
+		playerDmg := CalculateDamage(playerCard, aiCard, false, playerMoveIdx)
+		aiDmg := CalculateDamage(aiCard, playerCard, false, aiMoveIdx)
 		aiCard.HP -= playerDmg
 		playerCard.HP -= aiDmg
 		playerCard.Stamina -= playerCard.Moves[playerMoveIdx].StaminaCost
@@ -242,7 +242,7 @@ func ProcessTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, 
 		state.LastStaminaLost = playerCard.Moves[playerMoveIdx].StaminaCost
 		state.LastDamageDealt = playerDmg
 	} else if playerMove == "attack" && aiMove == "defend" {
-		playerDmg := calculateDamage(playerCard, aiCard, true, playerMoveIdx)
+		playerDmg := CalculateDamage(playerCard, aiCard, true, playerMoveIdx)
 		aiCard.Stamina -= aiDefendCost
 		playerCard.Stamina -= playerCard.Moves[playerMoveIdx].StaminaCost
 		if playerDmg <= aiCard.Defense {
@@ -257,7 +257,7 @@ func ProcessTurnResult(playerMove, aiMove string, playerMoveIdx, aiMoveIdx int, 
 			state.LastDamageDealt = playerDmg - aiCard.Defense
 		}
 	} else if playerMove == "defend" && aiMove == "attack" {
-		aiDmg := calculateDamage(aiCard, playerCard, true, aiMoveIdx)
+		aiDmg := CalculateDamage(aiCard, playerCard, true, aiMoveIdx)
 		playerCard.Stamina -= playerDefendCost
 		aiCard.Stamina -= aiCard.Moves[aiMoveIdx].StaminaCost
 		if aiDmg <= playerCard.Defense {

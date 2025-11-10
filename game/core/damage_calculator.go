@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// Calculate damage (probabilities shift with attack stat)
-func calculateDamage(attacker, defender *pokemon.Card, defenderDefending bool, moveIdx int) int {
+// CalculateDamage calculates damage (probabilities shift with attack stat)
+func CalculateDamage(attacker, defender *pokemon.Card, defenderDefending bool, moveIdx int) int {
 	move := attacker.Moves[moveIdx]
 	power := move.Power
 	attackStat := attacker.Attack

@@ -1,8 +1,11 @@
 package battle
 
 import (
+	"fmt"
 	"pokemon-cli/game/models"
 	"pokemon-cli/internal/pokemon"
+	"sync"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -11,9 +14,11 @@ import (
 // Handler handles battle-related HTTP requests
 type Handler struct {
 	sessions   map[string]*Session
+	battleStates map[string]*BattleState // Enhanced battle state storage
+	mu         sync.RWMutex             // Mutex for thread-safe access
 }
 
-// Session holds core game state plus web-only turn state
+// Session holds core game state plus web-only turn state (legacy support)
 type Session struct {
 	State *models.GameState
 	Turn  *TurnState
@@ -22,11 +27,86 @@ type Session struct {
 // NewHandler creates a new battle handler
 func NewHandler() *Handler {
 	return &Handler{
-		sessions: make(map[string]*Session),
+		sessions:     make(map[string]*Session),
+		battleStates: make(map[string]*BattleState),
 	}
 }
 
-// StartBattle handles POST /api/battle/start
+// GetBattleState retrieves a battle state by ID (thread-safe)
+func (h *Handler) GetBattleState(id string) (*BattleState, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	state, ok := h.battleStates[id]
+	return state, ok
+}
+
+// SaveBattleState stores a battle state (thread-safe)
+func (h *Handler) SaveBattleState(state *BattleState) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	state.UpdatedAt = time.Now()
+	h.battleStates[state.ID] = state
+}
+
+// DeleteBattleState removes a battle state (thread-safe)
+func (h *Handler) DeleteBattleState(id string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	delete(h.battleStates, id)
+}
+
+// StartBattleEnhanced handles POST /api/battle/start with mode selection
+func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
+	// Get user ID from context (set by auth middleware)
+	userID, ok := c.Locals("user_id").(int)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var req struct {
+		Mode string `json:"mode"` // "1v1" or "5v5"
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	// Validate mode
+	if req.Mode != "1v1" && req.Mode != "5v5" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid mode. Must be '1v1' or '5v5'"})
+	}
+
+	// TODO: Fetch player's deck from database
+	// For now, use random cards
+	var playerDeck []pokemon.Card
+	var aiDeck []pokemon.Card
+
+	if req.Mode == "1v1" {
+		playerDeck = []pokemon.Card{pokemon.FetchRandomPokemonCard(false)}
+		aiDeck = []pokemon.Card{pokemon.FetchRandomPokemonCard(false)}
+	} else {
+		// Generate 5 random cards for each side
+		for i := 0; i < 5; i++ {
+			playerDeck = append(playerDeck, pokemon.FetchRandomPokemonCard(false))
+			aiDeck = append(aiDeck, pokemon.FetchRandomPokemonCard(false))
+		}
+	}
+
+	// Start the battle
+	battleState, err := StartBattle(userID, req.Mode, playerDeck, aiDeck)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Save battle state
+	h.SaveBattleState(battleState)
+
+	// Return battle state with card visibility
+	response := BuildBattleResponse(battleState, []string{fmt.Sprintf("Battle started! Mode: %s", req.Mode)}, true)
+
+	return c.JSON(response)
+}
+
+// StartBattle handles POST /api/battle/start (legacy support)
 func (h *Handler) StartBattle(c *fiber.Ctx) error {
 	var req struct {
 		PlayerName string `json:"playerName"`
@@ -90,8 +170,123 @@ func (h *Handler) MakeMove(c *fiber.Ctx) error {
 	return c.JSON(result)
 }
 
-// GetBattleState handles GET /api/battle/state
-func (h *Handler) GetBattleState(c *fiber.Ctx) error {
+// MakeMoveEnhanced handles POST /api/battle/move with enhanced battle system
+func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
+	// Get user ID from context
+	userID, ok := c.Locals("user_id").(int)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var req struct {
+		BattleID string `json:"battle_id"`
+		Move     string `json:"move"`
+		MoveIdx  *int   `json:"move_idx"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	// Get battle state
+	battleState, ok := h.GetBattleState(req.BattleID)
+	if !ok {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Battle not found"})
+	}
+
+	// Verify user owns this battle
+	if battleState.UserID != userID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not your battle"})
+	}
+
+	// Process the move
+	logEntries, err := ProcessMove(battleState, req.Move, req.MoveIdx)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Save updated battle state
+	h.SaveBattleState(battleState)
+
+	// Return updated state with logs
+	response := BuildBattleResponse(battleState, logEntries, true)
+
+	return c.JSON(response)
+}
+
+// GetBattleStateEnhanced handles GET /api/battle/state with enhanced system
+func (h *Handler) GetBattleStateEnhanced(c *fiber.Ctx) error {
+	// Get user ID from context
+	userID, ok := c.Locals("user_id").(int)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	battleID := c.Query("battle_id")
+	if battleID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "battle_id required"})
+	}
+
+	// Get battle state
+	battleState, ok := h.GetBattleState(battleID)
+	if !ok {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Battle not found"})
+	}
+
+	// Verify user owns this battle
+	if battleState.UserID != userID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not your battle"})
+	}
+
+	// Return state
+	response := BuildBattleResponse(battleState, []string{}, true)
+
+	return c.JSON(response)
+}
+
+// SwitchPokemonHandler handles POST /api/battle/switch
+func (h *Handler) SwitchPokemonHandler(c *fiber.Ctx) error {
+	// Get user ID from context
+	userID, ok := c.Locals("user_id").(int)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	var req struct {
+		BattleID string `json:"battle_id"`
+		NewIdx   int    `json:"new_idx"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	// Get battle state
+	battleState, ok := h.GetBattleState(req.BattleID)
+	if !ok {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Battle not found"})
+	}
+
+	// Verify user owns this battle
+	if battleState.UserID != userID {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not your battle"})
+	}
+
+	// Switch Pokemon
+	err := SwitchPokemon(battleState, req.NewIdx)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Save updated battle state
+	h.SaveBattleState(battleState)
+
+	// Return updated state
+	response := BuildBattleResponse(battleState, []string{fmt.Sprintf("Switched to %s", battleState.PlayerDeck[req.NewIdx].Name)}, true)
+
+	return c.JSON(response)
+}
+
+// GetBattleState handles GET /api/battle/state (legacy support)
+func (h *Handler) GetBattleStateLegacy(c *fiber.Ctx) error {
 	session := c.Query("session")
 	sess, ok := h.sessions[session]
 	if !ok {
