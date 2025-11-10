@@ -3,7 +3,7 @@ package core
 import (
 	"math/rand"
 	"pokemon-cli/game/models"
-	"pokemon-cli/pokemon"
+	"pokemon-cli/internal/pokemon"
 )
 
 // GetAIMove gets AI move logic

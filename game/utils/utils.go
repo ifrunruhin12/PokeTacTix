@@ -3,7 +3,7 @@ package utils
 
 import (
 	"fmt"
-	"pokemon-cli/pokemon"
+	"pokemon-cli/internal/pokemon"
 )
 
 // FetchRandomDeck returns a slice of 5 random Pokémon cards, with legendary/mythical odds handled in FetchRandomPokemonCard

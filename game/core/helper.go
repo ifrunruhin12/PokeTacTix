@@ -3,7 +3,7 @@ package core
 import (
 	"fmt"
 	"pokemon-cli/game/models"
-	"pokemon-cli/pokemon"
+	"pokemon-cli/internal/pokemon"
 )
 
 // Function to show battle result of 1v1 battle

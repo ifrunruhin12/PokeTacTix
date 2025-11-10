@@ -8,7 +8,7 @@ import (
 	"pokemon-cli/game/core"
 	"pokemon-cli/game/models"
 	"pokemon-cli/game/utils"
-	"pokemon-cli/pokemon"
+	"pokemon-cli/internal/pokemon"
 	"regexp"
 	"strings"
 )

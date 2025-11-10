@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"pokemon-cli/game/models"
-	"pokemon-cli/pokemon"
+	"pokemon-cli/internal/pokemon"
 	"strings"
 )
 

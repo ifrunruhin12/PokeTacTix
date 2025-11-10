@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"pokemon-cli/game/models"
 	"pokemon-cli/game/utils"
-	"pokemon-cli/pokemon"
+	"pokemon-cli/internal/pokemon"
 	"strings"
 )
 

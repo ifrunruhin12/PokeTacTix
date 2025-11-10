@@ -6,7 +6,7 @@ package models
 
 import (
 	"fmt"
-	"pokemon-cli/pokemon"
+	"pokemon-cli/internal/pokemon"
 )
 
 func PrintCard(card pokemon.Card) {

@@ -17,13 +17,39 @@ Hopefully will have it's own domain soon!
 
 ```
 PokeTacTix/
-├── frontend/       # Static HTML, CSS, JS + assets (deployed via GH Pages)
-├── server/         # Go Fiber backend serving REST API (deployed on Railway)
-├── pokemon/        # PokeAPI fetch + raw data handling
-├── game/           # Core battle logic, card/move handling
+├── cmd/
+│   └── api/              # Application entry point
+├── internal/             # Private application code
+│   ├── auth/            # Authentication domain (handlers, service, JWT, middleware)
+│   ├── battle/          # Battle system for web API (handlers, session management)
+│   ├── cards/           # Card management domain (handlers, service, repository)
+│   ├── pokemon/         # Pokemon fetching and card building
+│   └── database/        # Database connection, models, and migrations
+├── pkg/                 # Shared utilities
+│   ├── config/          # Configuration management
+│   └── logger/          # Structured logging
+├── game/                # Core battle logic (CLI only)
+│   ├── commands/        # CLI command handlers
+│   ├── core/            # Battle engine and game logic
+│   ├── models/          # Game state models
+│   └── utils/           # Game utilities (type chart, etc.)
+├── frontend/            # Static HTML, CSS, JS + assets (deployed via GH Pages)
+├── main.go              # CLI entry point
 ├── go.mod
-└── README.md       # ← You're looking at it!
+└── README.md            # ← You're looking at it!
 ```
+
+### Architecture
+
+The project follows a **feature-based architecture** with clear separation of concerns:
+
+- **cmd/api**: Main application entry point with dependency injection
+- **internal/**: Private application code organized by domain (auth, battle, cards, pokemon)
+- **pkg/**: Shared packages that could be used by other projects
+- **game/**: CLI-only battle logic (separate from web API)
+- **frontend/**: Static web UI (HTML, CSS, JS)
+- **Database layer**: Centralized in internal/database with domain-specific repositories
+- **Clean dependencies**: Each domain is self-contained with its own models, handlers, and business logic
 
 ---
 

@@ -3,7 +3,7 @@
 package models
 
 import (
-	"pokemon-cli/pokemon"
+	"pokemon-cli/internal/pokemon"
 )
 
 type Player struct {
