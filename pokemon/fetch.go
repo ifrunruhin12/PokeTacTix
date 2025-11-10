@@ -16,6 +16,27 @@ var mythicalNames = []string{
 	"mew", "celebi", "jirachi", "deoxys", "phione", "manaphy", "darkrai", "shaymin", "arceus", "victini", "keldeo", "meloetta", "genesect", "diancie", "hoopa", "volcanion", "magearna", "marshadow", "zeraora", "meltan", "melmetal", "zarude", "regieleki", "regidrago", "glastrier", "spectrier", "calyrex", "enamorus", "ting-lu", "chien-pao", "wo-chien", "chi-yu", "koraidon", "miraidon", "ogerpon",
 }
 
+// IsLegendaryOrMythical checks if a Pokemon is legendary or mythical
+func IsLegendaryOrMythical(name string) (isLegendary bool, isMythical bool) {
+	nameLower := strings.ToLower(name)
+	
+	// Check if mythical
+	for _, mythical := range mythicalNames {
+		if nameLower == mythical {
+			return false, true
+		}
+	}
+	
+	// Check if legendary
+	for _, legendary := range legendaryNames {
+		if nameLower == legendary {
+			return true, false
+		}
+	}
+	
+	return false, false
+}
+
 func GetMoves(rawMoves []RawMove) []Move {
 	const maxMoves = 4
 	perm := rand.Perm(len(rawMoves))

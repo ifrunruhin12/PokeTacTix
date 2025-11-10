@@ -6,11 +6,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// Middleware creates a Fiber middleware for JWT authentication
-// Requirement: 2.3, 2.4 - Implement token validation middleware
 func Middleware(jwtService *JWTService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Extract token from Authorization header
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -20,8 +17,7 @@ func Middleware(jwtService *JWTService) fiber.Handler {
 				},
 			})
 		}
-		
-		// Check for Bearer token format
+
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -33,8 +29,7 @@ func Middleware(jwtService *JWTService) fiber.Handler {
 		}
 		
 		tokenString := parts[1]
-		
-		// Validate token
+
 		claims, err := jwtService.ValidateToken(tokenString)
 		if err != nil {
 			var code string
@@ -59,8 +54,7 @@ func Middleware(jwtService *JWTService) fiber.Handler {
 				},
 			})
 		}
-		
-		// Store user information in context for use in handlers
+
 		c.Locals("user_id", claims.UserID)
 		c.Locals("username", claims.Username)
 		
@@ -68,7 +62,6 @@ func Middleware(jwtService *JWTService) fiber.Handler {
 	}
 }
 
-// OptionalMiddleware creates a middleware that validates JWT if present but doesn't require it
 func OptionalMiddleware(jwtService *JWTService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
@@ -92,13 +85,11 @@ func OptionalMiddleware(jwtService *JWTService) fiber.Handler {
 	}
 }
 
-// GetUserID extracts the user ID from the request context
 func GetUserID(c *fiber.Ctx) (int, bool) {
 	userID, ok := c.Locals("user_id").(int)
 	return userID, ok
 }
 
-// GetUsername extracts the username from the request context
 func GetUsername(c *fiber.Ctx) (string, bool) {
 	username, ok := c.Locals("username").(string)
 	return username, ok

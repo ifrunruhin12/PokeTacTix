@@ -28,16 +28,23 @@ func BuildCardFromPokemon(poke Pokemon, moves []Move) Card {
 	// Sprite
 	sprite := poke.Sprites.FrontDflt
 
+	// Check if legendary or mythical
+	isLegendary, isMythical := IsLegendaryOrMythical(poke.Name)
+
 	return Card{
-		Name:    poke.Name,
-		HP:      hp,
-		HPMax:   hp,
-		Stamina: stamina,
-		Defense: defense,
-		Attack:  attack,
-		Speed:   speed,
-		Moves:   moves,
-		Types:   types,
-		Sprite:  sprite,
+		Name:        poke.Name,
+		HP:          hp,
+		HPMax:       hp,
+		Stamina:     stamina,
+		Defense:     defense,
+		Attack:      attack,
+		Speed:       speed,
+		Moves:       moves,
+		Types:       types,
+		Sprite:      sprite,
+		Level:       1,
+		XP:          0,
+		IsLegendary: isLegendary,
+		IsMythical:  isMythical,
 	}
 }
