@@ -1,13 +1,11 @@
 package logger
 
 import (
-	"fmt"
-	"log"
+	"log/slog"
 	"os"
-	"time"
 )
 
-// Level represents log level
+// Level represents log level (for backward compatibility)
 type Level int
 
 const (
@@ -17,84 +15,101 @@ const (
 	ERROR
 )
 
-// String returns string representation of log level
-func (l Level) String() string {
-	switch l {
-	case DEBUG:
-		return "DEBUG"
-	case INFO:
-		return "INFO"
-	case WARN:
-		return "WARN"
-	case ERROR:
-		return "ERROR"
-	default:
-		return "UNKNOWN"
-	}
-}
-
-// Logger provides structured logging
+// Logger wraps slog.Logger for structured logging
 type Logger struct {
-	level  Level
-	logger *log.Logger
+	slog *slog.Logger
 }
 
-// New creates a new logger instance
+// New creates a new logger instance with slog
 func New(level Level) *Logger {
+	// Convert our Level to slog.Level
+	var slogLevel slog.Level
+	switch level {
+	case DEBUG:
+		slogLevel = slog.LevelDebug
+	case INFO:
+		slogLevel = slog.LevelInfo
+	case WARN:
+		slogLevel = slog.LevelWarn
+	case ERROR:
+		slogLevel = slog.LevelError
+	default:
+		slogLevel = slog.LevelInfo
+	}
+
+	// Create handler with JSON output for structured logging
+	opts := &slog.HandlerOptions{
+		Level: slogLevel,
+	}
+	
+	// Use JSON handler for production, text handler for development
+	handler := slog.NewJSONHandler(os.Stdout, opts)
+	
 	return &Logger{
-		level:  level,
-		logger: log.New(os.Stdout, "", 0),
+		slog: slog.New(handler),
 	}
 }
 
-// Debug logs a debug message
+// NewText creates a logger with human-readable text output (for development)
+func NewText(level Level) *Logger {
+	var slogLevel slog.Level
+	switch level {
+	case DEBUG:
+		slogLevel = slog.LevelDebug
+	case INFO:
+		slogLevel = slog.LevelInfo
+	case WARN:
+		slogLevel = slog.LevelWarn
+	case ERROR:
+		slogLevel = slog.LevelError
+	default:
+		slogLevel = slog.LevelInfo
+	}
+
+	opts := &slog.HandlerOptions{
+		Level: slogLevel,
+	}
+	
+	handler := slog.NewTextHandler(os.Stdout, opts)
+	
+	return &Logger{
+		slog: slog.New(handler),
+	}
+}
+
+// Debug logs a debug message with structured fields
 func (l *Logger) Debug(message string, fields ...interface{}) {
-	if l.level <= DEBUG {
-		l.log(DEBUG, message, fields...)
-	}
+	l.slog.Debug(message, fields...)
 }
 
-// Info logs an info message
+// Info logs an info message with structured fields
 func (l *Logger) Info(message string, fields ...interface{}) {
-	if l.level <= INFO {
-		l.log(INFO, message, fields...)
-	}
+	l.slog.Info(message, fields...)
 }
 
-// Warn logs a warning message
+// Warn logs a warning message with structured fields
 func (l *Logger) Warn(message string, fields ...interface{}) {
-	if l.level <= WARN {
-		l.log(WARN, message, fields...)
-	}
+	l.slog.Warn(message, fields...)
 }
 
-// Error logs an error message
+// Error logs an error message with structured fields
 func (l *Logger) Error(message string, fields ...interface{}) {
-	if l.level <= ERROR {
-		l.log(ERROR, message, fields...)
+	l.slog.Error(message, fields...)
+}
+
+// With returns a new logger with additional context fields
+func (l *Logger) With(fields ...interface{}) *Logger {
+	return &Logger{
+		slog: l.slog.With(fields...),
 	}
 }
 
-// log formats and writes log message
-func (l *Logger) log(level Level, message string, fields ...interface{}) {
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	logMessage := fmt.Sprintf("[%s] %s: %s", timestamp, level.String(), message)
-	
-	if len(fields) > 0 {
-		logMessage += " |"
-		for i := 0; i < len(fields); i += 2 {
-			if i+1 < len(fields) {
-				logMessage += fmt.Sprintf(" %v=%v", fields[i], fields[i+1])
-			}
-		}
-	}
-	
-	l.logger.Println(logMessage)
-}
-
-// WithFields returns a new logger with additional fields
+// WithFields is an alias for With (for backward compatibility)
 func (l *Logger) WithFields(fields ...interface{}) *Logger {
-	// For simplicity, we'll just return the same logger
-	// In a production system, you might want to use a more sophisticated logging library
-	return l
+	return l.With(fields...)
+}
+
+// GetSlog returns the underlying slog.Logger for advanced usage
+func (l *Logger) GetSlog() *slog.Logger {
+	return l.slog
 }

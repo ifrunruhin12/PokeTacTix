@@ -1,12 +1,13 @@
 package main
 
 import (
-	"log"
+	"os"
 	"pokemon-cli/internal/auth"
 	"pokemon-cli/internal/battle"
 	"pokemon-cli/internal/cards"
 	"pokemon-cli/internal/database"
 	"pokemon-cli/internal/pokemon"
+	"pokemon-cli/internal/shop"
 	"pokemon-cli/pkg/config"
 	"pokemon-cli/pkg/logger"
 
@@ -19,12 +20,19 @@ func main() {
 	// Load configuration
 	cfg := config.Load()
 
-	// Initialize logger
+	// Initialize logger with slog
 	logLevel := logger.INFO
 	if cfg.Server.Env == "development" {
 		logLevel = logger.DEBUG
 	}
-	appLogger := logger.New(logLevel)
+	
+	// Use text handler for development, JSON for production
+	var appLogger *logger.Logger
+	if cfg.Server.Env == "development" {
+		appLogger = logger.NewText(logLevel)
+	} else {
+		appLogger = logger.New(logLevel)
+	}
 
 	appLogger.Info("Starting PokeTacTix API", "env", cfg.Server.Env, "port", cfg.Server.Port)
 
@@ -32,7 +40,7 @@ func main() {
 	if cfg.Database.URL != "" {
 		if err := database.InitDB(&cfg.Database); err != nil {
 			appLogger.Error("Failed to initialize database", "error", err)
-			log.Fatal(err)
+			os.Exit(1)
 		}
 		defer database.CloseDB()
 		appLogger.Info("Database connection established")
@@ -44,21 +52,24 @@ func main() {
 	jwtService, err := auth.NewJWTService(cfg.JWT.Secret, cfg.JWT.Expiration)
 	if err != nil {
 		appLogger.Error("Failed to initialize JWT service", "error", err)
-		log.Fatal(err)
+		os.Exit(1)
 	}
 
 	// Initialize repositories
 	authRepo := auth.NewRepository(database.GetDB())
 	cardsRepo := cards.NewRepository(database.GetDB())
+	shopRepo := shop.NewRepository(database.GetDB())
 
 	// Initialize services
 	authService := auth.NewService()
 	cardsService := cards.NewService(cardsRepo)
+	shopService := shop.NewService()
 
 	// Initialize handlers
 	authHandler := auth.NewHandler(authService, jwtService, authRepo, cardsService)
 	cardsHandler := cards.NewHandler(cardsService)
 	battleHandler := battle.NewHandler()
+	shopHandler := shop.NewHandler(shopService, shopRepo)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -125,15 +136,16 @@ func main() {
 	auth.RegisterRoutes(app, authHandler, jwtService)
 	cards.RegisterRoutes(app, cardsHandler, jwtService)
 	
-	// Create auth middleware for battle routes
+	// Create auth middleware for protected routes
 	authMiddleware := auth.Middleware(jwtService)
 	battle.RegisterRoutes(app, battleHandler, authMiddleware)
+	shop.RegisterRoutes(app, shopHandler, authMiddleware)
 
 	// Start server
 	port := cfg.Server.Port
 	appLogger.Info("Server starting", "port", port)
 	if err := app.Listen(":" + port); err != nil {
 		appLogger.Error("Server failed to start", "error", err)
-		log.Fatal(err)
+		os.Exit(1)
 	}
 }
