@@ -5,18 +5,16 @@ import (
 	"time"
 )
 
-// User represents a user account
 type User struct {
 	ID           int       `json:"id"`
 	Username     string    `json:"username"`
 	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"` // Never expose in JSON
+	PasswordHash string    `json:"-"`
 	Coins        int       `json:"coins"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
 
-// PlayerCard represents a Pokemon card owned by a player
 type PlayerCard struct {
 	ID          int             `json:"id"`
 	UserID      int             `json:"user_id"`
@@ -38,7 +36,6 @@ type PlayerCard struct {
 	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
-// CardStats represents computed stats based on level
 type CardStats struct {
 	HP      int `json:"hp"`
 	Attack  int `json:"attack"`
@@ -47,7 +44,6 @@ type CardStats struct {
 	Stamina int `json:"stamina"`
 }
 
-// GetCurrentStats calculates current stats based on level
 func (c *PlayerCard) GetCurrentStats() CardStats {
 	levelMultiplier := float64(c.Level - 1)
 	
