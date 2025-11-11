@@ -17,9 +17,13 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/swagger"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file
+	_ = godotenv.Load()
+
 	// Load configuration
 	cfg := config.Load()
 
@@ -28,7 +32,7 @@ func main() {
 	if cfg.Server.Env == "development" {
 		logLevel = logger.DEBUG
 	}
-	
+
 	// Use text handler for development, JSON for production
 	var appLogger *logger.Logger
 	if cfg.Server.Env == "development" {
@@ -95,13 +99,13 @@ func main() {
 
 	// Middleware
 	app.Use(recover.New())
-	
+
 	// Add security headers to all responses
 	app.Use(middleware.SecurityHeaders())
-	
+
 	// HTTPS redirect in production
 	app.Use(middleware.HTTPSRedirect(cfg.Server.Env))
-	
+
 	// Configure CORS properly based on environment
 	corsConfig := cors.Config{
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
@@ -109,7 +113,7 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           3600,
 	}
-	
+
 	// In production, only allow specific origins
 	if cfg.Server.Env == "production" {
 		if len(cfg.CORS.AllowedOrigins) > 0 {
@@ -146,9 +150,9 @@ func main() {
 			appLogger.Info("CORS configured for development", "origins", corsConfig.AllowOrigins)
 		}
 	}
-	
+
 	app.Use(cors.New(corsConfig))
-	
+
 	// Add database to context for all routes
 	app.Use(func(c *fiber.Ctx) error {
 		c.Locals("db", database.GetDB())
@@ -167,24 +171,24 @@ func main() {
 	app.Get("/api/docs/swagger.yaml", func(c *fiber.Ctx) error {
 		return c.SendFile("./docs/swagger.yaml")
 	})
-	
+
 	// Swagger API documentation UI - configure to use local spec
 	// Relax CSP for Swagger UI to work properly
 	app.Get("/api/docs/*", func(c *fiber.Ctx) error {
 		// Override CSP for Swagger UI
-		c.Set("Content-Security-Policy", 
+		c.Set("Content-Security-Policy",
 			"default-src 'self'; "+
-			"script-src 'self' 'unsafe-inline' 'unsafe-eval'; "+
-			"style-src 'self' 'unsafe-inline'; "+
-			"img-src 'self' data: https: http:; "+
-			"font-src 'self' data:; "+
-			"connect-src 'self'; "+
-			"frame-ancestors 'none'")
+				"script-src 'self' 'unsafe-inline' 'unsafe-eval'; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"img-src 'self' data: https: http:; "+
+				"font-src 'self' data:; "+
+				"connect-src 'self'; "+
+				"frame-ancestors 'none'")
 		return c.Next()
 	}, swagger.New(swagger.Config{
-		URL:         "swagger.yaml",
-		DeepLinking: false,
-		DocExpansion: "list",
+		URL:                      "swagger.yaml",
+		DeepLinking:              false,
+		DocExpansion:             "list",
 		DefaultModelsExpandDepth: 1,
 	}))
 
@@ -208,7 +212,7 @@ func main() {
 	// Register routes
 	auth.RegisterRoutes(app, authHandler, jwtService)
 	cards.RegisterRoutes(app, cardsHandler, jwtService)
-	
+
 	// Create auth middleware for protected routes
 	authMiddleware := auth.Middleware(jwtService)
 	battle.RegisterRoutes(app, battleHandler, authMiddleware)
