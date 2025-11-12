@@ -113,7 +113,7 @@ func ProcessMove(bs *BattleState, move string, moveIdx *int) ([]string, error) {
 		
 		maxStamina := pCard.Speed * 2
 		if float64(pCard.Stamina) >= 0.5*float64(maxStamina) {
-			return nil, fmt.Errorf("stamina is already above 50%")
+			return nil, fmt.Errorf("stamina is already above 50%%")
 		}
 		
 		pCard.HP -= hpCost

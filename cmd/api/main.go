@@ -77,7 +77,7 @@ func main() {
 	// Initialize handlers
 	authHandler := auth.NewHandler(authService, jwtService, authRepo, cardsService)
 	cardsHandler := cards.NewHandler(cardsService)
-	battleHandler := battle.NewHandler()
+	battleHandler := battle.NewHandler(database.GetDB())
 	shopHandler := shop.NewHandler(shopService, shopRepo)
 	statsHandler := stats.NewHandler(statsService)
 

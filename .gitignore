@@ -1,1 +1,81 @@
+# Kiro IDE
 .kiro
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Go build artifacts
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# Go coverage
+*.coverprofile
+coverage.txt
+coverage.html
+
+# Vendor directory (if using go mod vendor)
+vendor/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Frontend (React/Node)
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+postgres-data/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Test coverage
+coverage/
+*.cover
+
+# Air (Go live reload)
+tmp/
+.air.toml
+
+# Compiled binary
+pokemon-cli
+api
+
+# Migration temporary files
+*.sql~

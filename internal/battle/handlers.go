@@ -15,9 +15,9 @@ import (
 
 // Handler handles battle-related HTTP requests
 type Handler struct {
-	sessions   map[string]*Session
-	battleStates map[string]*BattleState // Enhanced battle state storage
-	mu         sync.RWMutex             // Mutex for thread-safe access
+	sessions   map[string]*Session // Legacy in-memory sessions for backward compatibility
+	repo       *Repository         // Database repository for persistent storage
+	mu         sync.RWMutex        // Mutex for thread-safe access to legacy sessions
 }
 
 // Session holds core game state plus web-only turn state (legacy support)
@@ -27,34 +27,31 @@ type Session struct {
 }
 
 // NewHandler creates a new battle handler
-func NewHandler() *Handler {
+func NewHandler(db *pgxpool.Pool) *Handler {
 	return &Handler{
-		sessions:     make(map[string]*Session),
-		battleStates: make(map[string]*BattleState),
+		sessions: make(map[string]*Session),
+		repo:     NewRepository(db),
 	}
 }
 
-// GetBattleState retrieves a battle state by ID (thread-safe)
-func (h *Handler) GetBattleState(id string) (*BattleState, bool) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	state, ok := h.battleStates[id]
-	return state, ok
+// GetBattleState retrieves a battle state by ID from database
+func (h *Handler) GetBattleState(c *fiber.Ctx, id string) (*BattleState, error) {
+	state, err := h.repo.GetBattleSession(c.Context(), id)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
-// SaveBattleState stores a battle state (thread-safe)
-func (h *Handler) SaveBattleState(state *BattleState) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+// SaveBattleState stores a battle state to database
+func (h *Handler) SaveBattleState(c *fiber.Ctx, state *BattleState) error {
 	state.UpdatedAt = time.Now()
-	h.battleStates[state.ID] = state
+	return h.repo.SaveBattleSession(c.Context(), state)
 }
 
-// DeleteBattleState removes a battle state (thread-safe)
-func (h *Handler) DeleteBattleState(id string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	delete(h.battleStates, id)
+// DeleteBattleState removes a battle state from database
+func (h *Handler) DeleteBattleState(c *fiber.Ctx, id string) error {
+	return h.repo.DeleteBattleSession(c.Context(), id)
 }
 
 // StartBattleEnhanced handles POST /api/battle/start with mode selection
@@ -115,8 +112,15 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Save battle state
-	h.SaveBattleState(battleState)
+	// Save battle state to database
+	if err := h.SaveBattleState(c, battleState); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "DATABASE_ERROR",
+				"message": "Failed to save battle session",
+			},
+		})
+	}
 
 	// Return battle state with card visibility
 	response := BuildBattleResponse(battleState, []string{fmt.Sprintf("Battle started! Mode: %s", req.Mode)}, true)
@@ -251,9 +255,9 @@ func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
 		})
 	}
 
-	// Get battle state
-	battleState, ok := h.GetBattleState(req.BattleID)
-	if !ok {
+	// Get battle state from database
+	battleState, err := h.GetBattleState(c, req.BattleID)
+	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": fiber.Map{
 				"code":    "BATTLE_NOT_FOUND",
@@ -278,8 +282,15 @@ func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Save updated battle state
-	h.SaveBattleState(battleState)
+	// Save updated battle state to database
+	if err := h.SaveBattleState(c, battleState); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "DATABASE_ERROR",
+				"message": "Failed to save battle state",
+			},
+		})
+	}
 
 	// Return updated state with logs
 	response := BuildBattleResponse(battleState, logEntries, true)
@@ -300,9 +311,9 @@ func (h *Handler) GetBattleStateEnhanced(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "battle_id required"})
 	}
 
-	// Get battle state
-	battleState, ok := h.GetBattleState(battleID)
-	if !ok {
+	// Get battle state from database
+	battleState, err := h.GetBattleState(c, battleID)
+	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Battle not found"})
 	}
 
@@ -333,9 +344,9 @@ func (h *Handler) SwitchPokemonHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
 	}
 
-	// Get battle state
-	battleState, ok := h.GetBattleState(req.BattleID)
-	if !ok {
+	// Get battle state from database
+	battleState, err := h.GetBattleState(c, req.BattleID)
+	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Battle not found"})
 	}
 
@@ -345,13 +356,15 @@ func (h *Handler) SwitchPokemonHandler(c *fiber.Ctx) error {
 	}
 
 	// Switch Pokemon
-	err := SwitchPokemon(battleState, req.NewIdx)
+	err = SwitchPokemon(battleState, req.NewIdx)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Save updated battle state
-	h.SaveBattleState(battleState)
+	// Save updated battle state to database
+	if err := h.SaveBattleState(c, battleState); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save battle state"})
+	}
 
 	// Return updated state
 	response := BuildBattleResponse(battleState, []string{fmt.Sprintf("Switched to %s", battleState.PlayerDeck[req.NewIdx].Name)}, true)
@@ -373,6 +386,24 @@ func (h *Handler) GetBattleStateLegacy(c *fiber.Ctx) error {
 	})
 }
 
+// CleanupExpiredSessions removes battle sessions older than 1 hour
+func (h *Handler) CleanupExpiredSessions(c *fiber.Ctx) error {
+	// Only allow admin or internal calls
+	// For now, we'll make this a simple endpoint that can be called by a cron job
+	
+	count, err := h.repo.CleanupExpiredSessions(c.Context(), 1*time.Hour)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to cleanup expired sessions",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Cleanup completed",
+		"deleted": count,
+	})
+}
+
 // SelectRewardHandler handles POST /api/battle/select-reward
 // Requirements: 11.1, 11.2, 11.3
 func (h *Handler) SelectRewardHandler(c *fiber.Ctx) error {
@@ -390,9 +421,9 @@ func (h *Handler) SelectRewardHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
 	}
 
-	// Get battle state
-	battleState, ok := h.GetBattleState(req.BattleID)
-	if !ok {
+	// Get battle state from database
+	battleState, err := h.GetBattleState(c, req.BattleID)
+	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Battle not found"})
 	}
 
@@ -441,7 +472,9 @@ func (h *Handler) SelectRewardHandler(c *fiber.Ctx) error {
 
 	// Mark battle as reward claimed
 	battleState.RewardClaimed = true
-	h.SaveBattleState(battleState)
+	if err := h.SaveBattleState(c, battleState); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save battle state"})
+	}
 
 	// Return success with the added card
 	return c.JSON(fiber.Map{
