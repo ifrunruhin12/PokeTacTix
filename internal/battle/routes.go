@@ -9,15 +9,15 @@ func RegisterRoutes(app *fiber.App, handler *Handler, authMiddleware func(*fiber
 	battle := app.Group("/api/battle")
 
 	// Legacy routes (no auth required for backward compatibility)
-	battle.Post("/start", handler.StartBattle)
-	battle.Post("/move", handler.MakeMove)
-	battle.Get("/state", handler.GetBattleStateLegacy)
+	battle.Post("/start-legacy", handler.StartBattle)
+	battle.Post("/move-legacy", handler.MakeMove)
+	battle.Get("/state-legacy", handler.GetBattleStateLegacy)
 
-	// Enhanced routes with authentication
+	// Main routes with authentication (enhanced battle system)
 	battleAuth := battle.Group("", authMiddleware)
-	battleAuth.Post("/start-enhanced", handler.StartBattleEnhanced)
-	battleAuth.Post("/move-enhanced", handler.MakeMoveEnhanced)
-	battleAuth.Get("/state-enhanced", handler.GetBattleStateEnhanced)
+	battleAuth.Post("/start", handler.StartBattleEnhanced)
+	battleAuth.Post("/move", handler.MakeMoveEnhanced)
+	battleAuth.Get("/state", handler.GetBattleStateEnhanced)
 	battleAuth.Post("/switch", handler.SwitchPokemonHandler)
 	battleAuth.Post("/select-reward", handler.SelectRewardHandler)
 	

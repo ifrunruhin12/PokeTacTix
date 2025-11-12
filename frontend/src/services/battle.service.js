@@ -23,11 +23,17 @@ export const startBattle = async (mode = '5v5') => {
  * @returns {Promise<Object>} Battle result with updated state
  */
 export const submitMove = async (battleId, move, moveIdx = null) => {
-  const response = await api.post('/api/battle/move', {
-    battleId,
-    move,
-    moveIdx
-  });
+  const payload = {
+    battle_id: battleId,
+    move: move
+  };
+  
+  // Only include move_idx if it's provided (for attack moves)
+  if (moveIdx !== null && moveIdx !== undefined) {
+    payload.move_idx = moveIdx;
+  }
+  
+  const response = await api.post('/api/battle/move', payload);
   return response.data;
 };
 
@@ -37,7 +43,7 @@ export const submitMove = async (battleId, move, moveIdx = null) => {
  * @returns {Promise<Object>} Current battle state
  */
 export const getBattleState = async (battleId) => {
-  const response = await api.get(`/api/battle/state?battleId=${battleId}`);
+  const response = await api.get(`/api/battle/state?battle_id=${battleId}`);
   return response.data;
 };
 
@@ -49,8 +55,8 @@ export const getBattleState = async (battleId) => {
  */
 export const switchPokemon = async (battleId, newIdx) => {
   const response = await api.post('/api/battle/switch', {
-    battleId,
-    newIdx
+    battle_id: battleId,
+    new_idx: newIdx
   });
   return response.data;
 };
@@ -63,8 +69,8 @@ export const switchPokemon = async (battleId, newIdx) => {
  */
 export const selectReward = async (battleId, pokemonIdx) => {
   const response = await api.post('/api/battle/select-reward', {
-    battleId,
-    pokemonIdx
+    battle_id: battleId,
+    pokemon_index: pokemonIdx
   });
   return response.data;
 };

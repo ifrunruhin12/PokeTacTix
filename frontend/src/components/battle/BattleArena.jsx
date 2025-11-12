@@ -25,6 +25,8 @@ const BattleArena = ({
   onRematch,
   onNewBattle,
   onReturnToMenu,
+  loading = false,
+  error = null,
   className = ''
 }) => {
   const [showMoveSelector, setShowMoveSelector] = useState(false);
@@ -168,92 +170,135 @@ const BattleArena = ({
         className="mb-6"
       />
 
+      {/* Error Display */}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-2xl mx-auto mb-6"
+        >
+          <div className="bg-red-900/50 border-2 border-red-500 text-red-200 px-6 py-4 rounded-lg shadow-lg">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <div className="font-bold text-lg">Error</div>
+                <div className="text-sm">{error}</div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Loading Indicator */}
+      {loading && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="max-w-2xl mx-auto mb-6"
+        >
+          <div className="bg-blue-900/50 border-2 border-blue-500 text-blue-200 px-6 py-4 rounded-lg shadow-lg">
+            <div className="flex items-center gap-3">
+              <motion.span
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                className="text-2xl"
+              >
+                ⚔️
+              </motion.span>
+              <div className="font-semibold">Processing move...</div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Main Battle Area */}
       <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* Active Pokemon Battle Area (Center) */}
+        <div className="flex flex-col items-center justify-center mb-8 space-y-6">
+          {/* AI Active Pokemon */}
+          <motion.div variants={activeCardVariants} className="text-center">
+            <h3 className="text-lg font-bold text-red-400 mb-3">Opponent's Active Pokémon</h3>
+            {aiActive ? (
+              <AnimatedPokemonCard
+                pokemon={aiActive}
+                isActive={true}
+                isFaceDown={false}
+                isKnockedOut={aiActive.is_knocked_out}
+                className="mx-auto"
+              />
+            ) : (
+              <div className="text-gray-400">No active Pokémon</div>
+            )}
+          </motion.div>
+
+          {/* VS Indicator */}
+          <motion.div
+            animate={{
+              scale: [1, 1.1, 1],
+              rotate: [0, 5, -5, 0]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: 'easeInOut'
+            }}
+            className="text-center"
+          >
+            <div className="inline-block bg-gradient-to-r from-red-600 to-blue-600 text-white font-bold text-2xl px-6 py-2 rounded-full shadow-2xl">
+              ⚔️ VS ⚔️
+            </div>
+          </motion.div>
+
+          {/* Player Active Pokemon */}
+          <motion.div variants={activeCardVariants} className="text-center">
+            <h3 className="text-lg font-bold text-blue-400 mb-3">Your Active Pokémon</h3>
+            {playerActive ? (
+              <AnimatedPokemonCard
+                pokemon={playerActive}
+                isActive={true}
+                isFaceDown={false}
+                isKnockedOut={playerActive.is_knocked_out}
+                className="mx-auto"
+              />
+            ) : (
+              <div className="text-gray-400">No active Pokémon</div>
+            )}
+          </motion.div>
+        </div>
+
+        {/* Team Decks (Side by Side) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6">
           {/* Player Deck (Left) */}
-          <motion.div variants={cardVariants} className="space-y-4">
-            <h3 className="text-xl font-bold text-white text-center mb-4">
+          <motion.div variants={cardVariants} className="space-y-3">
+            <h3 className="text-lg font-bold text-white text-center">
               👤 Your Team
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-3">
+            <div className="flex flex-wrap justify-center gap-2">
               {player_deck.map((pokemon, index) => (
                 <motion.div
                   key={index}
                   whileHover={!pokemon.is_knocked_out && index !== player_active_idx ? { scale: 1.05 } : {}}
                   onClick={() => handleSwitchPokemon(index)}
+                  className="cursor-pointer"
                 >
                   <AnimatedPokemonCard
                     pokemon={pokemon}
                     isActive={index === player_active_idx}
                     isFaceDown={false}
                     isKnockedOut={pokemon.is_knocked_out}
-                    className="mx-auto"
+                    className="w-32 h-44"
                   />
                 </motion.div>
               ))}
             </div>
           </motion.div>
 
-          {/* Active Pokemon (Center) */}
-          <div className="space-y-6">
-            {/* Player Active Pokemon */}
-            <motion.div variants={activeCardVariants} className="text-center">
-              <h3 className="text-lg font-bold text-blue-400 mb-3">Your Active Pokémon</h3>
-              {playerActive ? (
-                <AnimatedPokemonCard
-                  pokemon={playerActive}
-                  isActive={true}
-                  isFaceDown={false}
-                  isKnockedOut={playerActive.is_knocked_out}
-                  className="mx-auto scale-125"
-                />
-              ) : (
-                <div className="text-gray-400">No active Pokémon</div>
-              )}
-            </motion.div>
-
-            {/* VS Indicator */}
-            <motion.div
-              animate={{
-                scale: [1, 1.1, 1],
-                rotate: [0, 5, -5, 0]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: 'easeInOut'
-              }}
-              className="text-center"
-            >
-              <div className="inline-block bg-gradient-to-r from-red-600 to-blue-600 text-white font-bold text-3xl px-8 py-3 rounded-full shadow-2xl">
-                ⚔️ VS ⚔️
-              </div>
-            </motion.div>
-
-            {/* AI Active Pokemon */}
-            <motion.div variants={activeCardVariants} className="text-center">
-              <h3 className="text-lg font-bold text-red-400 mb-3">Opponent's Active Pokémon</h3>
-              {aiActive ? (
-                <AnimatedPokemonCard
-                  pokemon={aiActive}
-                  isActive={true}
-                  isFaceDown={false}
-                  isKnockedOut={aiActive.is_knocked_out}
-                  className="mx-auto scale-125"
-                />
-              ) : (
-                <div className="text-gray-400">No active Pokémon</div>
-              )}
-            </motion.div>
-          </div>
-
           {/* AI Deck (Right) */}
-          <motion.div variants={cardVariants} className="space-y-4">
-            <h3 className="text-xl font-bold text-white text-center mb-4">
+          <motion.div variants={cardVariants} className="space-y-3">
+            <h3 className="text-lg font-bold text-white text-center">
               🤖 Opponent's Team
             </h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-3">
+            <div className="flex flex-wrap justify-center gap-2">
               {ai_deck.map((pokemon, index) => (
                 <motion.div key={index}>
                   <AnimatedPokemonCard
@@ -261,7 +306,7 @@ const BattleArena = ({
                     isActive={index === ai_active_idx}
                     isFaceDown={index !== ai_active_idx && !pokemon.is_knocked_out}
                     isKnockedOut={pokemon.is_knocked_out}
-                    className="mx-auto"
+                    className="w-32 h-44"
                   />
                 </motion.div>
               ))}
@@ -274,7 +319,7 @@ const BattleArena = ({
           <BattleLog logs={battleLogs} className="mb-6" />
         </motion.div>
 
-        {/* Battle Controls */}
+        {/* Battle Controls - Always visible when battle is active */}
         {!battle_over && (
           <motion.div variants={cardVariants}>
             <BattleControls
@@ -283,11 +328,20 @@ const BattleArena = ({
               onPass={handlePass}
               onSacrifice={handleSacrifice}
               onSurrender={handleSurrender}
-              disabled={!isPlayerTurn}
+              disabled={!isPlayerTurn || loading}
               currentStamina={playerActive?.stamina || 0}
               maxHp={playerActive?.hp_max || 0}
               className="mb-6"
             />
+            
+            {/* Turn status message */}
+            {!isPlayerTurn && (
+              <div className="text-center mt-4">
+                <div className="inline-block bg-gray-700/80 text-gray-300 px-6 py-3 rounded-lg">
+                  <span className="text-lg">🤖 AI is thinking...</span>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </div>
@@ -338,6 +392,8 @@ BattleArena.propTypes = {
   onRematch: PropTypes.func,
   onNewBattle: PropTypes.func,
   onReturnToMenu: PropTypes.func,
+  loading: PropTypes.bool,
+  error: PropTypes.string,
   className: PropTypes.string
 };
 

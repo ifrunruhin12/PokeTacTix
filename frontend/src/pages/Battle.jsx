@@ -15,48 +15,56 @@ export default function Battle() {
   // Transform backend response to frontend format
   const transformBattleState = (response) => {
     console.log('Transforming battle state:', response);
-    if (!response || !response.state) {
+    if (!response) {
       console.error('Invalid response:', response);
       return null;
     }
     
-    const { state, session } = response;
-    
     // Transform Pokemon data from backend format
     const transformPokemon = (pokemon) => {
       if (!pokemon) return null;
+      
+      // Handle both snake_case (from backend) and camelCase formats
       return {
-        name: pokemon.Name,
-        pokemon_name: pokemon.Name,
-        hp: pokemon.HP,
-        hp_max: pokemon.HPMax,
-        stamina: pokemon.Stamina,
-        defense: pokemon.Defense,
-        attack: pokemon.Attack,
-        speed: pokemon.Speed,
-        moves: pokemon.Moves || [],
-        types: pokemon.Types || [],
-        sprite: pokemon.Sprite,
-        level: pokemon.Level || 1,
-        xp: pokemon.XP || 0,
-        is_legendary: pokemon.IsLegendary || false,
-        is_mythical: pokemon.IsMythical || false
+        name: pokemon.name || pokemon.Name,
+        pokemon_name: pokemon.name || pokemon.Name,
+        hp: pokemon.hp !== undefined ? pokemon.hp : pokemon.HP,
+        hp_max: pokemon.hp_max !== undefined ? pokemon.hp_max : pokemon.HPMax,
+        stamina: pokemon.stamina !== undefined ? pokemon.stamina : pokemon.Stamina,
+        stamina_max: pokemon.stamina_max !== undefined ? pokemon.stamina_max : pokemon.StaminaMax,
+        defense: pokemon.defense !== undefined ? pokemon.defense : pokemon.Defense,
+        attack: pokemon.attack !== undefined ? pokemon.attack : pokemon.Attack,
+        speed: pokemon.speed !== undefined ? pokemon.speed : pokemon.Speed,
+        moves: pokemon.moves || pokemon.Moves || [],
+        types: pokemon.types || pokemon.Types || [],
+        sprite: pokemon.sprite || pokemon.Sprite,
+        level: pokemon.level || pokemon.Level || 1,
+        xp: pokemon.xp || pokemon.XP || 0,
+        is_legendary: pokemon.is_legendary || pokemon.IsLegendary || false,
+        is_mythical: pokemon.is_mythical || pokemon.IsMythical || false,
+        is_knocked_out: pokemon.is_knocked_out || pokemon.IsKnockedOut || false,
+        is_face_down: pokemon.is_face_down || false
       };
     };
     
+    // Handle both new flat response format and old nested format
+    const data = response.state || response;
+    const battleId = response.session || response.id || data.id;
+    
     const transformed = {
-      id: session,
-      mode: state.BattleMode || '1v1',
-      player_deck: (state.Player?.Deck || []).map(transformPokemon),
-      ai_deck: (state.AI?.Deck || []).map(transformPokemon),
-      player_active_idx: state.PlayerActiveIdx || 0,
-      ai_active_idx: state.AIActiveIdx || 0,
-      turn_number: state.TurnNumber || 1,
-      round_number: state.Round || 1,
-      whose_turn: state.turn?.WhoseTurn || 'player',
-      battle_over: state.BattleOver || false,
-      winner: state.BattleOver ? (state.PlayerSurrendered ? 'ai' : 'player') : null,
-      log: []
+      id: battleId,
+      mode: data.mode || data.BattleMode || '1v1',
+      player_deck: (data.player_deck || data.Player?.Deck || []).map(transformPokemon),
+      ai_deck: (data.ai_deck || data.AI?.Deck || []).map(transformPokemon),
+      player_active_idx: data.player_active_idx !== undefined ? data.player_active_idx : (data.PlayerActiveIdx || 0),
+      ai_active_idx: data.ai_active_idx !== undefined ? data.ai_active_idx : (data.AIActiveIdx || 0),
+      turn_number: data.turn_number || data.TurnNumber || 1,
+      round_number: data.round_number || data.Round || 1,
+      whose_turn: data.whose_turn || data.turn?.WhoseTurn || 'player',
+      battle_over: data.battle_over || data.BattleOver || false,
+      winner: data.winner || (data.BattleOver ? (data.PlayerSurrendered ? 'ai' : 'player') : null),
+      log: data.log || [],
+      rewards: data.rewards
     };
     
     console.log('Transformed state:', transformed);
@@ -102,18 +110,27 @@ export default function Battle() {
   const handleMove = async (move, moveIdx = null) => {
     if (!battleState?.id) {
       console.error('No battle ID found:', battleState);
+      setError('Battle session not found. Please start a new battle.');
       return;
     }
     
     console.log('Submitting move:', { battleId: battleState.id, move, moveIdx });
     setLoading(true);
+    setError(null); // Clear previous errors
+    
     try {
       const result = await submitMove(battleState.id, move, moveIdx);
       console.log('Move result:', result);
-      const transformedState = transformBattleState({ state: result.state || result, session: battleState.id });
+      // Keep the same battle ID since the backend response might not include it
+      const resultWithId = { ...result, id: result.id || battleState.id };
+      const transformedState = transformBattleState(resultWithId);
       setBattleState(transformedState);
     } catch (err) {
-      setError(err.message || 'Failed to submit move');
+      const errorMessage = err.response?.data?.error?.message 
+        || err.response?.data?.error 
+        || err.message 
+        || 'Failed to submit move';
+      setError(errorMessage);
       console.error('Error submitting move:', err);
     } finally {
       setLoading(false);
@@ -122,15 +139,26 @@ export default function Battle() {
 
   // Handle Pokemon switching
   const handleSwitchPokemon = async (newIdx) => {
-    if (!battleState?.id) return;
+    if (!battleState?.id) {
+      setError('Battle session not found. Please start a new battle.');
+      return;
+    }
     
     setLoading(true);
+    setError(null); // Clear previous errors
+    
     try {
       const result = await switchPokemon(battleState.id, newIdx);
-      const transformedState = transformBattleState({ state: result.state || result, session: battleState.id });
+      // Keep the same battle ID since the backend response might not include it
+      const resultWithId = { ...result, id: result.id || battleState.id };
+      const transformedState = transformBattleState(resultWithId);
       setBattleState(transformedState);
     } catch (err) {
-      setError(err.response?.data?.error?.message || 'Failed to switch Pokemon');
+      const errorMessage = err.response?.data?.error?.message 
+        || err.response?.data?.error 
+        || err.message 
+        || 'Failed to switch Pokemon';
+      setError(errorMessage);
       console.error('Error switching Pokemon:', err);
     } finally {
       setLoading(false);
@@ -139,15 +167,25 @@ export default function Battle() {
 
   // Handle reward selection (5v5 victory)
   const handleSelectReward = async (pokemonIdx) => {
-    if (!battleState?.id) return;
+    if (!battleState?.id) {
+      setError('Battle session not found. Please start a new battle.');
+      return;
+    }
     
     setLoading(true);
+    setError(null); // Clear previous errors
+    
     try {
-      await selectReward(battleState.id, pokemonIdx);
+      const result = await selectReward(battleState.id, pokemonIdx);
+      console.log('Reward selected:', result);
       // After selecting reward, return to menu
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error?.message || 'Failed to select reward');
+      const errorMessage = err.response?.data?.error?.message 
+        || err.response?.data?.error 
+        || err.message 
+        || 'Failed to select reward';
+      setError(errorMessage);
       console.error('Error selecting reward:', err);
     } finally {
       setLoading(false);
@@ -288,6 +326,8 @@ export default function Battle() {
           onRematch={handleRematch}
           onNewBattle={handleNewBattle}
           onReturnToMenu={handleReturnToMenu}
+          loading={loading}
+          error={error}
         />
       )}
     </>

@@ -1,8 +1,10 @@
 package battle
 
 import (
+	"encoding/json"
 	"fmt"
 	"pokemon-cli/game/models"
+	"pokemon-cli/internal/database"
 	"pokemon-cli/internal/pokemon"
 	"strings"
 	"sync"
@@ -31,6 +33,44 @@ func NewHandler(db *pgxpool.Pool) *Handler {
 	return &Handler{
 		sessions: make(map[string]*Session),
 		repo:     NewRepository(db),
+	}
+}
+
+// ConvertPlayerCardToPokemonCard converts a database PlayerCard to a pokemon.Card for battles
+func ConvertPlayerCardToPokemonCard(dbCard database.PlayerCard) pokemon.Card {
+	// Parse types from JSON
+	var types []string
+	if err := json.Unmarshal(dbCard.Types, &types); err != nil {
+		types = []string{"normal"} // Default fallback
+	}
+
+	// Parse moves from JSON
+	var moves []pokemon.Move
+	if err := json.Unmarshal(dbCard.Moves, &moves); err != nil {
+		// Default fallback move
+		moves = []pokemon.Move{
+			{Name: "tackle", Power: 40, StaminaCost: 10, Type: "normal"},
+		}
+	}
+
+	// Calculate current stats based on level
+	stats := dbCard.GetCurrentStats()
+
+	return pokemon.Card{
+		Name:        dbCard.PokemonName,
+		HP:          stats.HP,
+		HPMax:       stats.HP,
+		Stamina:     stats.Stamina,
+		Defense:     stats.Defense,
+		Attack:      stats.Attack,
+		Speed:       stats.Speed,
+		Moves:       moves,
+		Types:       types,
+		Sprite:      dbCard.Sprite,
+		Level:       dbCard.Level,
+		XP:          dbCard.XP,
+		IsLegendary: dbCard.IsLegendary,
+		IsMythical:  dbCard.IsMythical,
 	}
 }
 
@@ -90,18 +130,55 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 		})
 	}
 
-	// TODO: Fetch player's deck from database
-	// For now, use random cards
-	var playerDeck []pokemon.Card
-	var aiDeck []pokemon.Card
+	// Fetch player's deck from database
+	playerDeckCards, err := h.repo.GetUserDeck(c.Context(), userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "DATABASE_ERROR",
+				"message": "Failed to fetch player deck",
+			},
+		})
+	}
 
+	// Check if player has a configured deck
+	if len(playerDeckCards) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "NO_DECK_CONFIGURED",
+				"message": "You must configure a deck before starting a battle. Please add Pokemon to your deck.",
+			},
+		})
+	}
+
+	// Validate deck size based on mode
+	requiredCards := 1
+	if req.Mode == "5v5" {
+		requiredCards = 5
+	}
+
+	if len(playerDeckCards) < requiredCards {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "INSUFFICIENT_DECK_SIZE",
+				"message": fmt.Sprintf("Your deck must have at least %d Pokemon for %s mode. Current deck size: %d", requiredCards, req.Mode, len(playerDeckCards)),
+			},
+		})
+	}
+
+	// Convert player's database cards to pokemon.Card format
+	var playerDeck []pokemon.Card
+	for i := 0; i < requiredCards && i < len(playerDeckCards); i++ {
+		playerDeck = append(playerDeck, ConvertPlayerCardToPokemonCard(playerDeckCards[i]))
+	}
+
+	// Generate AI deck with random cards
+	var aiDeck []pokemon.Card
 	if req.Mode == "1v1" {
-		playerDeck = []pokemon.Card{pokemon.FetchRandomPokemonCard(false)}
 		aiDeck = []pokemon.Card{pokemon.FetchRandomPokemonCard(false)}
 	} else {
-		// Generate 5 random cards for each side
+		// Generate 5 random cards for AI
 		for i := 0; i < 5; i++ {
-			playerDeck = append(playerDeck, pokemon.FetchRandomPokemonCard(false))
 			aiDeck = append(aiDeck, pokemon.FetchRandomPokemonCard(false))
 		}
 	}

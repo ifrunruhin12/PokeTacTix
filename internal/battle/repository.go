@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"pokemon-cli/internal/database"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -131,4 +132,43 @@ func (r *Repository) CleanupExpiredSessions(ctx context.Context, expiryDuration 
 
 	rowsAffected := result.RowsAffected()
 	return rowsAffected, nil
+}
+
+// GetUserDeck retrieves the user's current deck from player_cards table
+func (r *Repository) GetUserDeck(ctx context.Context, userID int) ([]database.PlayerCard, error) {
+	query := `
+		SELECT id, user_id, pokemon_name, level, xp, base_hp, base_attack, base_defense, base_speed,
+			types, moves, sprite, is_legendary, is_mythical, in_deck, deck_position, created_at, updated_at
+		FROM player_cards
+		WHERE user_id = $1 AND in_deck = TRUE
+		ORDER BY deck_position ASC
+	`
+	
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user deck: %w", err)
+	}
+	defer rows.Close()
+	
+	var cards []database.PlayerCard
+	for rows.Next() {
+		var card database.PlayerCard
+		err := rows.Scan(
+			&card.ID, &card.UserID, &card.PokemonName, &card.Level, &card.XP,
+			&card.BaseHP, &card.BaseAttack, &card.BaseDefense, &card.BaseSpeed,
+			&card.Types, &card.Moves, &card.Sprite,
+			&card.IsLegendary, &card.IsMythical, &card.InDeck, &card.DeckPosition,
+			&card.CreatedAt, &card.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan card: %w", err)
+		}
+		cards = append(cards, card)
+	}
+	
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating cards: %w", err)
+	}
+	
+	return cards, nil
 }

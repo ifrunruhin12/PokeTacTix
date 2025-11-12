@@ -52,14 +52,15 @@ const PokemonCard = ({
   if (isFaceDown) {
     return (
       <motion.div
-        className={`relative w-40 h-56 rounded-lg border-4 border-gray-400 bg-gradient-to-br from-gray-100 to-gray-200 shadow-lg flex items-center justify-center ${className}`}
+        className={`relative rounded-lg border-4 border-gray-400 bg-gradient-to-br from-gray-100 to-gray-200 shadow-lg flex items-center justify-center ${className}`}
         whileHover={{ scale: 1.05, y: -5 }}
         transition={{ duration: 0.2 }}
+        style={{ width: '100%', height: '100%', minWidth: '128px', minHeight: '176px' }}
       >
         <img 
           src="/assets/pokeball.png" 
           alt="Hidden Pokemon" 
-          className="w-20 h-20 opacity-50"
+          className="w-16 h-16 opacity-50"
         />
       </motion.div>
     );
@@ -68,7 +69,10 @@ const PokemonCard = ({
   // If no pokemon data, show empty card
   if (!pokemon) {
     return (
-      <div className={`w-40 h-56 rounded-lg border-4 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center ${className}`}>
+      <div 
+        className={`rounded-lg border-4 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center ${className}`}
+        style={{ width: '100%', height: '100%', minWidth: '128px', minHeight: '176px' }}
+      >
         <span className="text-gray-400 text-sm">Empty Slot</span>
       </div>
     );
@@ -76,7 +80,7 @@ const PokemonCard = ({
 
   return (
     <motion.div
-      className={`relative w-40 h-56 rounded-lg border-4 ${getBorderClass()} bg-gradient-to-br from-white to-gray-50 shadow-lg overflow-hidden cursor-pointer ${className}`}
+      className={`relative rounded-lg border-4 ${getBorderClass()} bg-gradient-to-br from-white to-gray-50 shadow-lg overflow-hidden cursor-pointer ${className}`}
       whileHover={!isKnockedOut ? { scale: 1.05, y: -5 } : {}}
       animate={isActive ? { 
         boxShadow: '0 0 20px rgba(59, 130, 246, 0.5)',
@@ -86,7 +90,11 @@ const PokemonCard = ({
       onClick={onSelect}
       style={{
         filter: isKnockedOut ? 'grayscale(100%)' : 'none',
-        opacity: isKnockedOut ? 0.5 : 1
+        opacity: isKnockedOut ? 0.5 : 1,
+        width: '100%',
+        height: '100%',
+        minWidth: '128px',
+        minHeight: '176px'
       }}
     >
       {/* Rarity indicator for legendary/mythical */}
@@ -110,13 +118,13 @@ const PokemonCard = ({
 
       {/* Card content */}
       <div className="p-2 flex flex-col h-full">
-        {/* Pokemon name */}
-        <h3 className="text-sm font-bold text-gray-800 text-center truncate">
+        {/* Pokemon name - always visible, no truncation */}
+        <h3 className="text-sm font-bold text-gray-800 text-center break-words leading-tight min-h-[2rem] flex items-center justify-center">
           {pokemon.name || pokemon.pokemon_name}
         </h3>
 
         {/* Type badges */}
-        <div className="flex gap-1 justify-center my-1">
+        <div className="flex gap-1 justify-center my-1 flex-wrap">
           {pokemon.types?.map((type, idx) => (
             <span
               key={idx}
@@ -134,10 +142,10 @@ const PokemonCard = ({
             <img 
               src={pokemon.sprite} 
               alt={pokemon.name || pokemon.pokemon_name}
-              className="w-20 h-20 object-contain"
+              className="w-16 h-16 object-contain"
             />
           ) : (
-            <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
               <span className="text-gray-400 text-xs">No Image</span>
             </div>
           )}
@@ -147,7 +155,7 @@ const PokemonCard = ({
         <div className="space-y-0.5 text-xs">
           {/* HP */}
           <div className="flex items-center gap-1">
-            <span className="text-gray-600 w-8">HP:</span>
+            <span className="text-gray-600 w-7 text-xs">HP:</span>
             <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
               <motion.div
                 className="h-full bg-green-500"
@@ -159,13 +167,13 @@ const PokemonCard = ({
                 transition={{ duration: 0.5 }}
               />
             </div>
-            <span className="text-gray-700 w-10 text-right">{pokemon.hp}/{pokemon.hp_max}</span>
+            <span className="text-gray-700 text-xs whitespace-nowrap">{pokemon.hp}/{pokemon.hp_max}</span>
           </div>
 
           {/* Stamina */}
           {pokemon.stamina !== undefined && (
             <div className="flex items-center gap-1">
-              <span className="text-gray-600 w-8">STA:</span>
+              <span className="text-gray-600 w-7 text-xs">STA:</span>
               <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
                 <motion.div
                   className="h-full bg-blue-500"
@@ -174,12 +182,12 @@ const PokemonCard = ({
                   transition={{ duration: 0.5 }}
                 />
               </div>
-              <span className="text-gray-700 w-10 text-right">{pokemon.stamina}/{pokemon.stamina_max}</span>
+              <span className="text-gray-700 text-xs whitespace-nowrap">{pokemon.stamina}/{pokemon.stamina_max}</span>
             </div>
           )}
 
           {/* Attack, Defense, Speed */}
-          <div className="flex justify-between text-gray-700">
+          <div className="flex justify-between text-gray-700 text-xs">
             <span>ATK: {pokemon.attack}</span>
             <span>DEF: {pokemon.defense}</span>
             <span>SPD: {pokemon.speed}</span>
@@ -188,7 +196,7 @@ const PokemonCard = ({
           {/* Level and XP */}
           {pokemon.level !== undefined && (
             <div className="text-center">
-              <span className="font-semibold text-gray-800">Lv. {pokemon.level}</span>
+              <span className="font-semibold text-gray-800 text-xs">Lv. {pokemon.level}</span>
               {pokemon.xp !== undefined && pokemon.level < 50 && (
                 <div className="mt-0.5">
                   <div className="bg-gray-200 rounded-full h-1.5 overflow-hidden">
