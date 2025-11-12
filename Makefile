@@ -1,132 +1,140 @@
-.PHONY: help up down logs restart migrate migrate-down migrate-up seed test clean build
+.PHONY: help dev local stop logs status db-shell clean restart build
 
 # Default target
-help:
-	@echo "PokeTacTix Development Commands"
-	@echo "================================"
-	@echo "make up          - Start all services (postgres, backend, frontend)"
-	@echo "make down        - Stop all services"
-	@echo "make logs        - View logs from all services"
-	@echo "make restart     - Restart backend and frontend services"
-	@echo "make migrate     - Run database migrations"
-	@echo "make migrate-up  - Run migrations up"
-	@echo "make migrate-down- Rollback last migration"
-	@echo "make seed        - Seed database with initial data"
-	@echo "make test        - Run backend tests"
-	@echo "make clean       - Stop services and remove volumes"
-	@echo "make build       - Build production binaries"
+.DEFAULT_GOAL := help
 
-# Start all services
-up:
-	@echo "Starting all services..."
-	docker-compose up -d
-	@echo "Services started! Backend: http://localhost:3000, Frontend: http://localhost:5173"
+help: ## Show this help message
+	@echo ''
+	@echo '╔════════════════════════════════════════════════════════╗'
+	@echo '║                                                        ║'
+	@echo '║              PokeTacTix - Make Commands                ║'
+	@echo '║                                                        ║'
+	@echo '╚════════════════════════════════════════════════════════╝'
+	@echo ''
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo '🚀 Quick Start:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | grep -E "dev|local"
+	@echo ''
+	@echo '📊 Management:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | grep -E "stop|logs|status|restart|clean"
+	@echo ''
+	@echo '🗄️  Database:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | grep -E "db-"
+	@echo ''
+	@echo '🔧 Advanced:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | grep -E "build|migrate|seed|test"
+	@echo ''
 
-# Stop all services
-down:
+# ============================================================================
+# Quick Start Commands
+# ============================================================================
+
+dev: ## 🐳 Start everything with Docker (RECOMMENDED)
+	@./scripts/docker-dev.sh
+
+local: ## 💻 Setup for local development (no Docker)
+	@./scripts/local-dev.sh
+
+# ============================================================================
+# Management Commands
+# ============================================================================
+
+stop: ## ⏹️  Stop all Docker services
 	@echo "Stopping all services..."
-	docker-compose down
+	@docker-compose down
+	@echo "✅ All services stopped"
 
-# View logs
-logs:
-	docker-compose logs -f
+logs: ## 📋 View logs from all services
+	@docker-compose logs -f
 
-# View logs for specific service
-logs-backend:
-	docker-compose logs -f backend
+status: ## 📊 Show status of all services
+	@echo ""
+	@echo "╔════════════════════════════════════════════════════════╗"
+	@echo "║              Service Status                            ║"
+	@echo "╚════════════════════════════════════════════════════════╝"
+	@echo ""
+	@docker-compose ps
+	@echo ""
 
-logs-frontend:
-	docker-compose logs -f frontend
+restart: ## 🔄 Restart all services
+	@echo "Restarting services..."
+	@docker-compose restart
+	@echo "✅ Services restarted"
 
-logs-db:
-	docker-compose logs -f postgres
+clean: ## 🧹 Stop services and remove all data
+	@echo "⚠️  This will delete all database data!"
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		docker-compose down -v; \
+		rm -rf tmp/; \
+		echo "✅ Cleaned up successfully"; \
+	else \
+		echo "❌ Cancelled"; \
+	fi
 
-# Restart services
-restart:
-	@echo "Restarting backend and frontend..."
-	docker-compose restart backend frontend
+# ============================================================================
+# Database Commands
+# ============================================================================
 
-# Run database migrations
-migrate:
-	@echo "Running database migrations..."
-	docker-compose exec postgres psql -U pokemon -d poketactix -c "\i /docker-entrypoint-initdb.d/000001_create_users_table.up.sql"
-	docker-compose exec postgres psql -U pokemon -d poketactix -c "\i /docker-entrypoint-initdb.d/000002_create_player_cards_table.up.sql"
-	docker-compose exec postgres psql -U pokemon -d poketactix -c "\i /docker-entrypoint-initdb.d/000003_create_battle_history_table.up.sql"
-	docker-compose exec postgres psql -U pokemon -d poketactix -c "\i /docker-entrypoint-initdb.d/000004_create_player_stats_table.up.sql"
-	docker-compose exec postgres psql -U pokemon -d poketactix -c "\i /docker-entrypoint-initdb.d/000005_create_achievements_tables.up.sql"
-	@echo "Migrations completed!"
+db-shell: ## 🗄️  Open PostgreSQL shell
+	@docker-compose exec postgres psql -U pokemon -d pokemon
 
-# Run migrations up
-migrate-up:
-	@echo "Running migrations up..."
-	@make migrate
+db-logs: ## 📋 View database logs
+	@docker-compose logs -f postgres
 
-# Rollback migrations
-migrate-down:
-	@echo "Rolling back migrations..."
-	docker-compose exec postgres psql -U pokemon -d poketactix -c "\i /docker-entrypoint-initdb.d/000005_create_achievements_tables.down.sql"
-	docker-compose exec postgres psql -U pokemon -d poketactix -c "\i /docker-entrypoint-initdb.d/000004_create_player_stats_table.down.sql"
-	docker-compose exec postgres psql -U pokemon -d poketactix -c "\i /docker-entrypoint-initdb.d/000003_create_battle_history_table.down.sql"
-	docker-compose exec postgres psql -U pokemon -d poketactix -c "\i /docker-entrypoint-initdb.d/000002_create_player_cards_table.down.sql"
-	docker-compose exec postgres psql -U pokemon -d poketactix -c "\i /docker-entrypoint-initdb.d/000001_create_users_table.down.sql"
-	@echo "Migrations rolled back!"
+db-only: ## 🗄️  Start only the database
+	@echo "Starting database..."
+	@docker-compose up -d postgres
+	@echo "✅ Database started"
+	@echo ""
+	@echo "Connection: postgresql://pokemon:pokemon123@localhost:5432/pokemon"
 
-# Seed database with initial data
-seed:
+# ============================================================================
+# Advanced Commands
+# ============================================================================
+
+build: ## 🔨 Rebuild all Docker containers
+	@echo "Building containers..."
+	@docker-compose build
+	@echo "✅ Build complete"
+
+rebuild: ## 🔨 Rebuild and restart everything
+	@echo "Rebuilding and restarting..."
+	@docker-compose down
+	@docker-compose build
+	@docker-compose up -d
+	@echo "✅ Rebuild complete"
+
+migrate: ## 🔄 Run database migrations (up)
+	@./scripts/migrate.sh up
+
+migrate-down: ## ⬇️  Rollback database migrations
+	@./scripts/migrate.sh down
+
+migrate-reset: ## 🔄 Reset database (down + up)
+	@./scripts/migrate.sh reset
+
+seed: ## 🌱 Seed database with initial data
 	@echo "Seeding database..."
-	@echo "Note: Implement seed script in migrations/seed.sql"
-	# docker-compose exec postgres psql -U pokemon -d poketactix -f /docker-entrypoint-initdb.d/seed.sql
+	@docker-compose exec backend go run migrations/seed.go 2>/dev/null || echo "⚠️  Seed script not found"
 
-# Run tests
-test:
-	@echo "Running backend tests..."
-	docker-compose exec backend go test ./... -v
+test: ## 🧪 Run tests
+	@docker-compose exec backend go test ./...
 
-# Run tests with coverage
-test-coverage:
-	@echo "Running tests with coverage..."
-	docker-compose exec backend go test ./... -coverprofile=coverage.out
-	docker-compose exec backend go tool cover -html=coverage.out -o coverage.html
-	@echo "Coverage report generated: coverage.html"
+# ============================================================================
+# Individual Service Commands
+# ============================================================================
 
-# Clean everything (including volumes)
-clean:
-	@echo "Cleaning up..."
-	docker-compose down -v
-	rm -rf tmp/
-	rm -rf coverage.out coverage.html
-	@echo "Cleanup complete!"
+backend-logs: ## 📋 View backend logs
+	@docker-compose logs -f backend
 
-# Build production binaries
-build:
-	@echo "Building production binary..."
-	CGO_ENABLED=0 GOOS=linux go build -o bin/server ./server
-	@echo "Build complete! Binary: bin/server"
+frontend-logs: ## 📋 View frontend logs
+	@docker-compose logs -f frontend
 
-# Database shell
-db-shell:
-	docker-compose exec postgres psql -U pokemon -d poketactix
+backend-only: ## 🔧 Start database and backend only
+	@docker-compose up -d postgres backend
 
-# Backend shell
-backend-shell:
-	docker-compose exec backend sh
-
-# Check service status
-status:
-	docker-compose ps
-
-# Pull latest images
-pull:
-	docker-compose pull
-
-# Rebuild containers
-rebuild:
-	docker-compose up -d --build
-
-# View backend logs in real-time
-watch-backend:
-	docker-compose logs -f backend
-
-# View frontend logs in real-time
-watch-frontend:
-	docker-compose logs -f frontend
+frontend-only: ## 🔧 Start frontend only
+	@docker-compose up -d frontend

@@ -17,39 +17,21 @@ Hopefully will have it's own domain soon!
 
 ```
 PokeTacTix/
-├── cmd/
-│   └── api/              # Application entry point
+├── cmd/api/              # Application entry point
 ├── internal/             # Private application code
-│   ├── auth/            # Authentication domain (handlers, service, JWT, middleware)
-│   ├── battle/          # Battle system for web API (handlers, session management)
-│   ├── cards/           # Card management domain (handlers, service, repository)
-│   ├── pokemon/         # Pokemon fetching and card building
-│   └── database/        # Database connection, models, and migrations
-├── pkg/                 # Shared utilities
-│   ├── config/          # Configuration management
-│   └── logger/          # Structured logging
-├── game/                # Core battle logic (CLI only)
-│   ├── commands/        # CLI command handlers
-│   ├── core/            # Battle engine and game logic
-│   ├── models/          # Game state models
-│   └── utils/           # Game utilities (type chart, etc.)
-├── frontend/            # Static HTML, CSS, JS + assets (deployed via GH Pages)
-├── main.go              # CLI entry point
-├── go.mod
-└── README.md            # ← You're looking at it!
+│   ├── auth/            # Authentication
+│   ├── battle/          # Battle system
+│   ├── cards/           # Card management
+│   ├── pokemon/         # Pokemon data
+│   ├── shop/            # Shop system
+│   ├── stats/           # Statistics
+│   └── database/        # Database + migrations
+├── frontend/            # React frontend
+├── game/                # CLI battle logic
+├── docs/                # Documentation
+├── scripts/             # Utility scripts
+└── pkg/                 # Shared utilities
 ```
-
-### Architecture
-
-The project follows a **feature-based architecture** with clear separation of concerns:
-
-- **cmd/api**: Main application entry point with dependency injection
-- **internal/**: Private application code organized by domain (auth, battle, cards, pokemon)
-- **pkg/**: Shared packages that could be used by other projects
-- **game/**: CLI-only battle logic (separate from web API)
-- **frontend/**: Static web UI (HTML, CSS, JS)
-- **Database layer**: Centralized in internal/database with domain-specific repositories
-- **Clean dependencies**: Each domain is self-contained with its own models, handlers, and business logic
 
 ---
 
@@ -85,53 +67,27 @@ The frontend uses JS fetch calls to your live backend for everything — no page
 
 ## 📚 API Documentation
 
-The PokeTacTix API is fully documented with **OpenAPI 3.0** (Swagger) specification.
+Interactive API documentation available at: **http://localhost:3000/api/docs** (when running)
 
-### Interactive Documentation
+The API includes endpoints for authentication, cards, battles, shop, and player stats.
 
-Once the server is running, access the interactive Swagger UI at:
+---
+
+## 🚀 Getting Started
+
+Want to run PokeTacTix locally? It's easy:
+
+```bash
+make dev
 ```
-http://localhost:3000/api/docs
-```
 
-The Swagger UI provides:
-- **Interactive API testing** - Try endpoints directly from your browser
-- **Request/response examples** - See exactly what to send and expect
-- **Schema definitions** - Understand all data models
-- **Authentication testing** - Test JWT authentication flows
+That's it! Everything starts automatically.
 
-### API Endpoints
-
-The API includes comprehensive endpoints for:
-- **Authentication** (`/api/auth/*`) - Register, login, session management
-- **Cards** (`/api/cards/*`) - Collection and deck management
-- **Battle** (`/api/battle/*`) - 1v1 and 5v5 battle operations
-- **Shop** (`/api/shop/*`) - Pokemon card purchases
-- **Profile** (`/api/profile/*`) - Statistics, history, and achievements
-
-### Quick Start
-
-1. **Register a new account:**
-   ```bash
-   curl -X POST http://localhost:3000/api/auth/register \
-     -H "Content-Type: application/json" \
-     -d '{"username":"trainer","email":"trainer@pokemon.com","password":"SecurePass123!"}'
-   ```
-
-2. **Login and get JWT token:**
-   ```bash
-   curl -X POST http://localhost:3000/api/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{"username":"trainer","password":"SecurePass123!"}'
-   ```
-
-3. **Use the token for authenticated requests:**
-   ```bash
-   curl -X GET http://localhost:3000/api/cards \
-     -H "Authorization: Bearer YOUR_JWT_TOKEN"
-   ```
-
-For detailed documentation, see [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)
+**See the docs for more:**
+- **[Quick Start](docs/quick-start.md)** - Get running in 60 seconds
+- **[Get Started Guide](docs/get-started.md)** - Step-by-step for beginners
+- **[Development Guide](docs/development.md)** - Full development docs
+- **[All Documentation](docs/)** - Complete documentation index
 
 ---
 

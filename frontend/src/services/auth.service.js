@@ -1,4 +1,5 @@
 import api from './api';
+import { getUserFromToken, isTokenExpired } from '../utils/jwt';
 
 const authService = {
   /**
@@ -17,6 +18,7 @@ const authService = {
     
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
+      // Store user data from API response
       localStorage.setItem('user', JSON.stringify(response.data.user));
     }
     
@@ -37,6 +39,7 @@ const authService = {
     
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
+      // Store user data from API response
       localStorage.setItem('user', JSON.stringify(response.data.user));
     }
     
@@ -62,11 +65,22 @@ const authService = {
 
   /**
    * Get stored user from localStorage
+   * Falls back to parsing from JWT token if user data is missing
    * @returns {Object|null}
    */
   getStoredUser() {
     const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+    if (userStr) {
+      return JSON.parse(userStr);
+    }
+    
+    // Fallback: try to get user info from token
+    const token = this.getStoredToken();
+    if (token && !isTokenExpired(token)) {
+      return getUserFromToken(token);
+    }
+    
+    return null;
   },
 
   /**
@@ -82,7 +96,8 @@ const authService = {
    * @returns {boolean}
    */
   isAuthenticated() {
-    return !!this.getStoredToken();
+    const token = this.getStoredToken();
+    return !!token && !isTokenExpired(token);
   },
 };
 

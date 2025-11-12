@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import authService from '../services/auth.service';
+import { getUserFromToken } from '../utils/jwt';
 
 export const AuthContext = createContext(null);
 
@@ -11,14 +12,22 @@ export function AuthProvider({ children }) {
   // Initialize auth state from localStorage
   useEffect(() => {
     const initAuth = async () => {
-      const storedUser = authService.getStoredUser();
       const token = authService.getStoredToken();
       
-      if (storedUser && token) {
+      if (token) {
         try {
-          // Verify token is still valid by fetching current user
-          const currentUser = await authService.getCurrentUser();
-          setUser(currentUser);
+          // First, get user info from token (includes username)
+          const tokenUser = getUserFromToken(token);
+          
+          // Then fetch full user data from API
+          const apiResponse = await authService.getCurrentUser();
+          const currentUser = apiResponse.user || apiResponse;
+          
+          // Merge token data with API data to ensure username is present
+          setUser({
+            ...currentUser,
+            username: tokenUser?.username || currentUser.username,
+          });
         } catch (err) {
           // Token is invalid, clear storage
           authService.logout();

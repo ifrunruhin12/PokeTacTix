@@ -36,9 +36,14 @@ api.interceptors.response.use(
     if (error.response) {
       // Handle 401 Unauthorized - token expired or invalid
       if (error.response.status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/auth';
+        // Only redirect if we're not already on the auth page
+        // This prevents page reload during login attempts
+        const currentPath = window.location.pathname;
+        if (currentPath !== '/auth' && currentPath !== '/') {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          window.location.href = '/auth';
+        }
       }
       
       // Extract error message from response

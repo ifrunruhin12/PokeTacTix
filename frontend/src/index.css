@@ -78,6 +78,16 @@ body {
   100% { background-position: 0% 50%; }
 }
 
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
 /* HP bar colors */
 .hp-high {
   @apply bg-green-500;
@@ -107,4 +117,18 @@ body {
 
 .stat-speed {
   @apply bg-purple-500;
+}
+
+/* 3D Transform utilities for card flip */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
