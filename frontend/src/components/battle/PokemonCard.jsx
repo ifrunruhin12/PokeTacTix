@@ -12,15 +12,16 @@ const PokemonCard = ({
   isFaceDown = false,
   isKnockedOut = false,
   onSelect,
-  className = ''
+  className = '',
+  compact = false
 }) => {
   // Determine border color based on rarity
   const getBorderClass = () => {
-    if (isKnockedOut) return 'border-gray-500';
-    if (pokemon?.is_legendary) return 'border-yellow-400 shadow-yellow-400/50';
-    if (pokemon?.is_mythical) return 'border-purple-500 shadow-purple-500/50';
-    if (isActive) return 'border-blue-400 shadow-blue-400/50';
-    return 'border-gray-300';
+    if (isKnockedOut) return 'border-gray-600';
+    if (pokemon?.is_legendary) return 'border-yellow-500 shadow-lg shadow-yellow-500/30';
+    if (pokemon?.is_mythical) return 'border-purple-500 shadow-lg shadow-purple-500/30';
+    if (isActive) return 'border-blue-500 shadow-lg shadow-blue-500/30';
+    return 'border-gray-600';
   };
 
   // Get type colors for display
@@ -52,16 +53,20 @@ const PokemonCard = ({
   if (isFaceDown) {
     return (
       <motion.div
-        className={`relative rounded-lg border-4 border-gray-400 bg-gradient-to-br from-gray-100 to-gray-200 shadow-lg flex items-center justify-center ${className}`}
+        className={`relative rounded-lg border-4 border-gray-600 bg-gradient-to-br from-gray-800 to-gray-900 shadow-lg flex items-center justify-center ${className}`}
         whileHover={{ scale: 1.05, y: -5 }}
         transition={{ duration: 0.2 }}
-        style={{ width: '100%', height: '100%', minWidth: '128px', minHeight: '176px' }}
+        style={{ width: '100%', height: '100%', minWidth: '96px', minHeight: '128px' }}
       >
-        <img 
-          src="/assets/pokeball.png" 
-          alt="Hidden Pokemon" 
-          className="w-16 h-16 opacity-50"
-        />
+        {/* Pokeball design */}
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-b from-red-500 to-red-600 border-4 border-gray-900"></div>
+          <div className="absolute bottom-0 left-0 right-0 h-1/2 rounded-b-full bg-gradient-to-b from-gray-100 to-gray-300 border-4 border-gray-900"></div>
+          <div className="absolute top-1/2 left-0 right-0 h-1 bg-gray-900 transform -translate-y-1/2"></div>
+          <div className="absolute top-1/2 left-1/2 w-6 h-6 rounded-full bg-gray-100 border-4 border-gray-900 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="absolute inset-1 rounded-full bg-gray-300"></div>
+          </div>
+        </div>
       </motion.div>
     );
   }
@@ -70,42 +75,47 @@ const PokemonCard = ({
   if (!pokemon) {
     return (
       <div 
-        className={`rounded-lg border-4 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center ${className}`}
-        style={{ width: '100%', height: '100%', minWidth: '128px', minHeight: '176px' }}
+        className={`rounded-lg border-4 border-dashed border-gray-600 bg-gray-800/50 flex items-center justify-center ${className}`}
+        style={{ width: '100%', height: '100%', minWidth: '96px', minHeight: '128px' }}
       >
-        <span className="text-gray-400 text-sm">Empty Slot</span>
+        <span className="text-gray-500 text-sm">Empty</span>
       </div>
     );
   }
 
   return (
     <motion.div
-      className={`relative rounded-lg border-4 ${getBorderClass()} bg-gradient-to-br from-white to-gray-50 shadow-lg overflow-hidden cursor-pointer ${className}`}
+      className={`relative rounded-lg border-4 ${getBorderClass()} bg-gradient-to-br from-gray-800 via-gray-850 to-gray-900 shadow-xl overflow-hidden cursor-pointer ${className}`}
       whileHover={!isKnockedOut ? { scale: 1.05, y: -5 } : {}}
       animate={isActive ? { 
-        boxShadow: '0 0 20px rgba(59, 130, 246, 0.5)',
+        boxShadow: '0 0 25px rgba(59, 130, 246, 0.6)',
         scale: 1.02
       } : {}}
       transition={{ duration: 0.2 }}
       onClick={onSelect}
       style={{
         filter: isKnockedOut ? 'grayscale(100%)' : 'none',
-        opacity: isKnockedOut ? 0.5 : 1,
+        opacity: isKnockedOut ? 0.4 : 1,
         width: '100%',
         height: '100%',
-        minWidth: '128px',
-        minHeight: '176px'
+        minWidth: compact ? '96px' : '128px',
+        minHeight: compact ? '128px' : '176px'
       }}
     >
       {/* Rarity indicator for legendary/mythical */}
-      {pokemon.is_legendary && (
-        <div className="absolute top-1 right-1 bg-yellow-400 text-yellow-900 text-xs px-2 py-0.5 rounded-full font-bold z-10">
+      {!compact && pokemon.is_legendary && (
+        <div className="absolute top-1 right-1 bg-yellow-500 text-yellow-900 text-xs px-2 py-0.5 rounded-full font-bold z-10">
           ⭐ Legendary
         </div>
       )}
-      {pokemon.is_mythical && (
+      {!compact && pokemon.is_mythical && (
         <div className="absolute top-1 right-1 bg-purple-500 text-white text-xs px-2 py-0.5 rounded-full font-bold z-10">
           ✨ Mythical
+        </div>
+      )}
+      {compact && (pokemon.is_legendary || pokemon.is_mythical) && (
+        <div className="absolute top-1 right-1 text-lg z-10">
+          {pokemon.is_legendary ? '⭐' : '✨'}
         </div>
       )}
 
@@ -117,46 +127,48 @@ const PokemonCard = ({
       )}
 
       {/* Card content */}
-      <div className="p-2 flex flex-col h-full">
+      <div className={`${compact ? 'p-1' : 'p-2'} flex flex-col h-full`}>
         {/* Pokemon name - always visible, no truncation */}
-        <h3 className="text-sm font-bold text-gray-800 text-center break-words leading-tight min-h-[2rem] flex items-center justify-center">
+        <h3 className={`${compact ? 'text-xs' : 'text-sm'} font-bold text-white text-center break-words leading-tight ${compact ? 'min-h-[1.5rem]' : 'min-h-[2rem]'} flex items-center justify-center`}>
           {pokemon.name || pokemon.pokemon_name}
         </h3>
 
         {/* Type badges */}
-        <div className="flex gap-1 justify-center my-1 flex-wrap">
-          {pokemon.types?.map((type, idx) => (
-            <span
-              key={idx}
-              className="text-xs px-2 py-0.5 rounded-full text-white font-semibold"
-              style={{ backgroundColor: getTypeColor(type) }}
-            >
-              {type}
-            </span>
-          ))}
-        </div>
+        {!compact && (
+          <div className="flex gap-1 justify-center my-1 flex-wrap">
+            {pokemon.types?.map((type, idx) => (
+              <span
+                key={idx}
+                className="text-xs px-2 py-0.5 rounded-full text-white font-semibold"
+                style={{ backgroundColor: getTypeColor(type) }}
+              >
+                {type}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Pokemon sprite */}
-        <div className="flex-1 flex items-center justify-center my-1">
+        <div className={`flex-1 flex items-center justify-center ${compact ? 'my-0.5' : 'my-1'}`}>
           {pokemon.sprite ? (
             <img 
               src={pokemon.sprite} 
               alt={pokemon.name || pokemon.pokemon_name}
-              className="w-16 h-16 object-contain"
+              className={`${compact ? 'w-12 h-12' : 'w-16 h-16'} object-contain`}
             />
           ) : (
-            <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
-              <span className="text-gray-400 text-xs">No Image</span>
+            <div className={`${compact ? 'w-12 h-12' : 'w-16 h-16'} bg-gray-700 rounded-full flex items-center justify-center`}>
+              <span className="text-gray-500 text-xs">?</span>
             </div>
           )}
         </div>
 
         {/* Stats section */}
-        <div className="space-y-0.5 text-xs">
+        <div className={`space-y-0.5 ${compact ? 'text-[10px]' : 'text-xs'}`}>
           {/* HP */}
           <div className="flex items-center gap-1">
-            <span className="text-gray-600 w-7 text-xs">HP:</span>
-            <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+            <span className="text-gray-400 w-7 text-xs">HP:</span>
+            <div className="flex-1 bg-gray-700 rounded-full h-2 overflow-hidden">
               <motion.div
                 className="h-full bg-green-500"
                 initial={{ width: 0 }}
@@ -167,14 +179,14 @@ const PokemonCard = ({
                 transition={{ duration: 0.5 }}
               />
             </div>
-            <span className="text-gray-700 text-xs whitespace-nowrap">{pokemon.hp}/{pokemon.hp_max}</span>
+            {!compact && <span className="text-gray-300 text-xs whitespace-nowrap">{pokemon.hp}/{pokemon.hp_max}</span>}
           </div>
 
           {/* Stamina */}
-          {pokemon.stamina !== undefined && (
+          {!compact && pokemon.stamina !== undefined && (
             <div className="flex items-center gap-1">
-              <span className="text-gray-600 w-7 text-xs">STA:</span>
-              <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+              <span className="text-gray-400 w-7 text-xs">STA:</span>
+              <div className="flex-1 bg-gray-700 rounded-full h-2 overflow-hidden">
                 <motion.div
                   className="h-full bg-blue-500"
                   initial={{ width: 0 }}
@@ -182,24 +194,26 @@ const PokemonCard = ({
                   transition={{ duration: 0.5 }}
                 />
               </div>
-              <span className="text-gray-700 text-xs whitespace-nowrap">{pokemon.stamina}/{pokemon.stamina_max}</span>
+              <span className="text-gray-300 text-xs whitespace-nowrap">{pokemon.stamina}/{pokemon.stamina_max}</span>
             </div>
           )}
 
           {/* Attack, Defense, Speed */}
-          <div className="flex justify-between text-gray-700 text-xs">
-            <span>ATK: {pokemon.attack}</span>
-            <span>DEF: {pokemon.defense}</span>
-            <span>SPD: {pokemon.speed}</span>
-          </div>
+          {!compact && (
+            <div className="flex justify-between text-gray-300 text-xs">
+              <span>ATK: {pokemon.attack}</span>
+              <span>DEF: {pokemon.defense}</span>
+              <span>SPD: {pokemon.speed}</span>
+            </div>
+          )}
 
           {/* Level and XP */}
-          {pokemon.level !== undefined && (
+          {!compact && pokemon.level !== undefined && (
             <div className="text-center">
-              <span className="font-semibold text-gray-800 text-xs">Lv. {pokemon.level}</span>
+              <span className="font-semibold text-white text-xs">Lv. {pokemon.level}</span>
               {pokemon.xp !== undefined && pokemon.level < 50 && (
                 <div className="mt-0.5">
-                  <div className="bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                  <div className="bg-gray-700 rounded-full h-1.5 overflow-hidden">
                     <motion.div
                       className="h-full bg-purple-500"
                       initial={{ width: 0 }}
@@ -207,14 +221,21 @@ const PokemonCard = ({
                       transition={{ duration: 0.5 }}
                     />
                   </div>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-gray-400">
                     {pokemon.xp}/{100 * pokemon.level} XP
                   </span>
                 </div>
               )}
               {pokemon.level === 50 && (
-                <span className="text-xs text-purple-600 font-semibold">MAX LEVEL</span>
+                <span className="text-xs text-purple-400 font-semibold">MAX LEVEL</span>
               )}
+            </div>
+          )}
+          
+          {/* Compact mode: just show level */}
+          {compact && pokemon.level !== undefined && (
+            <div className="text-center">
+              <span className="font-semibold text-white text-xs">Lv. {pokemon.level}</span>
             </div>
           )}
         </div>
@@ -245,7 +266,8 @@ PokemonCard.propTypes = {
   isFaceDown: PropTypes.bool,
   isKnockedOut: PropTypes.bool,
   onSelect: PropTypes.func,
-  className: PropTypes.string
+  className: PropTypes.string,
+  compact: PropTypes.bool
 };
 
 export default PokemonCard;

@@ -2,9 +2,11 @@ package stats
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"pokemon-cli/internal/database"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -153,8 +155,17 @@ func (r *Repository) GetPlayerStats(ctx context.Context, userID int) (*database.
 	)
 	
 	if err != nil {
-		// If no stats exist yet, return empty stats
-		if err.Error() == "no rows in result set" {
+		// If no stats exist yet, return empty stats with default values
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Return default stats for new users
+			stats.TotalBattles1v1 = 0
+			stats.Wins1v1 = 0
+			stats.Losses1v1 = 0
+			stats.TotalBattles5v5 = 0
+			stats.Wins5v5 = 0
+			stats.Losses5v5 = 0
+			stats.TotalCoinsEarned = 0
+			stats.HighestLevel = 1
 			return stats, nil
 		}
 		return nil, fmt.Errorf("failed to get player stats: %w", err)

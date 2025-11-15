@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
  * Displays turn-by-turn battle events with auto-scroll
  * Color codes different event types (damage, healing, status changes)
  */
-const BattleLog = ({ logs = [], className = '' }) => {
+const BattleLog = ({ logs = [], className = '', compact = false }) => {
   const logEndRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -68,23 +68,23 @@ const BattleLog = ({ logs = [], className = '' }) => {
 
   if (!logs || logs.length === 0) {
     return (
-      <div className={`bg-gray-800 rounded-lg p-4 ${className}`}>
-        <h3 className="text-lg font-bold text-gray-400 mb-2">Battle Log</h3>
-        <p className="text-gray-500 text-sm italic">Waiting for battle to start...</p>
+      <div className={`bg-gray-800 rounded-lg ${compact ? 'p-2' : 'p-4'} ${className}`}>
+        <h3 className={`${compact ? 'text-sm' : 'text-lg'} font-bold text-gray-400 ${compact ? 'mb-1' : 'mb-2'}`}>Battle Log</h3>
+        <p className="text-gray-500 text-xs italic">Waiting for battle to start...</p>
       </div>
     );
   }
 
   return (
-    <div className={`bg-gray-800 rounded-lg p-4 ${className}`}>
-      <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+    <div className={`bg-gray-800 rounded-lg ${compact ? 'p-2' : 'p-4'} ${className}`}>
+      <h3 className={`${compact ? 'text-sm' : 'text-lg'} font-bold text-white ${compact ? 'mb-2' : 'mb-3'} flex items-center gap-2`}>
         <span>📜</span>
         <span>Battle Log</span>
       </h3>
       
       <div 
         ref={containerRef}
-        className="space-y-1 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-700"
+        className={`space-y-1 ${compact ? 'max-h-32' : 'max-h-48'} overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-700`}
       >
         <AnimatePresence initial={false}>
           {logs.map((log, index) => (
@@ -94,7 +94,7 @@ const BattleLog = ({ logs = [], className = '' }) => {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.3 }}
-              className={`text-sm ${getLogColor(log)} flex items-start gap-2 py-1`}
+              className={`${compact ? 'text-xs' : 'text-sm'} ${getLogColor(log)} flex items-start gap-2 py-1`}
             >
               <span className="flex-shrink-0 mt-0.5">{getLogIcon(log)}</span>
               <span className="flex-1">{log}</span>
@@ -109,7 +109,8 @@ const BattleLog = ({ logs = [], className = '' }) => {
 
 BattleLog.propTypes = {
   logs: PropTypes.arrayOf(PropTypes.string),
-  className: PropTypes.string
+  className: PropTypes.string,
+  compact: PropTypes.bool
 };
 
 export default BattleLog;

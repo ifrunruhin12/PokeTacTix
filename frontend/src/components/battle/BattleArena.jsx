@@ -159,32 +159,17 @@ const BattleArena = ({
       variants={containerVariants}
       initial="hidden"
       animate="visible"
-      className={`min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 ${className}`}
+      className={`min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4 flex flex-col ${className}`}
     >
-      {/* Turn Indicator */}
-      <TurnIndicator
-        turnNumber={turn_number}
-        whoseTurn={whose_turn}
-        mode={mode}
-        roundNumber={round_number}
-        className="mb-6"
-      />
-
       {/* Error Display */}
       {error && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-2xl mx-auto mb-6"
+          className="mb-4"
         >
-          <div className="bg-red-900/50 border-2 border-red-500 text-red-200 px-6 py-4 rounded-lg shadow-lg">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">⚠️</span>
-              <div>
-                <div className="font-bold text-lg">Error</div>
-                <div className="text-sm">{error}</div>
-              </div>
-            </div>
+          <div className="bg-red-900/50 border-2 border-red-500 text-red-200 px-4 py-2 rounded-lg shadow-lg text-center">
+            ⚠️ {error}
           </div>
         </motion.div>
       )}
@@ -194,156 +179,156 @@ const BattleArena = ({
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="max-w-2xl mx-auto mb-6"
+          className="mb-4"
         >
-          <div className="bg-blue-900/50 border-2 border-blue-500 text-blue-200 px-6 py-4 rounded-lg shadow-lg">
-            <div className="flex items-center gap-3">
-              <motion.span
-                animate={{ rotate: 360 }}
-                transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                className="text-2xl"
-              >
-                ⚔️
-              </motion.span>
-              <div className="font-semibold">Processing move...</div>
-            </div>
+          <div className="bg-blue-900/50 border-2 border-blue-500 text-blue-200 px-4 py-2 rounded-lg shadow-lg text-center">
+            <motion.span
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+              className="inline-block mr-2"
+            >
+              ⚔️
+            </motion.span>
+            Processing move...
           </div>
         </motion.div>
       )}
 
-      {/* Main Battle Area */}
-      <div className="max-w-7xl mx-auto">
-        {/* Active Pokemon Battle Area (Center) */}
-        <div className="flex flex-col items-center justify-center mb-8 space-y-6">
-          {/* AI Active Pokemon */}
-          <motion.div variants={activeCardVariants} className="text-center">
-            <h3 className="text-lg font-bold text-red-400 mb-3">Opponent's Active Pokémon</h3>
-            {aiActive ? (
-              <AnimatedPokemonCard
-                pokemon={aiActive}
-                isActive={true}
-                isFaceDown={false}
-                isKnockedOut={aiActive.is_knocked_out}
-                className="mx-auto"
-              />
+      {/* Main Battle Container - Fixed Height Layout */}
+      <div className="flex-1 flex flex-col max-w-7xl mx-auto w-full">
+        {/* Top Section: Active Pokemon Cards */}
+        <div className="grid grid-cols-2 gap-8 mb-6">
+          {/* Player Active Pokemon (Left) */}
+          <motion.div variants={activeCardVariants} className="flex flex-col items-center">
+            <div className="text-sm font-semibold text-blue-400 mb-2">Player's Active Card</div>
+            {playerActive ? (
+              <div className="w-64 h-80">
+                <AnimatedPokemonCard
+                  pokemon={playerActive}
+                  isActive={true}
+                  isFaceDown={false}
+                  isKnockedOut={playerActive.is_knocked_out}
+                  className="w-full h-full"
+                />
+              </div>
             ) : (
-              <div className="text-gray-400">No active Pokémon</div>
+              <div className="w-64 h-80 flex items-center justify-center text-gray-400 border-2 border-dashed border-gray-600 rounded-lg">
+                No active Pokémon
+              </div>
             )}
           </motion.div>
 
-          {/* VS Indicator */}
-          <motion.div
-            animate={{
-              scale: [1, 1.1, 1],
-              rotate: [0, 5, -5, 0]
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: 'easeInOut'
-            }}
-            className="text-center"
-          >
-            <div className="inline-block bg-gradient-to-r from-red-600 to-blue-600 text-white font-bold text-2xl px-6 py-2 rounded-full shadow-2xl">
-              ⚔️ VS ⚔️
-            </div>
-          </motion.div>
-
-          {/* Player Active Pokemon */}
-          <motion.div variants={activeCardVariants} className="text-center">
-            <h3 className="text-lg font-bold text-blue-400 mb-3">Your Active Pokémon</h3>
-            {playerActive ? (
-              <AnimatedPokemonCard
-                pokemon={playerActive}
-                isActive={true}
-                isFaceDown={false}
-                isKnockedOut={playerActive.is_knocked_out}
-                className="mx-auto"
-              />
+          {/* AI Active Pokemon (Right) */}
+          <motion.div variants={activeCardVariants} className="flex flex-col items-center">
+            <div className="text-sm font-semibold text-red-400 mb-2">AI's Active Card</div>
+            {aiActive ? (
+              <div className="w-64 h-80">
+                <AnimatedPokemonCard
+                  pokemon={aiActive}
+                  isActive={true}
+                  isFaceDown={false}
+                  isKnockedOut={aiActive.is_knocked_out}
+                  className="w-full h-full"
+                />
+              </div>
             ) : (
-              <div className="text-gray-400">No active Pokémon</div>
+              <div className="w-64 h-80 flex items-center justify-center text-gray-400 border-2 border-dashed border-gray-600 rounded-lg">
+                No active Pokémon
+              </div>
             )}
           </motion.div>
         </div>
 
-        {/* Team Decks (Side by Side) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6">
+        {/* Middle Section: Turn Indicator, Battle Log, and Controls */}
+        <div className="flex-1 flex flex-col items-center justify-center mb-6 space-y-4">
+          {/* Turn Indicator */}
+          <TurnIndicator
+            turnNumber={turn_number}
+            whoseTurn={whose_turn}
+            mode={mode}
+            roundNumber={round_number}
+          />
+
+          {/* Battle Log - Compact */}
+          <motion.div variants={cardVariants} className="w-full max-w-2xl">
+            <BattleLog logs={battleLogs} compact={true} />
+          </motion.div>
+
+          {/* Battle Controls */}
+          {!battle_over && (
+            <motion.div variants={cardVariants} className="w-full max-w-2xl">
+              <BattleControls
+                onAttack={handleAttack}
+                onDefend={handleDefend}
+                onPass={handlePass}
+                onSacrifice={handleSacrifice}
+                onSurrender={handleSurrender}
+                disabled={!isPlayerTurn || loading}
+                currentStamina={playerActive?.stamina || 0}
+                maxHp={playerActive?.hp_max || 0}
+              />
+              
+              {/* Turn status message */}
+              {!isPlayerTurn && (
+                <div className="text-center mt-2">
+                  <div className="inline-block bg-gray-700/80 text-gray-300 px-4 py-2 rounded-lg text-sm">
+                    🤖 AI is thinking...
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </div>
+
+        {/* Bottom Section: Team Decks */}
+        <div className="grid grid-cols-2 gap-8">
           {/* Player Deck (Left) */}
-          <motion.div variants={cardVariants} className="space-y-3">
-            <h3 className="text-lg font-bold text-white text-center">
-              👤 Your Team
-            </h3>
-            <div className="flex flex-wrap justify-center gap-2">
+          <motion.div variants={cardVariants}>
+            <div className="text-sm font-semibold text-white mb-2 text-center">Player's Deck</div>
+            <div className="flex justify-center gap-2">
               {player_deck.map((pokemon, index) => (
                 <motion.div
                   key={index}
-                  whileHover={!pokemon.is_knocked_out && index !== player_active_idx ? { scale: 1.05 } : {}}
+                  whileHover={!pokemon.is_knocked_out && index !== player_active_idx ? { scale: 1.05, y: -5 } : {}}
                   onClick={() => handleSwitchPokemon(index)}
-                  className="cursor-pointer"
+                  className={`cursor-pointer ${index === player_active_idx ? 'opacity-50' : ''}`}
                 >
-                  <AnimatedPokemonCard
-                    pokemon={pokemon}
-                    isActive={index === player_active_idx}
-                    isFaceDown={false}
-                    isKnockedOut={pokemon.is_knocked_out}
-                    className="w-32 h-44"
-                  />
+                  <div className="w-24 h-32">
+                    <AnimatedPokemonCard
+                      pokemon={pokemon}
+                      isActive={index === player_active_idx}
+                      isFaceDown={false}
+                      isKnockedOut={pokemon.is_knocked_out}
+                      className="w-full h-full"
+                      compact={true}
+                    />
+                  </div>
                 </motion.div>
               ))}
             </div>
           </motion.div>
 
           {/* AI Deck (Right) */}
-          <motion.div variants={cardVariants} className="space-y-3">
-            <h3 className="text-lg font-bold text-white text-center">
-              🤖 Opponent's Team
-            </h3>
-            <div className="flex flex-wrap justify-center gap-2">
+          <motion.div variants={cardVariants}>
+            <div className="text-sm font-semibold text-white mb-2 text-center">AI's Deck</div>
+            <div className="flex justify-center gap-2">
               {ai_deck.map((pokemon, index) => (
                 <motion.div key={index}>
-                  <AnimatedPokemonCard
-                    pokemon={pokemon}
-                    isActive={index === ai_active_idx}
-                    isFaceDown={index !== ai_active_idx && !pokemon.is_knocked_out}
-                    isKnockedOut={pokemon.is_knocked_out}
-                    className="w-32 h-44"
-                  />
+                  <div className="w-24 h-32">
+                    <AnimatedPokemonCard
+                      pokemon={pokemon}
+                      isActive={index === ai_active_idx}
+                      isFaceDown={index !== ai_active_idx && !pokemon.is_knocked_out}
+                      isKnockedOut={pokemon.is_knocked_out}
+                      className="w-full h-full"
+                      compact={true}
+                    />
+                  </div>
                 </motion.div>
               ))}
             </div>
           </motion.div>
         </div>
-
-        {/* Battle Log */}
-        <motion.div variants={cardVariants}>
-          <BattleLog logs={battleLogs} className="mb-6" />
-        </motion.div>
-
-        {/* Battle Controls - Always visible when battle is active */}
-        {!battle_over && (
-          <motion.div variants={cardVariants}>
-            <BattleControls
-              onAttack={handleAttack}
-              onDefend={handleDefend}
-              onPass={handlePass}
-              onSacrifice={handleSacrifice}
-              onSurrender={handleSurrender}
-              disabled={!isPlayerTurn || loading}
-              currentStamina={playerActive?.stamina || 0}
-              maxHp={playerActive?.hp_max || 0}
-              className="mb-6"
-            />
-            
-            {/* Turn status message */}
-            {!isPlayerTurn && (
-              <div className="text-center mt-4">
-                <div className="inline-block bg-gray-700/80 text-gray-300 px-6 py-3 rounded-lg">
-                  <span className="text-lg">🤖 AI is thinking...</span>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
       </div>
 
       {/* Move Selector Modal */}
