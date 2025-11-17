@@ -75,13 +75,13 @@ type CardStats struct {
 // GetCurrentStats calculates current stats based on level for Card
 func (c *Card) GetCurrentStats() CardStats {
 	levelMultiplier := float64(c.Level - 1)
-	
+
 	hp := int(float64(c.HPMax) * (1.0 + levelMultiplier*0.03))
 	attack := int(float64(c.Attack) * (1.0 + levelMultiplier*0.02))
 	defense := int(float64(c.Defense) * (1.0 + levelMultiplier*0.02))
 	speed := int(float64(c.Speed) * (1.0 + levelMultiplier*0.01))
 	stamina := speed * 2
-	
+
 	return CardStats{
 		HP:      hp,
 		Attack:  attack,

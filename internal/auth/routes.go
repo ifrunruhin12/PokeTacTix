@@ -4,7 +4,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// RegisterRoutes registers authentication routes
 func RegisterRoutes(app *fiber.App, handler *Handler, jwtService *JWTService) {
 	auth := app.Group("/api/auth")
 

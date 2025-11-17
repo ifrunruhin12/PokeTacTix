@@ -1,8 +1,10 @@
 package battle
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"pokemon-cli/game/models"
 	"pokemon-cli/internal/database"
 	"pokemon-cli/internal/pokemon"
@@ -17,9 +19,15 @@ import (
 
 // Handler handles battle-related HTTP requests
 type Handler struct {
-	sessions   map[string]*Session // Legacy in-memory sessions for backward compatibility
-	repo       *Repository         // Database repository for persistent storage
-	mu         sync.RWMutex        // Mutex for thread-safe access to legacy sessions
+	sessions     map[string]*Session // Legacy in-memory sessions for backward compatibility
+	repo         *Repository         // Database repository for persistent storage
+	statsService StatsService        // Stats service for achievement checking
+	mu           sync.RWMutex        // Mutex for thread-safe access to legacy sessions
+}
+
+// StatsService defines the interface for stats operations
+type StatsService interface {
+	CheckAndUnlockAchievements(ctx context.Context, userID int) ([]database.AchievementWithStatus, error)
 }
 
 // Session holds core game state plus web-only turn state (legacy support)
@@ -29,10 +37,11 @@ type Session struct {
 }
 
 // NewHandler creates a new battle handler
-func NewHandler(db *pgxpool.Pool) *Handler {
+func NewHandler(db *pgxpool.Pool, statsService StatsService) *Handler {
 	return &Handler{
-		sessions: make(map[string]*Session),
-		repo:     NewRepository(db),
+		sessions:     make(map[string]*Session),
+		repo:         NewRepository(db),
+		statsService: statsService,
 	}
 }
 
@@ -168,8 +177,17 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 
 	// Convert player's database cards to pokemon.Card format
 	var playerDeck []pokemon.Card
-	for i := 0; i < requiredCards && i < len(playerDeckCards); i++ {
-		playerDeck = append(playerDeck, ConvertPlayerCardToPokemonCard(playerDeckCards[i]))
+	if req.Mode == "1v1" {
+		// For 1v1, select a random Pokemon from the deck
+		if len(playerDeckCards) > 0 {
+			randomIdx := rand.Intn(len(playerDeckCards))
+			playerDeck = append(playerDeck, ConvertPlayerCardToPokemonCard(playerDeckCards[randomIdx]))
+		}
+	} else {
+		// For 5v5, use all cards in deck order
+		for i := 0; i < requiredCards && i < len(playerDeckCards); i++ {
+			playerDeck = append(playerDeck, ConvertPlayerCardToPokemonCard(playerDeckCards[i]))
+		}
 	}
 
 	// Generate AI deck with random cards
@@ -178,7 +196,7 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 		aiDeck = []pokemon.Card{pokemon.FetchRandomPokemonCard(false)}
 	} else {
 		// Generate 5 random cards for AI
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			aiDeck = append(aiDeck, pokemon.FetchRandomPokemonCard(false))
 		}
 	}
@@ -299,7 +317,7 @@ func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
 	// Sanitize and validate inputs
 	req.BattleID = strings.TrimSpace(req.BattleID)
 	req.Move = strings.TrimSpace(req.Move)
-	
+
 	if req.BattleID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{
@@ -308,7 +326,7 @@ func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	// Validate move
 	validMoves := map[string]bool{
 		"attack": true, "defend": true, "pass": true, "sacrifice": true, "surrender": true,
@@ -321,7 +339,7 @@ func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	// Validate move_idx for attack moves
 	if req.Move == "attack" && (req.MoveIdx == nil || *req.MoveIdx < 0) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -369,8 +387,35 @@ func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
 		})
 	}
 
-	// Return updated state with logs
-	response := BuildBattleResponse(battleState, logEntries, true)
+	hideAICards := !battleState.BattleOver || battleState.Winner != "player" || battleState.Mode != "5v5"
+
+	response := BuildBattleResponse(battleState, logEntries, hideAICards)
+
+	if battleState.BattleOver {
+		db, ok := c.Locals("db").(*pgxpool.Pool)
+		if ok {
+			// Calculate all rewards
+			rewards := CalculateAllRewards(battleState)
+
+			// Apply all rewards in a single transaction
+			err := ApplyAllRewards(c.Context(), db, userID, battleState, rewards, h.statsService, h.repo)
+			if err != nil {
+				// Log error but don't fail the request - battle is already over
+				fmt.Printf("Failed to apply rewards: %v\n", err)
+				// Still return partial rewards info if available
+				response["coins_earned"] = rewards.CoinsEarned
+			} else {
+				// Add comprehensive rewards to response
+				response["coins_earned"] = rewards.CoinsEarned
+				response["xp_gains"] = rewards.XPGains
+				if len(rewards.NewlyUnlockedAchievements) > 0 {
+					response["newly_unlocked_achievements"] = rewards.NewlyUnlockedAchievements
+				}
+				response["battle_history_recorded"] = rewards.BattleHistoryRecorded
+				response["stats_updated"] = rewards.StatsUpdated
+			}
+		}
+	}
 
 	return c.JSON(response)
 }
@@ -399,8 +444,9 @@ func (h *Handler) GetBattleStateEnhanced(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not your battle"})
 	}
 
-	// Return state
-	response := BuildBattleResponse(battleState, []string{}, true)
+	hideAICards := !battleState.BattleOver || battleState.Winner != "player" || battleState.Mode != "5v5"
+
+	response := BuildBattleResponse(battleState, []string{}, hideAICards)
 
 	return c.JSON(response)
 }
@@ -449,7 +495,6 @@ func (h *Handler) SwitchPokemonHandler(c *fiber.Ctx) error {
 	return c.JSON(response)
 }
 
-// GetBattleState handles GET /api/battle/state (legacy support)
 func (h *Handler) GetBattleStateLegacy(c *fiber.Ctx) error {
 	session := c.Query("session")
 	sess, ok := h.sessions[session]
@@ -467,7 +512,7 @@ func (h *Handler) GetBattleStateLegacy(c *fiber.Ctx) error {
 func (h *Handler) CleanupExpiredSessions(c *fiber.Ctx) error {
 	// Only allow admin or internal calls
 	// For now, we'll make this a simple endpoint that can be called by a cron job
-	
+
 	count, err := h.repo.CleanupExpiredSessions(c.Context(), 1*time.Hour)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -481,8 +526,6 @@ func (h *Handler) CleanupExpiredSessions(c *fiber.Ctx) error {
 	})
 }
 
-// SelectRewardHandler handles POST /api/battle/select-reward
-// Requirements: 11.1, 11.2, 11.3
 func (h *Handler) SelectRewardHandler(c *fiber.Ctx) error {
 	// Get user ID from context
 	userID, ok := c.Locals("user_id").(int)
@@ -491,8 +534,8 @@ func (h *Handler) SelectRewardHandler(c *fiber.Ctx) error {
 	}
 
 	var req struct {
-		BattleID      string `json:"battle_id"`
-		PokemonIndex  int    `json:"pokemon_index"` // Index of AI Pokemon to select (0-4)
+		BattleID     string `json:"battle_id"`
+		PokemonIndex int    `json:"pokemon_index"` // Index of AI Pokemon to select (0-4)
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})

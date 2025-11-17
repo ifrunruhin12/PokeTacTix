@@ -15,20 +15,14 @@ func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
 }
 
-// RecordBattle records a battle outcome
-// Requirements: 8.2, 8.5
 func (s *Service) RecordBattle(ctx context.Context, userID int, mode, result string, coinsEarned, duration int) error {
 	return s.repo.RecordBattle(ctx, userID, mode, result, coinsEarned, duration)
 }
 
-// GetPlayerStats retrieves player statistics
-// Requirements: 8.1, 8.5
 func (s *Service) GetPlayerStats(ctx context.Context, userID int) (*database.PlayerStats, error) {
 	return s.repo.GetPlayerStats(ctx, userID)
 }
 
-// GetBattleHistory retrieves the last N battles for a user
-// Requirements: 8.3
 func (s *Service) GetBattleHistory(ctx context.Context, userID int, limit int) ([]database.BattleHistory, error) {
 	if limit <= 0 {
 		limit = 20 // Default to 20 battles
@@ -41,14 +35,10 @@ func (s *Service) UpdateHighestLevel(ctx context.Context, userID int, level int)
 	return s.repo.UpdateHighestLevel(ctx, userID, level)
 }
 
-// GetAchievements retrieves all achievements with unlock status for a user
-// Requirements: 8.4
 func (s *Service) GetAchievements(ctx context.Context, userID int) ([]database.AchievementWithStatus, error) {
 	return s.repo.GetAchievements(ctx, userID)
 }
 
-// CheckAndUnlockAchievements evaluates achievement criteria and unlocks eligible achievements
-// Requirements: 8.4
 func (s *Service) CheckAndUnlockAchievements(ctx context.Context, userID int) ([]database.AchievementWithStatus, error) {
 	// Get current player stats
 	stats, err := s.repo.GetPlayerStats(ctx, userID)
@@ -78,13 +68,19 @@ func (s *Service) CheckAndUnlockAchievements(ctx context.Context, userID int) ([
 		shouldUnlock := false
 
 		switch ach.RequirementType {
+		case "battles_1v1":
+			shouldUnlock = stats.TotalBattles1v1 >= ach.RequirementValue
+		case "battles_5v5":
+			shouldUnlock = stats.TotalBattles5v5 >= ach.RequirementValue
 		case "total_wins":
 			shouldUnlock = totalWins >= ach.RequirementValue
 		case "total_battles":
 			shouldUnlock = totalBattles >= ach.RequirementValue
+		case "wins_1v1":
+			shouldUnlock = stats.Wins1v1 >= ach.RequirementValue
 		case "wins_5v5":
 			shouldUnlock = stats.Wins5v5 >= ach.RequirementValue
-		case "total_coins":
+		case "total_coins", "coins_total":
 			shouldUnlock = stats.TotalCoinsEarned >= ach.RequirementValue
 		case "max_level":
 			shouldUnlock = stats.HighestLevel >= ach.RequirementValue
@@ -123,11 +119,11 @@ func (s *Service) hasLegendaryPokemon(ctx context.Context, userID int) (bool, er
 		SELECT COUNT(*) FROM player_cards 
 		WHERE user_id = $1 AND is_legendary = true
 	`, userID).Scan(&count)
-	
+
 	if err != nil {
 		return false, err
 	}
-	
+
 	return count > 0, nil
 }
 
@@ -138,11 +134,11 @@ func (s *Service) hasMythicalPokemon(ctx context.Context, userID int) (bool, err
 		SELECT COUNT(*) FROM player_cards 
 		WHERE user_id = $1 AND is_mythical = true
 	`, userID).Scan(&count)
-	
+
 	if err != nil {
 		return false, err
 	}
-	
+
 	return count > 0, nil
 }
 

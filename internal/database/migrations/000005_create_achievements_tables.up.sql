@@ -22,6 +22,8 @@ CREATE INDEX idx_user_achievements_unlocked_at ON user_achievements(unlocked_at 
 
 -- Insert default achievements
 INSERT INTO achievements (name, description, icon, requirement_type, requirement_value) VALUES
+    ('First 1v1 Battle', 'Complete your first 1v1 battle', '🎯', 'battles_1v1', 1),
+    ('First 5v5 Battle', 'Complete your first 5v5 battle', '🎲', 'battles_5v5', 1),
     ('First Victory', 'Win your first battle', '🏆', 'total_wins', 1),
     ('Veteran Trainer', 'Win 10 battles', '⭐', 'total_wins', 10),
     ('Elite Trainer', 'Win 50 battles', '🌟', 'total_wins', 50),

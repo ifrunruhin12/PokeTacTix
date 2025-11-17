@@ -20,7 +20,7 @@ func RegisterRoutes(app *fiber.App, handler *Handler, authMiddleware func(*fiber
 	battleAuth.Get("/state", handler.GetBattleStateEnhanced)
 	battleAuth.Post("/switch", handler.SwitchPokemonHandler)
 	battleAuth.Post("/select-reward", handler.SelectRewardHandler)
-	
+
 	// Cleanup endpoint (can be called by cron job or admin)
 	battle.Post("/cleanup-sessions", handler.CleanupExpiredSessions)
 }

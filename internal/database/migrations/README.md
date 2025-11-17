@@ -32,6 +32,15 @@ This directory contains SQL migration files for the PokeTacTix database schema.
 - Creates `user_achievements` table for tracking unlocked achievements
 - Seeds 8 default achievements
 
+### 000006 - Battle Sessions Table
+- Creates `battle_sessions` table for tracking active battles
+- Manages battle state and turn information
+
+### 000007 - Add Draws to Player Stats
+- Adds `draws_1v1` and `draws_5v5` columns to `player_stats` table
+- Updates consistency check trigger to validate wins + losses + draws ≤ total_battles
+- Maintains backward compatibility with existing stats
+
 ## Running Migrations
 
 ### Using Docker Compose
@@ -56,12 +65,16 @@ psql -U pokemon -d poketactix
 \i migrations/000003_create_battle_history_table.up.sql
 \i migrations/000004_create_player_stats_table.up.sql
 \i migrations/000005_create_achievements_tables.up.sql
+\i migrations/000006_create_battle_sessions_table.up.sql
+\i migrations/000007_add_draws_to_player_stats.up.sql
 ```
 
 ### Rollback
 
 ```bash
 # Rollback in reverse order
+\i migrations/000007_add_draws_to_player_stats.down.sql
+\i migrations/000006_create_battle_sessions_table.down.sql
 \i migrations/000005_create_achievements_tables.down.sql
 \i migrations/000004_create_player_stats_table.down.sql
 \i migrations/000003_create_battle_history_table.down.sql
@@ -76,7 +89,8 @@ users (id, username, email, password_hash, coins, created_at, updated_at)
   ↓ CASCADE DELETE
   ├── player_cards (id, user_id, pokemon_name, level, xp, stats, ...)
   ├── battle_history (id, user_id, mode, result, coins_earned, ...)
-  ├── player_stats (user_id, wins, losses, total_coins_earned, ...)
+  ├── player_stats (user_id, wins, losses, draws, total_coins_earned, ...)
+  ├── battle_sessions (id, user_id, mode, state, ...)
   └── user_achievements (user_id, achievement_id, unlocked_at)
         ↓
       achievements (id, name, description, requirement_type, ...)

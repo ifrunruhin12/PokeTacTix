@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"pokemon-cli/internal/database"
 	"pokemon-cli/internal/pokemon"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Repository handles shop data access
@@ -60,7 +60,7 @@ func (r *Repository) PurchaseCard(ctx context.Context, userID int, pokemonName s
 
 	// Build card from Pokemon data
 	card := pokemon.BuildCardFromPokemon(poke, moves)
-	
+
 	// Check if legendary or mythical
 	isLegendary, isMythical := pokemon.IsLegendaryOrMythical(card.Name)
 
@@ -77,20 +77,20 @@ func (r *Repository) PurchaseCard(ctx context.Context, userID int, pokemonName s
 
 	// Create player card at level 1
 	playerCard := &database.PlayerCard{
-		UserID:      userID,
-		PokemonName: card.Name,
-		Level:       1,
-		XP:          0,
-		BaseHP:      card.HPMax,
-		BaseAttack:  card.Attack,
-		BaseDefense: card.Defense,
-		BaseSpeed:   card.Speed,
-		Types:       typesJSON,
-		Moves:       movesJSON,
-		Sprite:      card.Sprite,
-		IsLegendary: isLegendary,
-		IsMythical:  isMythical,
-		InDeck:      false,
+		UserID:       userID,
+		PokemonName:  card.Name,
+		Level:        1,
+		XP:           0,
+		BaseHP:       card.HPMax,
+		BaseAttack:   card.Attack,
+		BaseDefense:  card.Defense,
+		BaseSpeed:    card.Speed,
+		Types:        typesJSON,
+		Moves:        movesJSON,
+		Sprite:       card.Sprite,
+		IsLegendary:  isLegendary,
+		IsMythical:   isMythical,
+		InDeck:       false,
 		DeckPosition: nil,
 	}
 

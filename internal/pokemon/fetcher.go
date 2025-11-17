@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -28,21 +29,17 @@ var mythicalNames = []string{
 // IsLegendaryOrMythical checks if a Pokemon is legendary or mythical
 func IsLegendaryOrMythical(name string) (isLegendary bool, isMythical bool) {
 	nameLower := strings.ToLower(name)
-	
+
 	// Check if mythical
-	for _, mythical := range mythicalNames {
-		if nameLower == mythical {
-			return false, true
-		}
+	if slices.Contains(mythicalNames, nameLower) {
+		return false, true
 	}
-	
+
 	// Check if legendary
-	for _, legendary := range legendaryNames {
-		if nameLower == legendary {
-			return true, false
-		}
+	if slices.Contains(legendaryNames, nameLower) {
+		return true, false
 	}
-	
+
 	return false, false
 }
 
@@ -122,7 +119,7 @@ func FetchRandomPokemonCard(_ bool) Card {
 	mythicalOdds := 0.0001  // 0.01%
 	legendaryOdds := 0.0001 // 0.01%
 	maxRetries := 3
-	
+
 	for range maxRetries {
 		roll := rand.Float64()
 		var name string
@@ -143,7 +140,7 @@ func FetchRandomPokemonCard(_ bool) Card {
 		}
 		return BuildCardFromPokemon(poke, moves)
 	}
-	
+
 	// Fallback dummy card
 	return Card{Name: "MissingNo", HP: 33, Types: []string{"???"}}
 }

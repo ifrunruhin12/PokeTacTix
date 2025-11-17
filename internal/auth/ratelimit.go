@@ -7,13 +7,11 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/limiter"
 )
 
-// RateLimitConfig holds rate limiting configuration
 type RateLimitConfig struct {
 	Max        int
 	Expiration time.Duration
 }
 
-// CreateRateLimiter creates a rate limiter with the given configuration
 func CreateRateLimiter(config RateLimitConfig) fiber.Handler {
 	return limiter.New(limiter.Config{
 		Max:        config.Max,
@@ -38,7 +36,6 @@ func CreateRateLimiter(config RateLimitConfig) fiber.Handler {
 	})
 }
 
-// LoginRateLimiter creates a rate limiter for login endpoint
 func LoginRateLimiter() fiber.Handler {
 	return CreateRateLimiter(RateLimitConfig{
 		Max:        5,
@@ -46,7 +43,6 @@ func LoginRateLimiter() fiber.Handler {
 	})
 }
 
-// RegisterRateLimiter creates a rate limiter for register endpoint
 func RegisterRateLimiter() fiber.Handler {
 	return CreateRateLimiter(RateLimitConfig{
 		Max:        3,
@@ -54,7 +50,6 @@ func RegisterRateLimiter() fiber.Handler {
 	})
 }
 
-// DefaultRateLimiter creates a default rate limiter for general auth endpoints
 func DefaultRateLimiter() fiber.Handler {
 	return CreateRateLimiter(RateLimitConfig{
 		Max:        10,

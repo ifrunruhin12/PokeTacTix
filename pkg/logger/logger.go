@@ -41,10 +41,10 @@ func New(level Level) *Logger {
 	opts := &slog.HandlerOptions{
 		Level: slogLevel,
 	}
-	
+
 	// Use JSON handler for production, text handler for development
 	handler := slog.NewJSONHandler(os.Stdout, opts)
-	
+
 	return &Logger{
 		slog: slog.New(handler),
 	}
@@ -69,9 +69,9 @@ func NewText(level Level) *Logger {
 	opts := &slog.HandlerOptions{
 		Level: slogLevel,
 	}
-	
+
 	handler := slog.NewTextHandler(os.Stdout, opts)
-	
+
 	return &Logger{
 		slog: slog.New(handler),
 	}

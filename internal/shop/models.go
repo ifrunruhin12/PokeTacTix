@@ -7,14 +7,14 @@ import (
 
 // ShopItem represents a Pokemon card available for purchase in the shop
 type ShopItem struct {
-	PokemonName string         `json:"pokemon_name"`
-	Price       int            `json:"price"`
-	Rarity      string         `json:"rarity"` // "common", "uncommon", "rare", "legendary", "mythical"
-	IsLegendary bool           `json:"is_legendary"`
-	IsMythical  bool           `json:"is_mythical"`
-	Sprite      string         `json:"sprite"`
-	Types       []string       `json:"types"`
-	InStock     bool           `json:"in_stock"`
+	PokemonName string   `json:"pokemon_name"`
+	Price       int      `json:"price"`
+	Rarity      string   `json:"rarity"` // "common", "uncommon", "rare", "legendary", "mythical"
+	IsLegendary bool     `json:"is_legendary"`
+	IsMythical  bool     `json:"is_mythical"`
+	Sprite      string   `json:"sprite"`
+	Types       []string `json:"types"`
+	InStock     bool     `json:"in_stock"`
 	// Full card details for display
 	BaseHP      int            `json:"base_hp"`
 	BaseAttack  int            `json:"base_attack"`
@@ -38,6 +38,6 @@ type PurchaseRequest struct {
 
 // PurchaseResponse represents a purchase response
 type PurchaseResponse struct {
-	Card           interface{} `json:"card"`
-	RemainingCoins int         `json:"remaining_coins"`
+	Card           any `json:"card"`
+	RemainingCoins int `json:"remaining_coins"`
 }

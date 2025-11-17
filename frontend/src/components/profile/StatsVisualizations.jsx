@@ -37,9 +37,11 @@ export default function StatsVisualizations() {
           total_battles_1v1: 0,
           wins_1v1: 0,
           losses_1v1: 0,
+          draws_1v1: 0,
           total_battles_5v5: 0,
           wins_5v5: 0,
           losses_5v5: 0,
+          draws_5v5: 0,
         };
       }
 
@@ -104,12 +106,13 @@ export default function StatsVisualizations() {
 
 /**
  * WinLossPieChart Component
- * Displays win/loss ratio as a visual pie chart
+ * Displays win/loss/draw ratio as a visual pie chart
  */
 function WinLossPieChart({ stats }) {
   const totalWins = stats.wins_1v1 + stats.wins_5v5;
   const totalLosses = stats.losses_1v1 + stats.losses_5v5;
-  const total = totalWins + totalLosses;
+  const totalDraws = (stats.draws_1v1 || 0) + (stats.draws_5v5 || 0);
+  const total = totalWins + totalLosses + totalDraws;
 
   if (total === 0) {
     return (
@@ -118,7 +121,7 @@ function WinLossPieChart({ stats }) {
         animate={{ opacity: 1, y: 0 }}
         className="bg-gray-800/50 rounded-xl p-6 border border-gray-700"
       >
-        <h3 className="text-2xl font-bold text-white mb-4">Win/Loss Ratio</h3>
+        <h3 className="text-2xl font-bold text-white mb-4">Win/Loss/Draw Ratio</h3>
         <p className="text-gray-400 text-center py-8">
           No battles yet. Start battling to see your stats!
         </p>
@@ -128,9 +131,11 @@ function WinLossPieChart({ stats }) {
 
   const winPercentage = (totalWins / total) * 100;
   const lossPercentage = (totalLosses / total) * 100;
+  const drawPercentage = (totalDraws / total) * 100;
 
   // Calculate pie chart segments (using conic gradient)
   const winDegrees = (winPercentage / 100) * 360;
+  const lossDegrees = winDegrees + ((lossPercentage / 100) * 360);
 
   return (
     <motion.div
@@ -138,7 +143,7 @@ function WinLossPieChart({ stats }) {
       animate={{ opacity: 1, y: 0 }}
       className="bg-gray-800/50 rounded-xl p-6 border border-gray-700"
     >
-      <h3 className="text-2xl font-bold text-white mb-6">Win/Loss Ratio</h3>
+      <h3 className="text-2xl font-bold text-white mb-6">Win/Loss/Draw Ratio</h3>
       
       <div className="flex flex-col md:flex-row items-center gap-8">
         {/* Pie Chart */}
@@ -148,7 +153,8 @@ function WinLossPieChart({ stats }) {
             style={{
               background: `conic-gradient(
                 #10b981 0deg ${winDegrees}deg,
-                #ef4444 ${winDegrees}deg 360deg
+                #ef4444 ${winDegrees}deg ${lossDegrees}deg,
+                #6b7280 ${lossDegrees}deg 360deg
               )`,
             }}
           />
@@ -185,6 +191,17 @@ function WinLossPieChart({ stats }) {
             <div className="text-right">
               <p className="text-2xl font-bold text-red-400">{totalLosses}</p>
               <p className="text-sm text-gray-400">{lossPercentage.toFixed(1)}%</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-gray-900/20 rounded-lg border border-gray-500/30">
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-4 bg-gray-500 rounded-full"></div>
+              <span className="text-white font-semibold">Draws</span>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-gray-400">{totalDraws}</p>
+              <p className="text-sm text-gray-400">{drawPercentage.toFixed(1)}%</p>
             </div>
           </div>
 
@@ -248,45 +265,69 @@ function BattleTimeline({ history }) {
 
             {/* Battles for this date */}
             <div className="space-y-2 pl-4 border-l-2 border-gray-700">
-              {battles.map((battle, battleIndex) => (
-                <motion.div
-                  key={battle.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: (dateIndex * 0.1) + (battleIndex * 0.05) }}
-                  className={`relative pl-6 py-2 rounded-lg ${
-                    battle.result === 'win'
-                      ? 'bg-green-900/10 border-l-4 border-green-500'
-                      : 'bg-red-900/10 border-l-4 border-red-500'
-                  }`}
-                >
-                  {/* Timeline dot */}
-                  <div
-                    className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[21px] w-3 h-3 rounded-full ${
-                      battle.result === 'win' ? 'bg-green-500' : 'bg-red-500'
-                    }`}
-                  />
+              {battles.map((battle, battleIndex) => {
+                // Helper functions for result styling
+                const getResultIcon = (result) => {
+                  switch(result) {
+                    case 'win': return '🏆';
+                    case 'loss': return '💔';
+                    case 'draw': return '🤝';
+                    default: return '⚔️';
+                  }
+                };
 
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">
-                        {battle.result === 'win' ? '🏆' : '💔'}
-                      </span>
-                      <div>
-                        <p className="text-white font-semibold">
-                          {battle.mode.toUpperCase()} Battle
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {new Date(battle.created_at).toLocaleTimeString()}
-                        </p>
+                const getResultColor = (result) => {
+                  switch(result) {
+                    case 'win': return 'bg-green-900/10 border-l-4 border-green-500';
+                    case 'loss': return 'bg-red-900/10 border-l-4 border-red-500';
+                    case 'draw': return 'bg-gray-900/10 border-l-4 border-gray-500';
+                    default: return 'bg-gray-900/10 border-l-4 border-gray-700';
+                  }
+                };
+
+                const getDotColor = (result) => {
+                  switch(result) {
+                    case 'win': return 'bg-green-500';
+                    case 'loss': return 'bg-red-500';
+                    case 'draw': return 'bg-gray-500';
+                    default: return 'bg-gray-700';
+                  }
+                };
+
+                return (
+                  <motion.div
+                    key={battle.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: (dateIndex * 0.1) + (battleIndex * 0.05) }}
+                    className={`relative pl-6 py-2 rounded-lg ${getResultColor(battle.result)}`}
+                  >
+                    {/* Timeline dot */}
+                    <div
+                      className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-[21px] w-3 h-3 rounded-full ${getDotColor(battle.result)}`}
+                    />
+
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">
+                          {getResultIcon(battle.result)}
+                        </span>
+                        <div>
+                          <p className="text-white font-semibold">
+                            {battle.mode.toUpperCase()} Battle
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {new Date(battle.created_at).toLocaleTimeString()}
+                          </p>
+                        </div>
                       </div>
+                      <span className="text-yellow-400 font-semibold">
+                        +{battle.coins_earned} 💰
+                      </span>
                     </div>
-                    <span className="text-yellow-400 font-semibold">
-                      +{battle.coins_earned} 💰
-                    </span>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
           </div>
         ))}

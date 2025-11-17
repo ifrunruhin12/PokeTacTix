@@ -10,7 +10,7 @@ import api from './api';
  * @returns {Promise<Object>} Player stats including battles, wins, losses, etc.
  */
 export const getPlayerStats = async () => {
-  const response = await api.get('/profile/stats');
+  const response = await api.get('/api/profile/stats');
   return response.data;
 };
 
@@ -20,7 +20,7 @@ export const getPlayerStats = async () => {
  * @returns {Promise<Object>} Battle history with count
  */
 export const getBattleHistory = async (limit = 20) => {
-  const response = await api.get(`/profile/history?limit=${limit}`);
+  const response = await api.get(`/api/profile/history?limit=${limit}`);
   return response.data;
 };
 
@@ -29,7 +29,7 @@ export const getBattleHistory = async (limit = 20) => {
  * @returns {Promise<Object>} All achievements with unlock status
  */
 export const getAchievements = async () => {
-  const response = await api.get('/profile/achievements');
+  const response = await api.get('/api/profile/achievements');
   return response.data;
 };
 
@@ -38,7 +38,7 @@ export const getAchievements = async () => {
  * @returns {Promise<Object>} Newly unlocked achievements
  */
 export const checkAchievements = async () => {
-  const response = await api.post('/profile/achievements/check');
+  const response = await api.post('/api/profile/achievements/check');
   return response.data;
 };
 

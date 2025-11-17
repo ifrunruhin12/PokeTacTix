@@ -20,8 +20,6 @@ func NewHandler(service *Service) *Handler {
 	}
 }
 
-// GetUserCards retrieves all cards for the authenticated user
-// Requirement: 12.1 - Implement GET /api/cards endpoint
 func (h *Handler) GetUserCards(c *fiber.Ctx) error {
 	userID, ok := auth.GetUserID(c)
 	if !ok {
@@ -49,8 +47,6 @@ func (h *Handler) GetUserCards(c *fiber.Ctx) error {
 	})
 }
 
-// GetUserDeck retrieves the user's current deck (5 cards)
-// Requirement: 12.2 - Implement GET /api/cards/deck endpoint
 func (h *Handler) GetUserDeck(c *fiber.Ctx) error {
 	userID, ok := auth.GetUserID(c)
 	if !ok {
@@ -78,8 +74,6 @@ func (h *Handler) GetUserDeck(c *fiber.Ctx) error {
 	})
 }
 
-// UpdateDeck updates the user's deck configuration
-// Requirement: 12.3 - Implement PUT /api/cards/deck endpoint (must have exactly 5 cards)
 func (h *Handler) UpdateDeck(c *fiber.Ctx) error {
 	userID, ok := auth.GetUserID(c)
 	if !ok {
@@ -101,12 +95,12 @@ func (h *Handler) UpdateDeck(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate deck has exactly 5 cards
-	if len(req.CardIDs) != 5 {
+	// Validate deck has 1-5 cards
+	if len(req.CardIDs) < 1 || len(req.CardIDs) > 5 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{
 				"code":    "INVALID_DECK",
-				"message": "Deck must contain exactly 5 cards",
+				"message": "Deck must contain between 1 and 5 cards",
 			},
 		})
 	}
@@ -163,7 +157,7 @@ func (h *Handler) GetCardByID(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	
+
 	// Get the card
 	card, err := h.service.repository.GetByID(ctx, cardID)
 	if err != nil {

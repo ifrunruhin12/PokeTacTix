@@ -38,9 +38,11 @@ export default function Dashboard() {
           total_battles_1v1: 0,
           wins_1v1: 0,
           losses_1v1: 0,
+          draws_1v1: 0,
           total_battles_5v5: 0,
           wins_5v5: 0,
           losses_5v5: 0,
+          draws_5v5: 0,
           total_coins_earned: 0,
           highest_level: 1,
         };
@@ -94,16 +96,21 @@ export default function Dashboard() {
   const totalBattles = stats.total_battles_1v1 + stats.total_battles_5v5;
   const totalWins = stats.wins_1v1 + stats.wins_5v5;
   const totalLosses = stats.losses_1v1 + stats.losses_5v5;
-  const winRate = totalBattles > 0 ? ((totalWins / totalBattles) * 100).toFixed(1) : 0;
-
-  // Calculate 1v1 win rate
-  const winRate1v1 = stats.total_battles_1v1 > 0 
-    ? ((stats.wins_1v1 / stats.total_battles_1v1) * 100).toFixed(1) 
+  const totalDraws = (stats.draws_1v1 || 0) + (stats.draws_5v5 || 0);
+  
+  // Win rate excludes draws: wins / (wins + losses)
+  const winRate = (totalWins + totalLosses) > 0 
+    ? ((totalWins / (totalWins + totalLosses)) * 100).toFixed(1) 
     : 0;
 
-  // Calculate 5v5 win rate
-  const winRate5v5 = stats.total_battles_5v5 > 0 
-    ? ((stats.wins_5v5 / stats.total_battles_5v5) * 100).toFixed(1) 
+  // Calculate 1v1 win rate (excluding draws)
+  const winRate1v1 = (stats.wins_1v1 + stats.losses_1v1) > 0 
+    ? ((stats.wins_1v1 / (stats.wins_1v1 + stats.losses_1v1)) * 100).toFixed(1) 
+    : 0;
+
+  // Calculate 5v5 win rate (excluding draws)
+  const winRate5v5 = (stats.wins_5v5 + stats.losses_5v5) > 0 
+    ? ((stats.wins_5v5 / (stats.wins_5v5 + stats.losses_5v5)) * 100).toFixed(1) 
     : 0;
 
   return (
@@ -139,7 +146,7 @@ export default function Dashboard() {
         className="bg-gray-800/50 rounded-xl p-6 border border-gray-700"
       >
         <h3 className="text-2xl font-bold text-white mb-4">Overall Statistics</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <StatCard
             label="Total Battles"
             value={totalBattles}
@@ -157,6 +164,12 @@ export default function Dashboard() {
             value={totalLosses}
             icon="💔"
             color="red"
+          />
+          <StatCard
+            label="Draws"
+            value={totalDraws}
+            icon="🤝"
+            color="gray"
           />
           <StatCard
             label="Win Rate"
@@ -184,6 +197,7 @@ export default function Dashboard() {
             <StatRow label="Total Battles" value={stats.total_battles_1v1} />
             <StatRow label="Wins" value={stats.wins_1v1} color="green" />
             <StatRow label="Losses" value={stats.losses_1v1} color="red" />
+            <StatRow label="Draws" value={stats.draws_1v1 || 0} color="gray" />
             <StatRow label="Win Rate" value={`${winRate1v1}%`} color="purple" />
           </div>
         </motion.div>
@@ -203,6 +217,7 @@ export default function Dashboard() {
             <StatRow label="Total Battles" value={stats.total_battles_5v5} />
             <StatRow label="Wins" value={stats.wins_5v5} color="green" />
             <StatRow label="Losses" value={stats.losses_5v5} color="red" />
+            <StatRow label="Draws" value={stats.draws_5v5 || 0} color="gray" />
             <StatRow label="Win Rate" value={`${winRate5v5}%`} color="purple" />
           </div>
         </motion.div>
@@ -259,6 +274,7 @@ function StatCard({ label, value, icon, color }) {
     blue: 'from-blue-900/40 to-blue-800/40 border-blue-500/30',
     green: 'from-green-900/40 to-green-800/40 border-green-500/30',
     red: 'from-red-900/40 to-red-800/40 border-red-500/30',
+    gray: 'from-gray-900/40 to-gray-800/40 border-gray-500/30',
     purple: 'from-purple-900/40 to-purple-800/40 border-purple-500/30',
   };
 
@@ -282,6 +298,7 @@ function StatRow({ label, value, color = 'white' }) {
     white: 'text-white',
     green: 'text-green-400',
     red: 'text-red-400',
+    gray: 'text-gray-400',
     purple: 'text-purple-400',
   };
 

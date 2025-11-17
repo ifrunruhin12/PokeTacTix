@@ -51,6 +51,63 @@ export default function Battle() {
     const data = response.state || response;
     const battleId = response.session || response.id || data.id;
     
+    // Transform XP gains from backend format to frontend format
+    const transformXPGains = (xpGains) => {
+      if (!xpGains || xpGains.length === 0) return null;
+      
+      const pokemon_details = xpGains.map(gain => ({
+        card_id: gain.card_id,
+        name: gain.pokemon_name,
+        level: gain.new_level,
+        xp_gained: gain.xp_gained,
+        leveled_up: gain.leveled_up,
+        sprite: null // Will be filled from deck if needed
+      }));
+      
+      const level_ups = xpGains
+        .filter(gain => gain.leveled_up)
+        .map(gain => ({
+          name: gain.pokemon_name,
+          old_level: gain.old_level,
+          new_level: gain.new_level,
+          stat_increases: {
+            hp: gain.new_hp - gain.old_hp,
+            attack: gain.new_attack - gain.old_attack,
+            defense: gain.new_defense - gain.old_defense,
+            speed: gain.new_speed - gain.old_speed
+          }
+        }));
+      
+      return {
+        pokemon_details,
+        level_ups: level_ups.length > 0 ? level_ups : undefined
+      };
+    };
+    
+    // Build rewards object
+    const rewards = data.rewards || {};
+    
+    // Add coins earned
+    if (data.coins_earned !== undefined) {
+      rewards.coins_earned = data.coins_earned;
+    }
+    
+    // Add XP gains
+    if (data.xp_gains && data.xp_gains.length > 0) {
+      const xpData = transformXPGains(data.xp_gains);
+      if (xpData) {
+        rewards.pokemon_details = xpData.pokemon_details;
+        if (xpData.level_ups) {
+          rewards.level_ups = xpData.level_ups;
+        }
+      }
+    }
+    
+    // Add newly unlocked achievements
+    if (data.newly_unlocked_achievements && data.newly_unlocked_achievements.length > 0) {
+      rewards.newly_unlocked_achievements = data.newly_unlocked_achievements;
+    }
+    
     const transformed = {
       id: battleId,
       mode: data.mode || data.BattleMode || '1v1',
@@ -64,7 +121,7 @@ export default function Battle() {
       battle_over: data.battle_over || data.BattleOver || false,
       winner: data.winner || (data.BattleOver ? (data.PlayerSurrendered ? 'ai' : 'player') : null),
       log: data.log || [],
-      rewards: data.rewards
+      rewards: Object.keys(rewards).length > 0 ? rewards : undefined
     };
     
     console.log('Transformed state:', transformed);
@@ -178,8 +235,16 @@ export default function Battle() {
     try {
       const result = await selectReward(battleState.id, pokemonIdx);
       console.log('Reward selected:', result);
-      // After selecting reward, return to menu
-      navigate('/dashboard');
+      
+      // Update battle state to mark reward as claimed
+      // This will hide the reward selection UI and show action buttons
+      setBattleState(prev => ({
+        ...prev,
+        reward_claimed: true
+      }));
+      
+      // Show success message
+      alert(`Successfully added ${result.card?.pokemon_name || 'Pokémon'} to your collection!`);
     } catch (err) {
       const errorMessage = err.response?.data?.error?.message 
         || err.response?.data?.error 
@@ -187,6 +252,7 @@ export default function Battle() {
         || 'Failed to select reward';
       setError(errorMessage);
       console.error('Error selecting reward:', err);
+      throw err; // Re-throw to let BattleResult handle it
     } finally {
       setLoading(false);
     }

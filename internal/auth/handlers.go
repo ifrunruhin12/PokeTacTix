@@ -10,12 +10,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// CardService interface for generating starter decks
 type CardService interface {
 	GenerateStarterDeck(ctx context.Context, userID int) ([]database.PlayerCard, error)
 }
 
-// Handler handles authentication HTTP requests
 type Handler struct {
 	authService *Service
 	jwtService  *JWTService
@@ -23,7 +21,6 @@ type Handler struct {
 	cardService CardService
 }
 
-// NewHandler creates a new auth handler
 func NewHandler(authService *Service, jwtService *JWTService, repository *Repository, cardService CardService) *Handler {
 	return &Handler{
 		authService: authService,
@@ -33,7 +30,6 @@ func NewHandler(authService *Service, jwtService *JWTService, repository *Reposi
 	}
 }
 
-// Register handles user registration
 func (h *Handler) Register(c *fiber.Ctx) error {
 	var req RegisterRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -46,11 +42,9 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Sanitize inputs
 	req.Username = strings.TrimSpace(req.Username)
 	req.Email = strings.TrimSpace(req.Email)
-	
-	// Additional XSS protection - ensure no HTML tags
+
 	if strings.Contains(req.Username, "<") || strings.Contains(req.Username, ">") {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{
@@ -59,8 +53,7 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
-	// Validate username
+
 	if err := h.authService.ValidateUsername(req.Username); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{
@@ -78,7 +71,7 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	if err := h.authService.ValidatePassword(req.Password); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{
@@ -87,9 +80,9 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	ctx := context.Background()
-	
+
 	usernameExists, err := h.repository.UsernameExists(ctx, req.Username)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -107,7 +100,7 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	emailExists, err := h.repository.EmailExists(ctx, req.Email)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -135,7 +128,7 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	user, err := h.repository.Create(ctx, req.Username, req.Email, passwordHash)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -146,7 +139,6 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Generate starter deck for new user (Requirement: 3.1, 3.2, 3.3, 3.4)
 	if h.cardService != nil {
 		_, err = h.cardService.GenerateStarterDeck(ctx, user.ID)
 		if err != nil {
@@ -165,7 +157,7 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	return c.Status(fiber.StatusCreated).JSON(AuthResponse{
 		Token: token,
 		User:  user,
@@ -186,7 +178,7 @@ func (h *Handler) Login(c *fiber.Ctx) error {
 	}
 
 	req.Username = strings.TrimSpace(req.Username)
-	
+
 	if req.Username == "" || req.Password == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{
@@ -195,10 +187,9 @@ func (h *Handler) Login(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	ctx := context.Background()
-	
-	// Get user by username
+
 	user, err := h.repository.GetByUsername(ctx, req.Username)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || strings.Contains(err.Error(), "not found") {
@@ -235,14 +226,13 @@ func (h *Handler) Login(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	return c.JSON(AuthResponse{
 		Token: token,
 		User:  user,
 	})
 }
 
-// GetCurrentUser handles getting current user info
 func (h *Handler) GetCurrentUser(c *fiber.Ctx) error {
 	// Extract user ID from context (set by auth middleware)
 	userID, ok := GetUserID(c)
@@ -254,7 +244,7 @@ func (h *Handler) GetCurrentUser(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	ctx := context.Background()
 
 	user, err := h.repository.GetByID(ctx, userID)
@@ -274,18 +264,17 @@ func (h *Handler) GetCurrentUser(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	return c.JSON(fiber.Map{
 		"user": user,
 	})
 }
 
-// Logout handles user logout
 func (h *Handler) Logout(c *fiber.Ctx) error {
 	// In a stateless JWT system, logout is primarily handled client-side
 	// by removing the token. This endpoint exists for consistency and
 	// could be extended to maintain a token blacklist if needed.
-	
+
 	return c.JSON(fiber.Map{
 		"message": "Logged out successfully",
 	})

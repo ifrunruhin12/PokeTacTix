@@ -7,11 +7,11 @@ import api from './api';
 
 /**
  * Get all cards in user's collection
- * @returns {Promise<Object>} Object with cards array
+ * @returns {Promise<Array>} Array of cards
  */
 export const getUserCards = async () => {
   const response = await api.get('/api/cards');
-  return response.data;
+  return response.data.cards || [];
 };
 
 /**
@@ -25,12 +25,12 @@ export const getUserDeck = async () => {
 
 /**
  * Update user's deck configuration
- * @param {Array<number>} cardIds - Array of exactly 5 card IDs
+ * @param {Array<number>} cardIds - Array of 1-5 card IDs
  * @returns {Promise<Object>} Updated deck and success message
  */
 export const updateDeck = async (cardIds) => {
-  if (!Array.isArray(cardIds) || cardIds.length !== 5) {
-    throw new Error('Deck must contain exactly 5 cards');
+  if (!Array.isArray(cardIds) || cardIds.length < 1 || cardIds.length > 5) {
+    throw new Error('Deck must contain between 1 and 5 cards');
   }
   
   const response = await api.put('/api/cards/deck', {

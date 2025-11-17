@@ -50,13 +50,13 @@ type CardStats struct {
 // GetCurrentStats calculates current stats based on level
 func (c *PlayerCard) GetCurrentStats() CardStats {
 	levelMultiplier := float64(c.Level - 1)
-	
+
 	hp := int(float64(c.BaseHP) * (1.0 + levelMultiplier*0.03))
 	attack := int(float64(c.BaseAttack) * (1.0 + levelMultiplier*0.02))
 	defense := int(float64(c.BaseDefense) * (1.0 + levelMultiplier*0.02))
 	speed := int(float64(c.BaseSpeed) * (1.0 + levelMultiplier*0.01))
 	stamina := speed * 2
-	
+
 	return CardStats{
 		HP:      hp,
 		Attack:  attack,
@@ -83,9 +83,11 @@ type PlayerStats struct {
 	TotalBattles1v1  int       `json:"total_battles_1v1"`
 	Wins1v1          int       `json:"wins_1v1"`
 	Losses1v1        int       `json:"losses_1v1"`
+	Draws1v1         int       `json:"draws_1v1"`
 	TotalBattles5v5  int       `json:"total_battles_5v5"`
 	Wins5v5          int       `json:"wins_5v5"`
 	Losses5v5        int       `json:"losses_5v5"`
+	Draws5v5         int       `json:"draws_5v5"`
 	TotalCoinsEarned int       `json:"total_coins_earned"`
 	HighestLevel     int       `json:"highest_level"`
 	UpdatedAt        time.Time `json:"updated_at"`

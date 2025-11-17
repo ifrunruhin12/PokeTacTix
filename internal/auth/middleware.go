@@ -6,7 +6,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// Middleware creates an authentication middleware
 func Middleware(jwtService *JWTService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
@@ -28,14 +27,14 @@ func Middleware(jwtService *JWTService) fiber.Handler {
 				},
 			})
 		}
-		
+
 		tokenString := parts[1]
 
 		claims, err := jwtService.ValidateToken(tokenString)
 		if err != nil {
 			var code string
 			var message string
-			
+
 			switch err {
 			case ErrTokenExpired:
 				code = "TOKEN_EXPIRED"
@@ -47,7 +46,7 @@ func Middleware(jwtService *JWTService) fiber.Handler {
 				code = "UNAUTHORIZED"
 				message = err.Error()
 			}
-			
+
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": fiber.Map{
 					"code":    code,
@@ -58,42 +57,39 @@ func Middleware(jwtService *JWTService) fiber.Handler {
 
 		c.Locals("user_id", claims.UserID)
 		c.Locals("username", claims.Username)
-		
+
 		return c.Next()
 	}
 }
 
-// OptionalMiddleware creates an optional authentication middleware
 func OptionalMiddleware(jwtService *JWTService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
 			return c.Next()
 		}
-		
+
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			return c.Next()
 		}
-		
+
 		tokenString := parts[1]
 		claims, err := jwtService.ValidateToken(tokenString)
 		if err == nil {
 			c.Locals("user_id", claims.UserID)
 			c.Locals("username", claims.Username)
 		}
-		
+
 		return c.Next()
 	}
 }
 
-// GetUserID extracts user ID from context
 func GetUserID(c *fiber.Ctx) (int, bool) {
 	userID, ok := c.Locals("user_id").(int)
 	return userID, ok
 }
 
-// GetUsername extracts username from context
 func GetUsername(c *fiber.Ctx) (string, bool) {
 	username, ok := c.Locals("username").(string)
 	return username, ok

@@ -7,6 +7,7 @@ import (
 	"pokemon-cli/internal/database"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -119,7 +120,7 @@ func (r *Repository) GetUserBattleSessions(ctx context.Context, userID int) ([]*
 // CleanupExpiredSessions removes battle sessions older than the specified duration
 func (r *Repository) CleanupExpiredSessions(ctx context.Context, expiryDuration time.Duration) (int64, error) {
 	expiryTime := time.Now().Add(-expiryDuration)
-	
+
 	query := `
 		DELETE FROM battle_sessions 
 		WHERE updated_at < $1
@@ -143,13 +144,13 @@ func (r *Repository) GetUserDeck(ctx context.Context, userID int) ([]database.Pl
 		WHERE user_id = $1 AND in_deck = TRUE
 		ORDER BY deck_position ASC
 	`
-	
+
 	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user deck: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var cards []database.PlayerCard
 	for rows.Next() {
 		var card database.PlayerCard
@@ -165,10 +166,214 @@ func (r *Repository) GetUserDeck(ctx context.Context, userID int) ([]database.Pl
 		}
 		cards = append(cards, card)
 	}
-	
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating cards: %w", err)
 	}
-	
+
 	return cards, nil
+}
+
+func (r *Repository) RecordBattleHistory(ctx context.Context, userID int, mode, result string, coinsEarned, duration int) error {
+	query := `
+		INSERT INTO battle_history (user_id, mode, result, coins_earned, duration)
+		VALUES ($1, $2, $3, $4, $5)
+	`
+
+	_, err := r.db.Exec(ctx, query, userID, mode, result, coinsEarned, duration)
+	if err != nil {
+		return fmt.Errorf("failed to record battle history: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) UpdatePlayerStats(ctx context.Context, userID int, mode, result string, coinsEarned int) error {
+	// Validate mode to prevent SQL injection
+	if mode != "1v1" && mode != "5v5" {
+		return fmt.Errorf("invalid battle mode: %s", mode)
+	}
+
+	// Validate result to prevent SQL injection
+	if result != "win" && result != "loss" && result != "draw" {
+		return fmt.Errorf("invalid battle result: %s", result)
+	}
+
+	// Use separate parameterized queries for each mode and result combination
+	var query string
+
+	if mode == "1v1" {
+		switch result {
+		case "win":
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_1v1, wins_1v1, total_coins_earned, updated_at)
+				VALUES ($1, 1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
+				    wins_1v1 = player_stats.wins_1v1 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		case "loss":
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_1v1, losses_1v1, total_coins_earned, updated_at)
+				VALUES ($1, 1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
+				    losses_1v1 = player_stats.losses_1v1 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		default:
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_1v1, total_coins_earned, updated_at)
+				VALUES ($1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		}
+	} else { // mode == "5v5"
+		switch result {
+		case "win":
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_5v5, wins_5v5, total_coins_earned, updated_at)
+				VALUES ($1, 1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
+				    wins_5v5 = player_stats.wins_5v5 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		case "loss":
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_5v5, losses_5v5, total_coins_earned, updated_at)
+				VALUES ($1, 1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
+				    losses_5v5 = player_stats.losses_5v5 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		default:
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_5v5, total_coins_earned, updated_at)
+				VALUES ($1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		}
+	}
+
+	_, err := r.db.Exec(ctx, query, userID, coinsEarned)
+	if err != nil {
+		return fmt.Errorf("failed to update player stats: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) UpdateHighestLevel(ctx context.Context, userID int, level int) error {
+	query := `
+		INSERT INTO player_stats (user_id, highest_level, updated_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (user_id) DO UPDATE
+		SET highest_level = GREATEST(player_stats.highest_level, $2),
+		    updated_at = NOW()
+	`
+
+	_, err := r.db.Exec(ctx, query, userID, level)
+	if err != nil {
+		return fmt.Errorf("failed to update highest level: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) UpdatePlayerStatsInTx(ctx context.Context, tx pgx.Tx, userID int, mode, result string, coinsEarned int) error {
+	// Validate inputs
+	if mode != "1v1" && mode != "5v5" {
+		return fmt.Errorf("invalid battle mode: %s", mode)
+	}
+	if result != "win" && result != "loss" && result != "draw" {
+		return fmt.Errorf("invalid battle result: %s", result)
+	}
+
+	// Build query based on mode and result
+	var query string
+	if mode == "1v1" {
+		switch result {
+		case "win":
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_1v1, wins_1v1, total_coins_earned, updated_at)
+				VALUES ($1, 1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
+				    wins_1v1 = player_stats.wins_1v1 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		case "loss":
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_1v1, losses_1v1, total_coins_earned, updated_at)
+				VALUES ($1, 1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
+				    losses_1v1 = player_stats.losses_1v1 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		default: // draw
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_1v1, total_coins_earned, updated_at)
+				VALUES ($1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		}
+	} else { // 5v5
+		switch result {
+		case "win":
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_5v5, wins_5v5, total_coins_earned, updated_at)
+				VALUES ($1, 1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
+				    wins_5v5 = player_stats.wins_5v5 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		case "loss":
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_5v5, losses_5v5, total_coins_earned, updated_at)
+				VALUES ($1, 1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
+				    losses_5v5 = player_stats.losses_5v5 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		default: // draw
+			query = `
+				INSERT INTO player_stats (user_id, total_battles_5v5, total_coins_earned, updated_at)
+				VALUES ($1, 1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
+				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    updated_at = NOW()
+			`
+		}
+	}
+
+	_, err := tx.Exec(ctx, query, userID, coinsEarned)
+	if err != nil {
+		return fmt.Errorf("failed to update player stats: %w", err)
+	}
+
+	return nil
 }

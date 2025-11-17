@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║                                                        ║${NC}"
-echo -e "${BLUE}║        🐳 PokeTacTix Development Environment          ║${NC}"
+echo -e "${BLUE}║        🐳 PokeTacTix Development Environment           ║${NC}"
 echo -e "${BLUE}║                                                        ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
 echo ""
@@ -127,7 +127,7 @@ echo ""
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║                                                        ║${NC}"
-echo -e "${BLUE}║              🎉 All Services Running! 🎉              ║${NC}"
+echo -e "${BLUE}║              🎉 All Services Running! 🎉               ║${NC}"
 echo -e "${BLUE}║                                                        ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════╝${NC}"
 echo ""

@@ -5,57 +5,95 @@ import (
 	"encoding/json"
 	"fmt"
 	"pokemon-cli/internal/database"
+	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// BattleRewards represents rewards earned from a battle
+type ComprehensiveRewards struct {
+	CoinsEarned               int                              `json:"coins_earned"`
+	XPGains                   []PokemonXPGain                  `json:"xp_gains"`
+	NewlyUnlockedAchievements []database.AchievementWithStatus `json:"newly_unlocked_achievements,omitempty"`
+	BattleHistoryRecorded     bool                             `json:"battle_history_recorded"`
+	StatsUpdated              bool                             `json:"stats_updated"`
+}
+
 type BattleRewards struct {
-	CoinsEarned int            `json:"coins_earned"`
-	XPGained    map[int]int    `json:"xp_gained"` // cardID -> XP amount
-	LevelUps    []LevelUpInfo  `json:"level_ups"` // Cards that leveled up
+	CoinsEarned int           `json:"coins_earned"`
+	XPGained    map[int]int   `json:"xp_gained"` // cardID -> XP amount
+	LevelUps    []LevelUpInfo `json:"level_ups"` // Cards that leveled up
 }
 
-// LevelUpInfo contains information about a Pokemon that leveled up
+// LevelUpInfo contains information about a Pokemon that leveled up (legacy)
 type LevelUpInfo struct {
-	CardID   int    `json:"card_id"`
-	Name     string `json:"name"`
-	OldLevel int    `json:"old_level"`
-	NewLevel int    `json:"new_level"`
-	NewHP    int    `json:"new_hp"`
-	NewAttack int   `json:"new_attack"`
-	NewDefense int  `json:"new_defense"`
-	NewSpeed  int   `json:"new_speed"`
+	CardID     int    `json:"card_id"`
+	Name       string `json:"name"`
+	OldLevel   int    `json:"old_level"`
+	NewLevel   int    `json:"new_level"`
+	NewHP      int    `json:"new_hp"`
+	NewAttack  int    `json:"new_attack"`
+	NewDefense int    `json:"new_defense"`
+	NewSpeed   int    `json:"new_speed"`
 }
 
-// CalculateRewards calculates coins and XP rewards based on battle outcome
-func CalculateRewards(bs *BattleState) *BattleRewards {
-	rewards := &BattleRewards{
-		XPGained: make(map[int]int),
-		LevelUps: []LevelUpInfo{},
+func CalculateAllRewards(bs *BattleState) *ComprehensiveRewards {
+	rewards := &ComprehensiveRewards{
+		XPGains:                   []PokemonXPGain{},
+		NewlyUnlockedAchievements: []database.AchievementWithStatus{},
+		BattleHistoryRecorded:     false,
+		StatsUpdated:              false,
 	}
-	
+
 	// Calculate coins based on mode and outcome
 	if bs.Winner == "player" {
-		if bs.Mode == "1v1" {
+		switch bs.Mode {
+		case "1v1":
 			rewards.CoinsEarned = 50
-		} else if bs.Mode == "5v5" {
+		case "5v5":
 			rewards.CoinsEarned = 150
 		}
 	} else {
 		// Consolation coins for losing
 		rewards.CoinsEarned = 10
 	}
-	
+
+	// Note: XP gains will be populated after applying XP and level ups
+	// Note: Achievements will be populated after checking achievements
+
+	return rewards
+}
+
+// CalculateRewards calculates coins and XP rewards based on battle outcome (legacy)
+func CalculateRewards(bs *BattleState) *BattleRewards {
+	rewards := &BattleRewards{
+		XPGained: make(map[int]int),
+		LevelUps: []LevelUpInfo{},
+	}
+
+	// Calculate coins based on mode and outcome
+	if bs.Winner == "player" {
+		switch bs.Mode {
+		case "1v1":
+			rewards.CoinsEarned = 50
+		case "5v5":
+			rewards.CoinsEarned = 150
+		}
+	} else {
+		// Consolation coins for losing
+		rewards.CoinsEarned = 10
+	}
+
 	// Calculate XP for participating Pokemon
 	if bs.Winner == "player" {
-		if bs.Mode == "1v1" {
+		switch bs.Mode {
+		case "1v1":
 			// Award 20 XP to the winning Pokemon
 			playerCard := bs.GetActivePlayerCard()
 			if playerCard != nil {
 				rewards.XPGained[playerCard.CardID] = 20
 			}
-		} else if bs.Mode == "5v5" {
+		case "5v5":
 			// Award 15 XP to each Pokemon that participated (had HP > 0 at some point)
 			for _, card := range bs.PlayerDeck {
 				// Award XP to all cards (they all participated in 5v5)
@@ -63,7 +101,7 @@ func CalculateRewards(bs *BattleState) *BattleRewards {
 			}
 		}
 	}
-	
+
 	return rewards
 }
 
@@ -75,7 +113,7 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	
+
 	// Update user coins
 	_, err = tx.Exec(ctx, `
 		UPDATE users 
@@ -85,7 +123,7 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 	if err != nil {
 		return fmt.Errorf("failed to update coins: %w", err)
 	}
-	
+
 	// Apply XP to each card and check for level ups
 	for cardID, xp := range rewards.XPGained {
 		// Get current card stats
@@ -99,11 +137,11 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 		if err != nil {
 			return fmt.Errorf("failed to get card stats: %w", err)
 		}
-		
+
 		// Add XP
 		newXP := currentXP + xp
 		newLevel := currentLevel
-		
+
 		// Check for level ups (max level 50)
 		for newLevel < 50 {
 			xpRequired := 100 * newLevel
@@ -114,7 +152,7 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 				break
 			}
 		}
-		
+
 		// If leveled up, calculate new stats
 		if newLevel > currentLevel {
 			// Calculate new stats based on level
@@ -123,7 +161,7 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 			newAttack := int(float64(baseAttack) * (1.0 + float64(newLevel-1)*0.02))
 			newDefense := int(float64(baseDefense) * (1.0 + float64(newLevel-1)*0.02))
 			newSpeed := int(float64(baseSpeed) * (1.0 + float64(newLevel-1)*0.01))
-			
+
 			// Update card in database
 			_, err = tx.Exec(ctx, `
 				UPDATE player_cards
@@ -133,7 +171,7 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 			if err != nil {
 				return fmt.Errorf("failed to update card level: %w", err)
 			}
-			
+
 			// Add to level up info
 			rewards.LevelUps = append(rewards.LevelUps, LevelUpInfo{
 				CardID:     cardID,
@@ -157,24 +195,186 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 			}
 		}
 	}
-	
+
 	// Commit transaction
 	if err = tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
-	
+
 	return nil
 }
 
-// RecordBattleHistory records the battle outcome in the database
-func RecordBattleHistory(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleState, coinsEarned int) error {
+func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleState, rewards *ComprehensiveRewards, statsService StatsService, repo *Repository) error {
+	// Start a transaction for consistency
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `
+		UPDATE users 
+		SET coins = coins + $1 
+		WHERE id = $2
+	`, rewards.CoinsEarned, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update coins: %w", err)
+	}
+
+	xpMap := CalculateXPForBattle(bs)
+
+	// Apply XP and handle level-ups within the transaction
+	for cardID, xpGained := range xpMap {
+		// Get current card data
+		query := `
+			SELECT id, user_id, pokemon_name, level, xp, base_hp, base_attack, base_defense, base_speed
+			FROM player_cards
+			WHERE id = $1 AND user_id = $2
+		`
+
+		var id, uid, level, xp, baseHP, baseAttack, baseDefense, baseSpeed int
+		var pokemonName string
+
+		err := tx.QueryRow(ctx, query, cardID, userID).Scan(
+			&id, &uid, &pokemonName, &level, &xp,
+			&baseHP, &baseAttack, &baseDefense, &baseSpeed,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to get card %d: %w", cardID, err)
+		}
+
+		// Calculate old stats
+		oldStats := calculateStatsForLevel(level, baseHP, baseAttack, baseDefense, baseSpeed)
+
+		// Track level ups
+		oldLevel := level
+		newXP := xp + xpGained
+		newLevel := level
+
+		// Process level ups
+		for newLevel < 50 {
+			xpRequired := 100 * newLevel
+			if newXP >= xpRequired {
+				newXP -= xpRequired
+				newLevel++
+			} else {
+				break
+			}
+		}
+
+		// Cap at level 50
+		if newLevel >= 50 {
+			newLevel = 50
+			newXP = 0
+		}
+
+		// Calculate new stats
+		newStats := calculateStatsForLevel(newLevel, baseHP, baseAttack, baseDefense, baseSpeed)
+
+		// Update database
+		updateQuery := `
+			UPDATE player_cards
+			SET level = $1, xp = $2, updated_at = $3
+			WHERE id = $4
+		`
+
+		_, err = tx.Exec(ctx, updateQuery, newLevel, newXP, time.Now(), cardID)
+		if err != nil {
+			return fmt.Errorf("failed to update card %d: %w", cardID, err)
+		}
+
+		// Record XP gain
+		xpGain := PokemonXPGain{
+			CardID:      cardID,
+			PokemonName: pokemonName,
+			XPGained:    xpGained,
+			OldLevel:    oldLevel,
+			NewLevel:    newLevel,
+			LeveledUp:   newLevel > oldLevel,
+		}
+
+		// Include stat changes if leveled up
+		if xpGain.LeveledUp {
+			xpGain.OldHP = oldStats.HP
+			xpGain.NewHP = newStats.HP
+			xpGain.OldAttack = oldStats.Attack
+			xpGain.NewAttack = newStats.Attack
+			xpGain.OldDefense = oldStats.Defense
+			xpGain.NewDefense = newStats.Defense
+			xpGain.OldSpeed = oldStats.Speed
+			xpGain.NewSpeed = newStats.Speed
+		}
+
+		rewards.XPGains = append(rewards.XPGains, xpGain)
+	}
+
+	duration := int(time.Since(bs.CreatedAt).Seconds())
 	result := "loss"
-	if bs.Winner == "player" {
+	switch bs.Winner {
+	case "player":
 		result = "win"
-	} else if bs.Winner == "draw" {
+	case "draw":
 		result = "draw"
 	}
-	
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO battle_history (user_id, mode, result, coins_earned, duration)
+		VALUES ($1, $2, $3, $4, $5)
+	`, userID, bs.Mode, result, rewards.CoinsEarned, duration)
+	if err != nil {
+		return fmt.Errorf("failed to record battle history: %w", err)
+	}
+	rewards.BattleHistoryRecorded = true
+
+	if repo != nil {
+		err = repo.UpdatePlayerStatsInTx(ctx, tx, userID, bs.Mode, result, rewards.CoinsEarned)
+		if err != nil {
+			return fmt.Errorf("failed to update player stats: %w", err)
+		}
+		rewards.StatsUpdated = true
+	}
+
+	for _, gain := range rewards.XPGains {
+		if gain.LeveledUp && gain.NewLevel > 1 {
+			_, err = tx.Exec(ctx, `
+				INSERT INTO player_stats (user_id, highest_level, updated_at)
+				VALUES ($1, $2, NOW())
+				ON CONFLICT (user_id) DO UPDATE
+				SET highest_level = GREATEST(player_stats.highest_level, $2),
+				    updated_at = NOW()
+			`, userID, gain.NewLevel)
+			if err != nil {
+				return fmt.Errorf("failed to update highest level: %w", err)
+			}
+		}
+	}
+
+	// Commit transaction
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	if statsService != nil {
+		newlyUnlocked, err := statsService.CheckAndUnlockAchievements(ctx, userID)
+		if err == nil && len(newlyUnlocked) > 0 {
+			rewards.NewlyUnlockedAchievements = newlyUnlocked
+		}
+		// Don't fail if achievement checking fails
+	}
+
+	return nil
+}
+
+// RecordBattleHistory records the battle outcome in the database (legacy)
+func RecordBattleHistory(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleState, coinsEarned int) error {
+	result := "loss"
+	switch bs.Winner {
+	case "player":
+		result = "win"
+	case "draw":
+		result = "draw"
+	}
+
 	// Insert battle history
 	_, err := db.Exec(ctx, `
 		INSERT INTO battle_history (user_id, mode, result, coins_earned, duration)
@@ -183,23 +383,24 @@ func RecordBattleHistory(ctx context.Context, db *pgxpool.Pool, userID int, bs *
 	if err != nil {
 		return fmt.Errorf("failed to record battle history: %w", err)
 	}
-	
+
 	// Update player stats
 	var column string
-	if bs.Mode == "1v1" {
+	switch bs.Mode {
+	case "1v1":
 		if result == "win" {
 			column = "wins_1v1"
 		} else {
 			column = "losses_1v1"
 		}
-	} else if bs.Mode == "5v5" {
+	case "5v5":
 		if result == "win" {
 			column = "wins_5v5"
 		} else {
 			column = "losses_5v5"
 		}
 	}
-	
+
 	if column != "" {
 		_, err = db.Exec(ctx, fmt.Sprintf(`
 			INSERT INTO player_stats (user_id, %s, total_coins_earned)
@@ -212,7 +413,7 @@ func RecordBattleHistory(ctx context.Context, db *pgxpool.Pool, userID int, bs *
 			return fmt.Errorf("failed to update player stats: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -228,20 +429,18 @@ func GetCurrentStats(baseHP, baseAttack, baseDefense, baseSpeed, level int) data
 	}
 }
 
-// AddAIPokemonToCollection adds a selected AI Pokemon to the player's collection
-// Requirements: 11.1, 11.2, 11.3, 11.4
 func AddAIPokemonToCollection(ctx context.Context, db *pgxpool.Pool, userID int, aiCard BattleCard) (*database.PlayerCard, error) {
 	// Convert types and moves to JSON
 	typesJSON, err := json.Marshal(aiCard.Types)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal types: %w", err)
 	}
-	
+
 	movesJSON, err := json.Marshal(aiCard.Moves)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal moves: %w", err)
 	}
-	
+
 	// Create the player card at level 1 with 0 XP
 	playerCard := &database.PlayerCard{
 		UserID:       userID,
@@ -260,11 +459,27 @@ func AddAIPokemonToCollection(ctx context.Context, db *pgxpool.Pool, userID int,
 		InDeck:       false, // Not added to deck automatically
 		DeckPosition: nil,
 	}
-	
-	// Check if legendary or mythical
-	// Note: This requires importing the pokemon package
-	// For now, we'll leave it as false and can enhance later
-	
+
+	// Check if legendary or mythical based on Pokemon name
+	// This is a simple check - can be enhanced with a proper lookup table
+	legendaryNames := map[string]bool{
+		"articuno": true, "zapdos": true, "moltres": true, "mewtwo": true, "mew": true,
+		"raikou": true, "entei": true, "suicune": true, "lugia": true, "ho-oh": true,
+		"regirock": true, "regice": true, "registeel": true, "latias": true, "latios": true,
+		"kyogre": true, "groudon": true, "rayquaza": true, "jirachi": true, "deoxys": true,
+	}
+	mythicalNames := map[string]bool{
+		"mew": true, "celebi": true, "jirachi": true, "deoxys": true, "phione": true,
+		"manaphy": true, "darkrai": true, "shaymin": true, "arceus": true, "victini": true,
+		"keldeo": true, "meloetta": true, "genesect": true, "diancie": true, "hoopa": true,
+		"volcanion": true, "magearna": true, "marshadow": true, "zeraora": true, "meltan": true,
+		"melmetal": true, "zarude": true,
+	}
+
+	pokemonNameLower := strings.ToLower(aiCard.Name)
+	playerCard.IsLegendary = legendaryNames[pokemonNameLower]
+	playerCard.IsMythical = mythicalNames[pokemonNameLower]
+
 	// Insert into database
 	query := `
 		INSERT INTO player_cards (
@@ -274,17 +489,17 @@ func AddAIPokemonToCollection(ctx context.Context, db *pgxpool.Pool, userID int,
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id, created_at, updated_at
 	`
-	
+
 	err = db.QueryRow(ctx, query,
 		playerCard.UserID, playerCard.PokemonName, playerCard.Level, playerCard.XP,
 		playerCard.BaseHP, playerCard.BaseAttack, playerCard.BaseDefense, playerCard.BaseSpeed,
 		playerCard.Types, playerCard.Moves, playerCard.Sprite,
 		playerCard.IsLegendary, playerCard.IsMythical, playerCard.InDeck, playerCard.DeckPosition,
 	).Scan(&playerCard.ID, &playerCard.CreatedAt, &playerCard.UpdatedAt)
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to add Pokemon to collection: %w", err)
 	}
-	
+
 	return playerCard, nil
 }

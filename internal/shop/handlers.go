@@ -3,7 +3,7 @@ package shop
 import (
 	"regexp"
 	"strings"
-	
+
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -31,12 +31,12 @@ func isValidPokemonName(name string) bool {
 // GetInventory handles GET /api/shop/inventory
 func (h *Handler) GetInventory(c *fiber.Ctx) error {
 	inventory := h.service.GetInventory()
-	
+
 	// Apply current prices with discounts
 	for i := range inventory.Items {
 		inventory.Items[i].Price = h.service.GetItemPrice(inventory.Items[i])
 	}
-	
+
 	return c.JSON(inventory)
 }
 
@@ -66,7 +66,7 @@ func (h *Handler) Purchase(c *fiber.Ctx) error {
 
 	// Sanitize and validate Pokemon name
 	req.PokemonName = strings.TrimSpace(strings.ToLower(req.PokemonName))
-	
+
 	if req.PokemonName == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{
@@ -75,7 +75,7 @@ func (h *Handler) Purchase(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	// Validate Pokemon name format (only letters, hyphens, and spaces)
 	if !isValidPokemonName(req.PokemonName) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -85,7 +85,7 @@ func (h *Handler) Purchase(c *fiber.Ctx) error {
 			},
 		})
 	}
-	
+
 	if len(req.PokemonName) > 100 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{
@@ -121,7 +121,7 @@ func (h *Handler) Purchase(c *fiber.Ctx) error {
 				},
 			})
 		}
-		
+
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fiber.Map{
 				"code":    "PURCHASE_FAILED",

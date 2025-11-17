@@ -20,8 +20,6 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
 }
 
-// RecordBattle records a battle outcome in the database
-// Requirements: 8.2, 8.5
 func (r *Repository) RecordBattle(ctx context.Context, userID int, mode, result string, coinsEarned, duration int) error {
 	// Insert battle history
 	_, err := r.db.Exec(ctx, `
@@ -43,7 +41,7 @@ func (r *Repository) updatePlayerStats(ctx context.Context, userID int, mode, re
 	if mode != "1v1" && mode != "5v5" {
 		return fmt.Errorf("invalid battle mode: %s", mode)
 	}
-	
+
 	// Validate result to prevent SQL injection
 	if result != "win" && result != "loss" && result != "draw" {
 		return fmt.Errorf("invalid battle result: %s", result)
@@ -52,7 +50,7 @@ func (r *Repository) updatePlayerStats(ctx context.Context, userID int, mode, re
 	// Use separate parameterized queries for each mode and result combination
 	// This prevents SQL injection by never concatenating user input into queries
 	var query string
-	
+
 	if mode == "1v1" {
 		if result == "win" {
 			query = `
@@ -74,12 +72,13 @@ func (r *Repository) updatePlayerStats(ctx context.Context, userID int, mode, re
 				    total_coins_earned = player_stats.total_coins_earned + $2,
 				    updated_at = NOW()
 			`
-		} else {
+		} else { // result == "draw"
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_1v1, total_coins_earned, updated_at)
-				VALUES ($1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_1v1, draws_1v1, total_coins_earned, updated_at)
+				VALUES ($1, 1, 1, $2, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
+				    draws_1v1 = player_stats.draws_1v1 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
 				    updated_at = NOW()
 			`
@@ -105,12 +104,13 @@ func (r *Repository) updatePlayerStats(ctx context.Context, userID int, mode, re
 				    total_coins_earned = player_stats.total_coins_earned + $2,
 				    updated_at = NOW()
 			`
-		} else {
+		} else { // result == "draw"
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_5v5, total_coins_earned, updated_at)
-				VALUES ($1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_5v5, draws_5v5, total_coins_earned, updated_at)
+				VALUES ($1, 1, 1, $2, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
+				    draws_5v5 = player_stats.draws_5v5 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
 				    updated_at = NOW()
 			`
@@ -128,15 +128,17 @@ func (r *Repository) updatePlayerStats(ctx context.Context, userID int, mode, re
 // GetPlayerStats retrieves player statistics
 func (r *Repository) GetPlayerStats(ctx context.Context, userID int) (*database.PlayerStats, error) {
 	stats := &database.PlayerStats{UserID: userID}
-	
+
 	err := r.db.QueryRow(ctx, `
 		SELECT 
 			COALESCE(total_battles_1v1, 0),
 			COALESCE(wins_1v1, 0),
 			COALESCE(losses_1v1, 0),
+			COALESCE(draws_1v1, 0),
 			COALESCE(total_battles_5v5, 0),
 			COALESCE(wins_5v5, 0),
 			COALESCE(losses_5v5, 0),
+			COALESCE(draws_5v5, 0),
 			COALESCE(total_coins_earned, 0),
 			COALESCE(highest_level, 1),
 			updated_at
@@ -146,14 +148,16 @@ func (r *Repository) GetPlayerStats(ctx context.Context, userID int) (*database.
 		&stats.TotalBattles1v1,
 		&stats.Wins1v1,
 		&stats.Losses1v1,
+		&stats.Draws1v1,
 		&stats.TotalBattles5v5,
 		&stats.Wins5v5,
 		&stats.Losses5v5,
+		&stats.Draws5v5,
 		&stats.TotalCoinsEarned,
 		&stats.HighestLevel,
 		&stats.UpdatedAt,
 	)
-	
+
 	if err != nil {
 		// If no stats exist yet, return empty stats with default values
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -161,16 +165,18 @@ func (r *Repository) GetPlayerStats(ctx context.Context, userID int) (*database.
 			stats.TotalBattles1v1 = 0
 			stats.Wins1v1 = 0
 			stats.Losses1v1 = 0
+			stats.Draws1v1 = 0
 			stats.TotalBattles5v5 = 0
 			stats.Wins5v5 = 0
 			stats.Losses5v5 = 0
+			stats.Draws5v5 = 0
 			stats.TotalCoinsEarned = 0
 			stats.HighestLevel = 1
 			return stats, nil
 		}
 		return nil, fmt.Errorf("failed to get player stats: %w", err)
 	}
-	
+
 	return stats, nil
 }
 
@@ -222,11 +228,11 @@ func (r *Repository) UpdateHighestLevel(ctx context.Context, userID int, level i
 		SET highest_level = GREATEST(player_stats.highest_level, $2),
 		    updated_at = NOW()
 	`, userID, level)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to update highest level: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -280,11 +286,11 @@ func (r *Repository) UnlockAchievement(ctx context.Context, userID, achievementI
 		VALUES ($1, $2, NOW())
 		ON CONFLICT (user_id, achievement_id) DO NOTHING
 	`, userID, achievementID)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to unlock achievement: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -294,11 +300,11 @@ func (r *Repository) GetUserAchievementCount(ctx context.Context, userID int) (i
 	err := r.db.QueryRow(ctx, `
 		SELECT COUNT(*) FROM user_achievements WHERE user_id = $1
 	`, userID).Scan(&count)
-	
+
 	if err != nil {
 		return 0, fmt.Errorf("failed to get achievement count: %w", err)
 	}
-	
+
 	return count, nil
 }
 
@@ -312,6 +318,8 @@ func (r *Repository) InitializeAchievements(ctx context.Context) error {
 		requirementType  string
 		requirementValue int
 	}{
+		{"First 1v1 Battle", "Complete your first 1v1 battle", "🎯", "battles_1v1", 1},
+		{"First 5v5 Battle", "Complete your first 5v5 battle", "🎲", "battles_5v5", 1},
 		{"First Victory", "Win your first battle", "🏆", "total_wins", 1},
 		{"Veteran Trainer", "Win 10 battles", "⭐", "total_wins", 10},
 		{"Elite Trainer", "Win 50 battles", "💫", "total_wins", 50},
@@ -330,7 +338,7 @@ func (r *Repository) InitializeAchievements(ctx context.Context) error {
 			VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (name) DO NOTHING
 		`, ach.name, ach.description, ach.icon, ach.requirementType, ach.requirementValue)
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to initialize achievement %s: %w", ach.name, err)
 		}

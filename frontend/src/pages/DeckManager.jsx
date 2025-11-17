@@ -74,9 +74,13 @@ export default function DeckManager() {
 
   // Save deck configuration
   const handleSaveDeck = async () => {
-    // Validate deck has exactly 5 cards
-    if (selectedCards.length !== 5) {
-      setError('Deck must contain exactly 5 Pokemon');
+    // Validate deck has 1-5 cards
+    if (selectedCards.length < 1) {
+      setError('Deck must contain at least 1 Pokemon');
+      return;
+    }
+    if (selectedCards.length > 5) {
+      setError('Deck can only contain 5 Pokemon');
       return;
     }
 
@@ -180,7 +184,8 @@ export default function DeckManager() {
   };
 
   const filteredCollection = getFilteredCollection();
-  const selectedCardsData = collection.filter(card => selectedCards.includes(card.id));
+  // Preserve selection order by mapping selectedCards to actual card objects
+  const selectedCardsData = selectedCards.map(id => collection.find(card => card.id === id)).filter(Boolean);
   const hasChanges = JSON.stringify(selectedCards.sort()) !== JSON.stringify(deck.map(c => c.id).sort());
 
   if (loading) {
@@ -201,7 +206,7 @@ export default function DeckManager() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Deck Manager</h1>
           <p className="text-gray-400">
-            Select 5 Pokemon for your battle deck. You have {collection.length} Pokemon in your collection.
+            Select 1-5 Pokemon for your battle deck. You have {collection.length} Pokemon in your collection.
           </p>
         </div>
 
@@ -247,9 +252,9 @@ export default function DeckManager() {
               )}
               <button
                 onClick={handleSaveDeck}
-                disabled={selectedCards.length !== 5 || saving || !hasChanges}
+                disabled={selectedCards.length < 1 || saving || !hasChanges}
                 className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-                  selectedCards.length === 5 && hasChanges
+                  selectedCards.length >= 1 && hasChanges
                     ? 'bg-blue-500 hover:bg-blue-600 text-white'
                     : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                 }`}

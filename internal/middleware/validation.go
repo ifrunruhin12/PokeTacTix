@@ -18,38 +18,38 @@ type ValidationError struct {
 func SanitizeString(input string) string {
 	// Trim whitespace
 	input = strings.TrimSpace(input)
-	
+
 	// Escape HTML to prevent XSS
 	input = html.EscapeString(input)
-	
+
 	return input
 }
 
 // ValidateUsername validates username format
 func ValidateUsername(username string) *ValidationError {
 	username = strings.TrimSpace(username)
-	
+
 	if username == "" {
 		return &ValidationError{
 			Field:   "username",
 			Message: "Username is required",
 		}
 	}
-	
+
 	if len(username) < 3 {
 		return &ValidationError{
 			Field:   "username",
 			Message: "Username must be at least 3 characters long",
 		}
 	}
-	
+
 	if len(username) > 50 {
 		return &ValidationError{
 			Field:   "username",
 			Message: "Username must not exceed 50 characters",
 		}
 	}
-	
+
 	// Only allow alphanumeric characters and underscores
 	matched, _ := regexp.MatchString(`^[a-zA-Z0-9_]+$`, username)
 	if !matched {
@@ -58,21 +58,21 @@ func ValidateUsername(username string) *ValidationError {
 			Message: "Username can only contain letters, numbers, and underscores",
 		}
 	}
-	
+
 	return nil
 }
 
 // ValidateEmail validates email format
 func ValidateEmail(email string) *ValidationError {
 	email = strings.TrimSpace(email)
-	
+
 	if email == "" {
 		return &ValidationError{
 			Field:   "email",
 			Message: "Email is required",
 		}
 	}
-	
+
 	// Basic email regex
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 	if !emailRegex.MatchString(email) {
@@ -81,14 +81,14 @@ func ValidateEmail(email string) *ValidationError {
 			Message: "Invalid email format",
 		}
 	}
-	
+
 	if len(email) > 255 {
 		return &ValidationError{
 			Field:   "email",
 			Message: "Email must not exceed 255 characters",
 		}
 	}
-	
+
 	return nil
 }
 
@@ -100,21 +100,21 @@ func ValidatePassword(password string) *ValidationError {
 			Message: "Password is required",
 		}
 	}
-	
+
 	if len(password) < 8 {
 		return &ValidationError{
 			Field:   "password",
 			Message: "Password must be at least 8 characters long",
 		}
 	}
-	
+
 	if len(password) > 100 {
 		return &ValidationError{
 			Field:   "password",
 			Message: "Password must not exceed 100 characters",
 		}
 	}
-	
+
 	// Check for uppercase letter
 	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
 	if !hasUpper {
@@ -123,7 +123,7 @@ func ValidatePassword(password string) *ValidationError {
 			Message: "Password must contain at least one uppercase letter",
 		}
 	}
-	
+
 	// Check for lowercase letter
 	hasLower := regexp.MustCompile(`[a-z]`).MatchString(password)
 	if !hasLower {
@@ -132,7 +132,7 @@ func ValidatePassword(password string) *ValidationError {
 			Message: "Password must contain at least one lowercase letter",
 		}
 	}
-	
+
 	// Check for number
 	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
 	if !hasNumber {
@@ -141,7 +141,7 @@ func ValidatePassword(password string) *ValidationError {
 			Message: "Password must contain at least one number",
 		}
 	}
-	
+
 	// Check for special character
 	hasSpecial := regexp.MustCompile(`[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]`).MatchString(password)
 	if !hasSpecial {
@@ -150,21 +150,21 @@ func ValidatePassword(password string) *ValidationError {
 			Message: "Password must contain at least one special character",
 		}
 	}
-	
+
 	return nil
 }
 
 // ValidatePokemonName validates Pokemon name input
 func ValidatePokemonName(name string) *ValidationError {
 	name = strings.TrimSpace(name)
-	
+
 	if name == "" {
 		return &ValidationError{
 			Field:   "pokemon_name",
 			Message: "Pokemon name is required",
 		}
 	}
-	
+
 	// Pokemon names should only contain letters, hyphens, and spaces
 	matched, _ := regexp.MatchString(`^[a-zA-Z\-\s]+$`, name)
 	if !matched {
@@ -173,49 +173,49 @@ func ValidatePokemonName(name string) *ValidationError {
 			Message: "Invalid Pokemon name format",
 		}
 	}
-	
+
 	if len(name) > 100 {
 		return &ValidationError{
 			Field:   "pokemon_name",
 			Message: "Pokemon name is too long",
 		}
 	}
-	
+
 	return nil
 }
 
 // ValidateBattleMode validates battle mode input
 func ValidateBattleMode(mode string) *ValidationError {
 	mode = strings.TrimSpace(mode)
-	
+
 	if mode == "" {
 		return &ValidationError{
 			Field:   "mode",
 			Message: "Battle mode is required",
 		}
 	}
-	
+
 	if mode != "1v1" && mode != "5v5" {
 		return &ValidationError{
 			Field:   "mode",
 			Message: "Battle mode must be either '1v1' or '5v5'",
 		}
 	}
-	
+
 	return nil
 }
 
 // ValidateBattleMove validates battle move input
 func ValidateBattleMove(move string) *ValidationError {
 	move = strings.TrimSpace(move)
-	
+
 	if move == "" {
 		return &ValidationError{
 			Field:   "move",
 			Message: "Move is required",
 		}
 	}
-	
+
 	validMoves := map[string]bool{
 		"attack":    true,
 		"defend":    true,
@@ -223,14 +223,14 @@ func ValidateBattleMove(move string) *ValidationError {
 		"sacrifice": true,
 		"surrender": true,
 	}
-	
+
 	if !validMoves[move] {
 		return &ValidationError{
 			Field:   "move",
 			Message: "Invalid move. Must be one of: attack, defend, pass, sacrifice, surrender",
 		}
 	}
-	
+
 	return nil
 }
 
@@ -242,7 +242,7 @@ func ValidateCardIDs(cardIDs []int, expectedCount int) *ValidationError {
 			Message: "Invalid number of cards",
 		}
 	}
-	
+
 	// Check for duplicates
 	seen := make(map[int]bool)
 	for _, id := range cardIDs {
@@ -260,7 +260,7 @@ func ValidateCardIDs(cardIDs []int, expectedCount int) *ValidationError {
 		}
 		seen[id] = true
 	}
-	
+
 	return nil
 }
 
@@ -298,28 +298,28 @@ func InputSanitizer() fiber.Handler {
 }
 
 // sanitizeMap recursively sanitizes all string values in a map
-func sanitizeMap(data map[string]interface{}) {
+func sanitizeMap(data map[string]any) {
 	for key, value := range data {
 		switch v := value.(type) {
 		case string:
 			data[key] = SanitizeString(v)
-		case map[string]interface{}:
+		case map[string]any:
 			sanitizeMap(v)
-		case []interface{}:
+		case []any:
 			sanitizeSlice(v)
 		}
 	}
 }
 
 // sanitizeSlice recursively sanitizes all string values in a slice
-func sanitizeSlice(data []interface{}) {
+func sanitizeSlice(data []any) {
 	for i, value := range data {
 		switch v := value.(type) {
 		case string:
 			data[i] = SanitizeString(v)
-		case map[string]interface{}:
+		case map[string]any:
 			sanitizeMap(v)
-		case []interface{}:
+		case []any:
 			sanitizeSlice(v)
 		}
 	}

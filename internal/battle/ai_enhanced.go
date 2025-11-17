@@ -8,30 +8,28 @@ import (
 	"strings"
 )
 
-// EnhancedAIDecision represents an AI decision with scoring
 type EnhancedAIDecision struct {
-	Move     string
-	MoveIdx  int
-	Score    float64
-	Reason   string
+	Move    string
+	MoveIdx int
+	Score   float64
+	Reason  string
 }
 
-// GetEnhancedAIMove makes an intelligent AI decision based on battle state
 func GetEnhancedAIMove(bs *BattleState, playerMove string) (string, int) {
 	aiCard := bs.GetActiveAICard()
 	playerCard := bs.GetActivePlayerCard()
-	
+
 	if aiCard == nil || playerCard == nil {
 		return "pass", 0
 	}
-	
-	// Convert to pokemon.Card for compatibility
+
 	aCard := ConvertFromBattleCard(*aiCard)
 	pCard := ConvertFromBattleCard(*playerCard)
-	
+
 	maxStamina := aCard.Speed * 2
-	
-	// Check what moves are available
+
+	hpPercent := float64(aCard.HP) / float64(aCard.HPMax)
+
 	canAttack := false
 	attackMoves := []int{}
 	for i, move := range aCard.Moves {
@@ -40,11 +38,10 @@ func GetEnhancedAIMove(bs *BattleState, playerMove string) (string, int) {
 			attackMoves = append(attackMoves, i)
 		}
 	}
-	
+
 	defendCost := core.GetDefendCost(aCard.HPMax)
 	canDefend := aCard.Stamina >= defendCost
-	
-	// Check if AI should sacrifice
+
 	sacrificeCount := bs.SacrificeCount[bs.AIActiveIdx]
 	canSacrifice := false
 	var hpCost int
@@ -61,25 +58,43 @@ func GetEnhancedAIMove(bs *BattleState, playerMove string) (string, int) {
 	if float64(aCard.Stamina) < 0.5*float64(maxStamina) && aCard.HP > hpCost && sacrificeCount < 3 {
 		canSacrifice = true
 	}
-	
-	// If AI can't do anything meaningful, consider surrender or sacrifice
+
 	if !canAttack && !canDefend {
 		if canSacrifice {
 			return "sacrifice", 0
 		}
-		// Surrender if no options
-		if rand.Float64() < 0.95 {
-			return "surrender", 0
+
+		if bs.Mode == "1v1" {
+			if hpPercent < 0.1 && aCard.Stamina == 0 {
+				if rand.Float64() < 0.3 { // 30% chance to surrender even in dire situation
+					return "surrender", 0
+				}
+			}
+		} else if bs.Mode == "5v5" {
+			hasStrongerPokemon := false
+			for i, card := range bs.AIDeck {
+				if i != bs.AIActiveIdx && card.HP > 0 {
+					cardHPPercent := float64(card.HP) / float64(card.HPMax)
+					if cardHPPercent > hpPercent+0.3 {
+						hasStrongerPokemon = true
+						break
+					}
+				}
+			}
+
+			if hpPercent < 0.25 && hasStrongerPokemon && aCard.Stamina < maxStamina/4 {
+				if rand.Float64() < 0.4 { // 40% chance for strategic retreat
+					return "surrender", 0
+				}
+			}
 		}
+
 		return "pass", 0
 	}
-	
-	// Calculate HP percentage
-	hpPercent := float64(aCard.HP) / float64(aCard.HPMax)
-	
+
 	// Evaluate all possible moves
 	decisions := []EnhancedAIDecision{}
-	
+
 	// Evaluate attack moves
 	if canAttack {
 		for _, moveIdx := range attackMoves {
@@ -92,7 +107,7 @@ func GetEnhancedAIMove(bs *BattleState, playerMove string) (string, int) {
 			})
 		}
 	}
-	
+
 	// Evaluate defend
 	if canDefend {
 		score := evaluateDefend(&aCard, &pCard, playerMove, hpPercent)
@@ -103,7 +118,7 @@ func GetEnhancedAIMove(bs *BattleState, playerMove string) (string, int) {
 			Reason:  "defend evaluation",
 		})
 	}
-	
+
 	// Evaluate pass (usually low score)
 	decisions = append(decisions, EnhancedAIDecision{
 		Move:    "pass",
@@ -111,7 +126,7 @@ func GetEnhancedAIMove(bs *BattleState, playerMove string) (string, int) {
 		Score:   0.1,
 		Reason:  "pass evaluation",
 	})
-	
+
 	// Find best decision
 	bestDecision := decisions[0]
 	for _, decision := range decisions {
@@ -119,7 +134,7 @@ func GetEnhancedAIMove(bs *BattleState, playerMove string) (string, int) {
 			bestDecision = decision
 		}
 	}
-	
+
 	return bestDecision.Move, bestDecision.MoveIdx
 }
 
@@ -127,10 +142,10 @@ func GetEnhancedAIMove(bs *BattleState, playerMove string) (string, int) {
 func evaluateAttackMove(aiCard, playerCard *pokemon.Card, moveIdx int, playerMove string, hpPercent float64) float64 {
 	move := aiCard.Moves[moveIdx]
 	score := 0.0
-	
+
 	// Base score from move power
 	score += float64(move.Power) / 100.0
-	
+
 	// Type effectiveness (60% weight)
 	typeMultiplier := getTypeEffectiveness(move.Type, playerCard.Types)
 	if typeMultiplier > 1.0 {
@@ -138,44 +153,38 @@ func evaluateAttackMove(aiCard, playerCard *pokemon.Card, moveIdx int, playerMov
 	} else if typeMultiplier < 1.0 {
 		score -= 0.3 * (1.0 - typeMultiplier) // Not very effective penalty
 	}
-	
-	// If player is defending, prioritize high-power moves
+
 	if playerMove == "defend" {
 		if move.Power >= 80 {
 			score += 0.4 // High power bonus when opponent defending
 		}
 	}
-	
-	// If player is attacking, consider defensive play
+
 	if playerMove == "attack" {
 		score -= 0.2 // Slight penalty for attacking when opponent attacks
 	}
-	
-	// If player passed, always attack aggressively
+
 	if playerMove == "pass" {
 		score += 0.5
 	}
-	
-	// Stamina efficiency
+
 	staminaEfficiency := float64(move.Power) / float64(move.StaminaCost)
 	score += staminaEfficiency * 0.1
-	
-	// If low HP, be more aggressive
+
 	if hpPercent < 0.3 {
 		score += 0.3
 	}
-	
+
 	return score
 }
 
-// evaluateDefend scores the defend action
 func evaluateDefend(aiCard, playerCard *pokemon.Card, playerMove string, hpPercent float64) float64 {
 	score := 0.0
-	
+
 	// If player is attacking, defending is valuable
 	if playerMove == "attack" {
 		score += 0.7
-		
+
 		// Check if we're at type disadvantage
 		for _, pMove := range playerCard.Moves {
 			typeMultiplier := getTypeEffectiveness(pMove.Type, aiCard.Types)
@@ -185,22 +194,22 @@ func evaluateDefend(aiCard, playerCard *pokemon.Card, playerMove string, hpPerce
 			}
 		}
 	}
-	
+
 	// If player is defending or passing, defending is less valuable
 	if playerMove == "defend" || playerMove == "pass" {
 		score -= 0.5
 	}
-	
+
 	// If low HP, defending is more important
 	if hpPercent < 0.3 {
 		score += 0.4
 	}
-	
+
 	// If high HP, defending is less important
 	if hpPercent > 0.7 {
 		score -= 0.2
 	}
-	
+
 	return score
 }
 
@@ -208,7 +217,7 @@ func evaluateDefend(aiCard, playerCard *pokemon.Card, playerMove string, hpPerce
 func getTypeEffectiveness(moveType string, defenderTypes []string) float64 {
 	multiplier := 1.0
 	moveType = strings.ToLower(moveType)
-	
+
 	if effectiveness, exists := utils.TypeChart[moveType]; exists {
 		for _, defenderType := range defenderTypes {
 			defenderType = strings.ToLower(defenderType)
@@ -217,7 +226,7 @@ func getTypeEffectiveness(moveType string, defenderTypes []string) float64 {
 			}
 		}
 	}
-	
+
 	return multiplier
 }
 
@@ -226,7 +235,7 @@ func ShouldAISwitch(bs *BattleState) (bool, int) {
 	if bs.Mode != "5v5" {
 		return false, -1
 	}
-	
+
 	aiCard := bs.GetActiveAICard()
 	if aiCard == nil || aiCard.HP <= 0 {
 		// Must switch if knocked out
@@ -237,17 +246,17 @@ func ShouldAISwitch(bs *BattleState) (bool, int) {
 		}
 		return false, -1
 	}
-	
+
 	// Check if current Pokemon is in bad shape
 	hpPercent := float64(aiCard.HP) / float64(aiCard.HPMax)
 	staminaPercent := float64(aiCard.Stamina) / float64(aiCard.StaminaMax)
-	
+
 	// Switch if HP < 30% or stamina < 30%
 	if hpPercent < 0.3 || staminaPercent < 0.3 {
 		// Find best alternative
 		bestIdx := -1
 		bestScore := hpPercent + staminaPercent
-		
+
 		for i, card := range bs.AIDeck {
 			if card.HP > 0 && i != bs.AIActiveIdx {
 				cardScore := float64(card.HP)/float64(card.HPMax) + float64(card.Stamina)/float64(card.StaminaMax)
@@ -257,11 +266,11 @@ func ShouldAISwitch(bs *BattleState) (bool, int) {
 				}
 			}
 		}
-		
+
 		if bestIdx != -1 {
 			return true, bestIdx
 		}
 	}
-	
+
 	return false, -1
 }

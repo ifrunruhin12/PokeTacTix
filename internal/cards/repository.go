@@ -30,18 +30,18 @@ func (r *Repository) Create(ctx context.Context, card *database.PlayerCard) (*da
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id, created_at, updated_at
 	`
-	
+
 	err := r.db.QueryRow(ctx, query,
 		card.UserID, card.PokemonName, card.Level, card.XP,
 		card.BaseHP, card.BaseAttack, card.BaseDefense, card.BaseSpeed,
 		card.Types, card.Moves, card.Sprite,
 		card.IsLegendary, card.IsMythical, card.InDeck, card.DeckPosition,
 	).Scan(&card.ID, &card.CreatedAt, &card.UpdatedAt)
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to create card: %w", err)
 	}
-	
+
 	return card, nil
 }
 
@@ -53,7 +53,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*database.PlayerCard,
 		FROM player_cards
 		WHERE id = $1
 	`
-	
+
 	card := &database.PlayerCard{}
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&card.ID, &card.UserID, &card.PokemonName, &card.Level, &card.XP,
@@ -62,14 +62,14 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*database.PlayerCard,
 		&card.IsLegendary, &card.IsMythical, &card.InDeck, &card.DeckPosition,
 		&card.CreatedAt, &card.UpdatedAt,
 	)
-	
+
 	if err == pgx.ErrNoRows {
 		return nil, fmt.Errorf("card not found")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get card: %w", err)
 	}
-	
+
 	return card, nil
 }
 
@@ -82,13 +82,13 @@ func (r *Repository) GetUserCards(ctx context.Context, userID int) ([]database.P
 		WHERE user_id = $1
 		ORDER BY created_at DESC
 	`
-	
+
 	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user cards: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var cards []database.PlayerCard
 	for rows.Next() {
 		var card database.PlayerCard
@@ -104,7 +104,7 @@ func (r *Repository) GetUserCards(ctx context.Context, userID int) ([]database.P
 		}
 		cards = append(cards, card)
 	}
-	
+
 	return cards, nil
 }
 
@@ -117,13 +117,13 @@ func (r *Repository) GetUserDeck(ctx context.Context, userID int) ([]database.Pl
 		WHERE user_id = $1 AND in_deck = TRUE
 		ORDER BY deck_position ASC
 	`
-	
+
 	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user deck: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var cards []database.PlayerCard
 	for rows.Next() {
 		var card database.PlayerCard
@@ -139,14 +139,14 @@ func (r *Repository) GetUserDeck(ctx context.Context, userID int) ([]database.Pl
 		}
 		cards = append(cards, card)
 	}
-	
+
 	return cards, nil
 }
 
 // UpdateDeck updates the user's deck configuration
 func (r *Repository) UpdateDeck(ctx context.Context, userID int, cardIDs []int) error {
-	if len(cardIDs) != 5 {
-		return fmt.Errorf("deck must contain exactly 5 cards")
+	if len(cardIDs) < 1 || len(cardIDs) > 5 {
+		return fmt.Errorf("deck must contain between 1 and 5 cards")
 	}
 
 	tx, err := r.db.Begin(ctx)
@@ -178,7 +178,7 @@ func (r *Repository) UpdateDeck(ctx context.Context, userID int, cardIDs []int) 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -210,12 +210,12 @@ func (r *Repository) AddXP(ctx context.Context, cardID int, xp int) (*database.P
 		SET level = $1, xp = $2, updated_at = $3
 		WHERE id = $4
 	`
-	
+
 	_, err = r.db.Exec(ctx, query, card.Level, card.XP, time.Now(), cardID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update card XP: %w", err)
 	}
-	
+
 	return card, nil
 }
 
@@ -228,7 +228,7 @@ func (r *Repository) Update(ctx context.Context, card *database.PlayerCard) erro
 			is_legendary = $11, is_mythical = $12, in_deck = $13, deck_position = $14, updated_at = $15
 		WHERE id = $16
 	`
-	
+
 	card.UpdatedAt = time.Now()
 	_, err := r.db.Exec(ctx, query,
 		card.PokemonName, card.Level, card.XP,
@@ -237,23 +237,23 @@ func (r *Repository) Update(ctx context.Context, card *database.PlayerCard) erro
 		card.IsLegendary, card.IsMythical, card.InDeck, card.DeckPosition,
 		card.UpdatedAt, card.ID,
 	)
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to update card: %w", err)
 	}
-	
+
 	return nil
 }
 
 // Delete deletes a card
 func (r *Repository) Delete(ctx context.Context, id int) error {
 	query := `DELETE FROM player_cards WHERE id = $1`
-	
+
 	_, err := r.db.Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete card: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -264,13 +264,13 @@ func (r *Repository) GetHighestLevel(ctx context.Context, userID int) (int, erro
 		FROM player_cards
 		WHERE user_id = $1
 	`
-	
+
 	var maxLevel int
 	err := r.db.QueryRow(ctx, query, userID).Scan(&maxLevel)
 	if err != nil {
 		return 1, fmt.Errorf("failed to get highest level: %w", err)
 	}
-	
+
 	return maxLevel, nil
 }
 
@@ -281,13 +281,13 @@ func (r *Repository) CountLegendary(ctx context.Context, userID int) (int, error
 		FROM player_cards
 		WHERE user_id = $1 AND is_legendary = TRUE
 	`
-	
+
 	var count int
 	err := r.db.QueryRow(ctx, query, userID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count legendary cards: %w", err)
 	}
-	
+
 	return count, nil
 }
 
@@ -298,12 +298,12 @@ func (r *Repository) CountMythical(ctx context.Context, userID int) (int, error)
 		FROM player_cards
 		WHERE user_id = $1 AND is_mythical = TRUE
 	`
-	
+
 	var count int
 	err := r.db.QueryRow(ctx, query, userID).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count mythical cards: %w", err)
 	}
-	
+
 	return count, nil
 }

@@ -1,8 +1,48 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Link } from 'react-router-dom';
+import { getPlayerStats } from '../services/stats.service';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getPlayerStats();
+      setStats(data);
+    } catch (err) {
+      console.error('Failed to load stats:', err);
+      setError('Failed to load statistics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate statistics from fetched data
+  const totalBattles = stats 
+    ? (stats.total_battles_1v1 || 0) + (stats.total_battles_5v5 || 0)
+    : 0;
+  
+  const totalWins = stats 
+    ? (stats.wins_1v1 || 0) + (stats.wins_5v5 || 0)
+    : 0;
+  
+  const totalLosses = stats 
+    ? (stats.losses_1v1 || 0) + (stats.losses_5v5 || 0)
+    : 0;
+  
+  const winRate = (totalWins + totalLosses) > 0 
+    ? ((totalWins / (totalWins + totalLosses)) * 100).toFixed(1)
+    : 0;
 
   return (
     <div className="min-h-screen bg-gray-900 py-8">
@@ -17,12 +57,28 @@ export default function Dashboard() {
           
           <div className="bg-gray-800 p-6 rounded-lg">
             <h3 className="text-xl font-bold mb-2">Total Battles</h3>
-            <p className="text-3xl text-blue-400">0</p>
+            {loading ? (
+              <div className="flex items-center justify-center h-10">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-400"></div>
+              </div>
+            ) : error ? (
+              <p className="text-xl text-red-400" title={error}>0</p>
+            ) : (
+              <p className="text-3xl text-blue-400">{totalBattles}</p>
+            )}
           </div>
           
           <div className="bg-gray-800 p-6 rounded-lg">
             <h3 className="text-xl font-bold mb-2">Win Rate</h3>
-            <p className="text-3xl text-green-400">0%</p>
+            {loading ? (
+              <div className="flex items-center justify-center h-10">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-400"></div>
+              </div>
+            ) : error ? (
+              <p className="text-xl text-red-400" title={error}>0%</p>
+            ) : (
+              <p className="text-3xl text-green-400">{winRate}%</p>
+            )}
           </div>
         </div>
 

@@ -95,7 +95,12 @@ db-only: ## 🗄️  Start only the database
 # Advanced Commands
 # ============================================================================
 
-build: ## 🔨 Rebuild all Docker containers
+build: ## 🔨 Build Go binary and check for compile errors
+	@echo "Building Go binary..."
+	@go build -o bin/poketactix ./cmd/api
+	@echo "✅ Build complete - binary at bin/poketactix"
+
+build-docker: ## 🔨 Rebuild all Docker containers
 	@echo "Building containers..."
 	@docker-compose build
 	@echo "✅ Build complete"
@@ -119,6 +124,11 @@ migrate-reset: ## 🔄 Reset database (down + up)
 seed: ## 🌱 Seed database with initial data
 	@echo "Seeding database..."
 	@docker-compose exec backend go run migrations/seed.go 2>/dev/null || echo "⚠️  Seed script not found"
+
+fmt: ## 🎨 Format Go code
+	@echo "Formatting Go code..."
+	@go fmt ./...
+	@echo "✅ Code formatted"
 
 test: ## 🧪 Run tests
 	@docker-compose exec backend go test ./...

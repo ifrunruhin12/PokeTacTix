@@ -25,7 +25,7 @@ var (
 	ErrInvalidUsername = errors.New("username must be 3-50 alphanumeric characters")
 
 	ErrInvalidEmail = errors.New("invalid email format")
-	
+
 	emailRegex     = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 	usernameRegex  = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
 	uppercaseRegex = regexp.MustCompile(`[A-Z]`)
@@ -47,12 +47,12 @@ func (s *Service) HashPassword(password string) (string, error) {
 	if password == "" {
 		return "", errors.New("password cannot be empty")
 	}
-	
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
 	if err != nil {
 		return "", fmt.Errorf("failed to hash password: %w", err)
 	}
-	
+
 	return string(hash), nil
 }
 
@@ -73,7 +73,7 @@ func (s *Service) ValidatePassword(password string) error {
 	if len(password) < MinPasswordLength {
 		return ErrWeakPassword
 	}
-	
+
 	if len(password) > MaxPasswordLength {
 		return errors.New("password is too long (max 100 characters)")
 	}
@@ -93,44 +93,44 @@ func (s *Service) ValidatePassword(password string) error {
 	if !specialRegex.MatchString(password) {
 		return ErrWeakPassword
 	}
-	
+
 	return nil
 }
 
 // ValidateUsername validates username format
 func (s *Service) ValidateUsername(username string) error {
 	username = strings.TrimSpace(username)
-	
+
 	if len(username) < MinUsernameLength {
 		return fmt.Errorf("username must be at least %d characters", MinUsernameLength)
 	}
-	
+
 	if len(username) > MaxUsernameLength {
 		return fmt.Errorf("username must be at most %d characters", MaxUsernameLength)
 	}
-	
+
 	if !usernameRegex.MatchString(username) {
 		return ErrInvalidUsername
 	}
-	
+
 	return nil
 }
 
 // ValidateEmail validates email format
 func (s *Service) ValidateEmail(email string) error {
 	email = strings.TrimSpace(email)
-	
+
 	if email == "" {
 		return ErrInvalidEmail
 	}
-	
+
 	if len(email) > 255 {
 		return errors.New("email is too long (max 255 characters)")
 	}
-	
+
 	if !emailRegex.MatchString(email) {
 		return ErrInvalidEmail
 	}
-	
+
 	return nil
 }

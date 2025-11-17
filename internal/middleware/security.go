@@ -9,31 +9,31 @@ func SecurityHeaders() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Prevent clickjacking attacks
 		c.Set("X-Frame-Options", "DENY")
-		
+
 		// Prevent MIME type sniffing
 		c.Set("X-Content-Type-Options", "nosniff")
-		
+
 		// Control referrer information
 		c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		
+
 		// XSS Protection (legacy browsers)
 		c.Set("X-XSS-Protection", "1; mode=block")
-		
+
 		// Content Security Policy
-		c.Set("Content-Security-Policy", 
+		c.Set("Content-Security-Policy",
 			"default-src 'self'; "+
-			"script-src 'self' 'unsafe-inline' 'unsafe-eval'; "+
-			"style-src 'self' 'unsafe-inline'; "+
-			"img-src 'self' data: https:; "+
-			"font-src 'self' data:; "+
-			"connect-src 'self'; "+
-			"frame-ancestors 'none'")
-		
+				"script-src 'self' 'unsafe-inline' 'unsafe-eval'; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"img-src 'self' data: https:; "+
+				"font-src 'self' data:; "+
+				"connect-src 'self'; "+
+				"frame-ancestors 'none'")
+
 		// Strict Transport Security (HTTPS only)
 		if c.Protocol() == "https" {
 			c.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
-		
+
 		return c.Next()
 	}
 }

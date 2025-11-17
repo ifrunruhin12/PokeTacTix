@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"pokemon-cli/internal/auth"
 	"pokemon-cli/internal/battle"
@@ -74,10 +75,20 @@ func main() {
 	shopService := shop.NewService()
 	statsService := stats.NewService(statsRepo)
 
+	// Initialize achievements in database
+	if cfg.Database.URL != "" {
+		ctx := context.Background()
+		if err := statsService.InitializeAchievements(ctx); err != nil {
+			appLogger.Warn("Failed to initialize achievements", "error", err)
+		} else {
+			appLogger.Info("Achievements initialized")
+		}
+	}
+
 	// Initialize handlers
 	authHandler := auth.NewHandler(authService, jwtService, authRepo, cardsService)
 	cardsHandler := cards.NewHandler(cardsService)
-	battleHandler := battle.NewHandler(database.GetDB())
+	battleHandler := battle.NewHandler(database.GetDB(), statsService)
 	shopHandler := shop.NewHandler(shopService, shopRepo)
 	statsHandler := stats.NewHandler(statsService)
 

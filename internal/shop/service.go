@@ -28,10 +28,10 @@ func NewService() *Service {
 		},
 		lastRefresh: time.Now(),
 	}
-	
+
 	// Generate initial inventory
 	s.generateInventory()
-	
+
 	return s
 }
 
@@ -39,7 +39,7 @@ func NewService() *Service {
 func (s *Service) GetInventory() *ShopInventory {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	// Check if inventory needs refresh (every 24 hours)
 	if time.Since(s.lastRefresh) >= 24*time.Hour {
 		s.mu.RUnlock()
@@ -50,7 +50,7 @@ func (s *Service) GetInventory() *ShopInventory {
 		s.mu.Unlock()
 		s.mu.RLock()
 	}
-	
+
 	// Check if discount has expired
 	if s.inventory.DiscountActive && time.Now().After(s.discountEndTime) {
 		s.mu.RUnlock()
@@ -60,39 +60,39 @@ func (s *Service) GetInventory() *ShopInventory {
 		s.mu.Unlock()
 		s.mu.RLock()
 	}
-	
+
 	return s.inventory
 }
 
 // generateInventory creates a new shop inventory
 func (s *Service) generateInventory() {
 	items := []ShopItem{}
-	
+
 	// Add 10-15 common/uncommon Pokemon
 	commonUncommonCount := 10 + rand.Intn(6) // 10-15
 	for i := 0; i < commonUncommonCount; i++ {
 		// Random Pokemon ID from Gen 1-8 (excluding legendaries)
 		pokemonID := rand.Intn(898) + 1
 		pokemonName := fmt.Sprintf("%d", pokemonID)
-		
+
 		poke, moves, err := pokemon.FetchPokemon(pokemonName)
 		if err != nil {
 			continue
 		}
-		
+
 		// Skip if legendary or mythical
 		isLegendary, isMythical := pokemon.IsLegendaryOrMythical(poke.Name)
 		if isLegendary || isMythical {
 			continue
 		}
-		
+
 		card := pokemon.BuildCardFromPokemon(poke, moves)
-		
+
 		// Determine rarity and price based on base stats
 		totalStats := card.Attack + card.Defense + card.Speed + card.HPMax
 		var rarity string
 		var price int
-		
+
 		if totalStats < 300 {
 			rarity = "common"
 			price = 100
@@ -103,7 +103,7 @@ func (s *Service) generateInventory() {
 			rarity = "rare"
 			price = 500
 		}
-		
+
 		items = append(items, ShopItem{
 			PokemonName: card.Name,
 			Price:       price,
@@ -120,26 +120,26 @@ func (s *Service) generateInventory() {
 			Moves:       card.Moves,
 		})
 	}
-	
+
 	// Add 5-8 rare Pokemon
 	rareCount := 5 + rand.Intn(4) // 5-8
 	for i := 0; i < rareCount; i++ {
 		pokemonID := rand.Intn(898) + 1
 		pokemonName := fmt.Sprintf("%d", pokemonID)
-		
+
 		poke, moves, err := pokemon.FetchPokemon(pokemonName)
 		if err != nil {
 			continue
 		}
-		
+
 		// Skip if legendary or mythical
 		isLegendary, isMythical := pokemon.IsLegendaryOrMythical(poke.Name)
 		if isLegendary || isMythical {
 			continue
 		}
-		
+
 		card := pokemon.BuildCardFromPokemon(poke, moves)
-		
+
 		items = append(items, ShopItem{
 			PokemonName: card.Name,
 			Price:       500,
@@ -156,18 +156,18 @@ func (s *Service) generateInventory() {
 			Moves:       card.Moves,
 		})
 	}
-	
+
 	// 15% chance to include 1-2 legendary/mythical Pokemon
 	if rand.Float64() < 0.15 {
 		specialCount := 1 + rand.Intn(2) // 1-2
-		
+
 		for i := 0; i < specialCount; i++ {
 			// 50/50 chance between legendary and mythical
 			var pokemonName string
 			var isLegendary, isMythical bool
 			var price int
 			var rarity string
-			
+
 			if rand.Float64() < 0.5 {
 				// Legendary
 				legendaryList := []string{
@@ -191,14 +191,14 @@ func (s *Service) generateInventory() {
 				price = 5000
 				rarity = "mythical"
 			}
-			
+
 			poke, moves, err := pokemon.FetchPokemon(pokemonName)
 			if err != nil {
 				continue
 			}
-			
+
 			card := pokemon.BuildCardFromPokemon(poke, moves)
-			
+
 			items = append(items, ShopItem{
 				PokemonName: card.Name,
 				Price:       price,
@@ -216,7 +216,7 @@ func (s *Service) generateInventory() {
 			})
 		}
 	}
-	
+
 	s.inventory.Items = items
 }
 
@@ -224,15 +224,15 @@ func (s *Service) generateInventory() {
 func (s *Service) ApplyDiscount(percent int, duration time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if percent < 0 || percent > 100 {
 		return fmt.Errorf("discount percent must be between 0 and 100")
 	}
-	
+
 	s.inventory.DiscountActive = true
 	s.inventory.DiscountPercent = percent
 	s.discountEndTime = time.Now().Add(duration)
-	
+
 	return nil
 }
 
@@ -240,9 +240,9 @@ func (s *Service) ApplyDiscount(percent int, duration time.Duration) error {
 func (s *Service) GetItemPrice(item ShopItem) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	price := item.Price
-	
+
 	if s.inventory.DiscountActive {
 		// Apply 40% discount to legendary, 30% to mythical
 		if item.IsLegendary {
@@ -251,7 +251,7 @@ func (s *Service) GetItemPrice(item ShopItem) int {
 			price = int(float64(price) * 0.7) // 30% off
 		}
 	}
-	
+
 	return price
 }
 
@@ -259,13 +259,13 @@ func (s *Service) GetItemPrice(item ShopItem) int {
 func (s *Service) FindItem(pokemonName string) (*ShopItem, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	for _, item := range s.inventory.Items {
 		if item.PokemonName == pokemonName {
 			return &item, nil
 		}
 	}
-	
+
 	return nil, fmt.Errorf("pokemon not found in shop inventory")
 }
 
@@ -273,7 +273,7 @@ func (s *Service) FindItem(pokemonName string) (*ShopItem, error) {
 func (s *Service) RefreshInventory() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	s.generateInventory()
 	s.lastRefresh = time.Now()
 	s.inventory.RefreshTime = time.Now().Add(24 * time.Hour)

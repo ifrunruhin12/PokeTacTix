@@ -10,48 +10,48 @@ import (
 // BattleState represents the complete state of a battle session
 // This is the enhanced model that supports both 1v1 and 5v5 modes
 type BattleState struct {
-	ID              string          `json:"id"`
-	UserID          int             `json:"user_id"`
-	Mode            string          `json:"mode"` // "1v1" or "5v5"
-	PlayerDeck      []BattleCard    `json:"player_deck"`
-	AIDeck          []BattleCard    `json:"ai_deck"`
-	PlayerActiveIdx int             `json:"player_active_idx"`
-	AIActiveIdx     int             `json:"ai_active_idx"`
-	TurnNumber      int             `json:"turn_number"`
-	RoundNumber     int             `json:"round_number"` // For 5v5 battles
-	WhoseTurn       string          `json:"whose_turn"`   // "player" or "ai"
-	BattleOver      bool            `json:"battle_over"`
-	Winner          string          `json:"winner"` // "player", "ai", "draw"
-	RewardClaimed   bool            `json:"reward_claimed"` // Track if 5v5 reward has been claimed
-	PendingPlayerMove    string     `json:"pending_player_move"`
-	PendingPlayerMoveIdx int        `json:"pending_player_move_idx"`
-	PendingAIMove        string     `json:"pending_ai_move"`
-	PendingAIMoveIdx     int        `json:"pending_ai_move_idx"`
-	SacrificeCount  map[int]int     `json:"sacrifice_count"` // Track sacrifices per Pokemon
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	ID                   string       `json:"id"`
+	UserID               int          `json:"user_id"`
+	Mode                 string       `json:"mode"` // "1v1" or "5v5"
+	PlayerDeck           []BattleCard `json:"player_deck"`
+	AIDeck               []BattleCard `json:"ai_deck"`
+	PlayerActiveIdx      int          `json:"player_active_idx"`
+	AIActiveIdx          int          `json:"ai_active_idx"`
+	TurnNumber           int          `json:"turn_number"`
+	RoundNumber          int          `json:"round_number"` // For 5v5 battles
+	WhoseTurn            string       `json:"whose_turn"`   // "player" or "ai"
+	BattleOver           bool         `json:"battle_over"`
+	Winner               string       `json:"winner"`             // "player", "ai", "draw"
+	RewardClaimed        bool         `json:"reward_claimed"`     // Track if 5v5 reward has been claimed
+	ConsecutivePasses    int          `json:"consecutive_passes"` // Track consecutive passes by both players
+	PendingPlayerMove    string       `json:"pending_player_move"`
+	PendingPlayerMoveIdx int          `json:"pending_player_move_idx"`
+	PendingAIMove        string       `json:"pending_ai_move"`
+	PendingAIMoveIdx     int          `json:"pending_ai_move_idx"`
+	SacrificeCount       map[int]int  `json:"sacrifice_count"` // Track sacrifices per Pokemon
+	CreatedAt            time.Time    `json:"created_at"`
+	UpdatedAt            time.Time    `json:"updated_at"`
 }
 
 // BattleCard represents a Pokemon card in battle with current state
 type BattleCard struct {
-	CardID       int             `json:"card_id"`
-	Name         string          `json:"name"`
-	HP           int             `json:"hp"`
-	HPMax        int             `json:"hp_max"`
-	Stamina      int             `json:"stamina"`
-	StaminaMax   int             `json:"stamina_max"`
-	Attack       int             `json:"attack"`
-	Defense      int             `json:"defense"`
-	Speed        int             `json:"speed"`
-	Types        []string        `json:"types"`
-	Moves        []pokemon.Move  `json:"moves"`
-	Sprite       string          `json:"sprite"`
-	IsKnockedOut bool            `json:"is_knocked_out"`
-	Level        int             `json:"level"`
+	CardID       int            `json:"card_id"`
+	Name         string         `json:"name"`
+	HP           int            `json:"hp"`
+	HPMax        int            `json:"hp_max"`
+	Stamina      int            `json:"stamina"`
+	StaminaMax   int            `json:"stamina_max"`
+	Attack       int            `json:"attack"`
+	Defense      int            `json:"defense"`
+	Speed        int            `json:"speed"`
+	Types        []string       `json:"types"`
+	Moves        []pokemon.Move `json:"moves"`
+	Sprite       string         `json:"sprite"`
+	IsKnockedOut bool           `json:"is_knocked_out"`
+	Level        int            `json:"level"`
 }
 
 // TurnState contains web-only turn-based fields (legacy support)
-// This keeps web transport/session concerns out of core game state.
 type TurnState struct {
 	PendingPlayerMove    string
 	PendingPlayerMoveIdx int
@@ -134,7 +134,8 @@ func (bs *BattleState) HasAIPokemonAlive() bool {
 
 // CheckBattleEnd checks if the battle should end and updates state accordingly
 func (bs *BattleState) CheckBattleEnd() {
-	if bs.Mode == "1v1" {
+	switch bs.Mode {
+	case "1v1":
 		playerCard := bs.GetActivePlayerCard()
 		aiCard := bs.GetActiveAICard()
 		if playerCard != nil && aiCard != nil {
@@ -149,7 +150,7 @@ func (bs *BattleState) CheckBattleEnd() {
 				bs.Winner = "player"
 			}
 		}
-	} else if bs.Mode == "5v5" {
+	case "5v5":
 		if !bs.HasPlayerPokemonAlive() && !bs.HasAIPokemonAlive() {
 			bs.BattleOver = true
 			bs.Winner = "draw"
@@ -201,6 +202,7 @@ func BuildBattleResponse(bs *BattleState, logEntries []string, hideAICards bool)
 		"whose_turn":        bs.WhoseTurn,
 		"battle_over":       bs.BattleOver,
 		"winner":            bs.Winner,
+		"reward_claimed":    bs.RewardClaimed,
 		"log":               logEntries,
 		"created_at":        bs.CreatedAt,
 		"updated_at":        bs.UpdatedAt,

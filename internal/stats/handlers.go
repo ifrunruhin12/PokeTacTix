@@ -14,8 +14,6 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-// GetPlayerStats handles GET /api/profile/stats
-// Requirements: 8.1, 8.5
 func (h *Handler) GetPlayerStats(c *fiber.Ctx) error {
 	// Get user ID from context (set by auth middleware)
 	userID, ok := c.Locals("user_id").(int)
@@ -43,8 +41,6 @@ func (h *Handler) GetPlayerStats(c *fiber.Ctx) error {
 	return c.JSON(stats)
 }
 
-// GetBattleHistory handles GET /api/profile/history
-// Requirements: 8.3
 func (h *Handler) GetBattleHistory(c *fiber.Ctx) error {
 	// Get user ID from context (set by auth middleware)
 	userID, ok := c.Locals("user_id").(int)
@@ -141,9 +137,6 @@ func (h *Handler) GetAchievements(c *fiber.Ctx) error {
 	})
 }
 
-// CheckAchievements handles POST /api/profile/achievements/check
-// This endpoint checks and unlocks any newly earned achievements
-// Requirements: 8.4
 func (h *Handler) CheckAchievements(c *fiber.Ctx) error {
 	// Get user ID from context (set by auth middleware)
 	userID, ok := c.Locals("user_id").(int)

@@ -91,7 +91,17 @@ const BattleArena = ({
   };
 
   const handleSurrender = () => {
-    if (window.confirm('Are you sure you want to surrender?')) {
+    // Different confirmation messages based on battle mode
+    let confirmMessage = '';
+    if (mode === '1v1') {
+      confirmMessage = 'Surrendering will end the battle and you will lose. Are you sure?';
+    } else if (mode === '5v5') {
+      confirmMessage = 'Surrendering will knock out your current Pokemon. Are you sure?';
+    } else {
+      confirmMessage = 'Are you sure you want to surrender?';
+    }
+    
+    if (window.confirm(confirmMessage)) {
       if (onMove) {
         onMove('surrender');
       }
@@ -241,20 +251,44 @@ const BattleArena = ({
 
         {/* Middle Section: Turn Indicator, Battle Log, and Controls */}
         <div className="flex-1 flex flex-col items-center justify-center mb-6 space-y-4">
-          {/* Turn Indicator */}
-          <TurnIndicator
-            turnNumber={turn_number}
-            whoseTurn={whose_turn}
-            mode={mode}
-            roundNumber={round_number}
-          />
+          {/* Turn Indicator - Hide when battle is over */}
+          {!battle_over && (
+            <TurnIndicator
+              turnNumber={turn_number}
+              whoseTurn={whose_turn}
+              mode={mode}
+              roundNumber={round_number}
+            />
+          )}
+
+          {/* Battle Over Message */}
+          {battle_over && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+              className="text-center"
+            >
+              <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-xl shadow-lg text-2xl font-bold">
+                ⚔️ Battle Complete! ⚔️
+              </div>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-gray-400 mt-2 text-sm"
+              >
+                Calculating rewards...
+              </motion.div>
+            </motion.div>
+          )}
 
           {/* Battle Log - Compact */}
           <motion.div variants={cardVariants} className="w-full max-w-2xl">
             <BattleLog logs={battleLogs} compact={true} />
           </motion.div>
 
-          {/* Battle Controls */}
+          {/* Battle Controls - Only show when battle is not over */}
           {!battle_over && (
             <motion.div variants={cardVariants} className="w-full max-w-2xl">
               <BattleControls
@@ -345,7 +379,7 @@ const BattleArena = ({
         <BattleResult
           result={winner === 'player' ? 'victory' : winner === 'ai' ? 'defeat' : 'draw'}
           rewards={battleState.rewards}
-          aiPokemon={winner === 'player' && mode === '5v5' ? ai_deck : []}
+          aiPokemon={winner === 'player' && mode === '5v5' && !battleState.reward_claimed ? ai_deck : []}
           onSelectReward={onSelectReward}
           onRematch={onRematch}
           onNewBattle={onNewBattle}
