@@ -74,7 +74,17 @@ func fetchPokemonData(id int, client *http.Client) (*PokemonEntry, error) {
 	
 	// Retry logic with exponential backoff
 	for attempt := 0; attempt < 3; attempt++ {
-		resp, err = client.Get(url)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		
+		// Add headers to bypass Cloudflare bot detection
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		
+		resp, err = client.Do(req)
 		if err == nil && resp.StatusCode == http.StatusOK {
 			break
 		}
@@ -198,7 +208,16 @@ func fetchMoves(rawMoves []struct {
 		}
 		
 		moveURL := rawMoves[i].Move.URL
-		resp, err := client.Get(moveURL)
+		req, err := http.NewRequest("GET", moveURL, nil)
+		if err != nil {
+			continue
+		}
+		
+		// Add headers to bypass Cloudflare
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		req.Header.Set("Accept", "application/json")
+		
+		resp, err := client.Do(req)
 		if err != nil {
 			continue
 		}

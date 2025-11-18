@@ -1,141 +1,190 @@
-# ◓ PokeTacTix
+<div align="center">
 
-A turn-based Pokémon card battle game 💥  
-**Frontend** (React + Vite) hosted on **Netlify**  
-**Backend** (Go + Fiber API) live on **Railway**  
-**Database** (PostgreSQL) on **Neon**
+# ⚡ PokeTacTix
 
----
+### *Strategic Turn-Based Pokémon Card Battles*
 
-## 🧭 Live Demo
+<img src="https://img.shields.io/badge/Go-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go" />
+<img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
+<img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
 
-- **Website**: [Coming Soon - Deploy with Netlify]
-- **API**: [Coming Soon - Deploy with Railway]
+**[🎮 Play Now](#) • [📖 Docs](./docs/) • [🚀 Deploy](./docs/QUICK_DEPLOY.md)**
 
-## 🚀 Quick Deploy
-
-Want to deploy your own instance? See [Quick Deploy Guide](./docs/QUICK_DEPLOY.md) (30 minutes)
-
-For detailed deployment instructions, see [Deployment Guide](./docs/DEPLOYMENT_GUIDE.md)
+</div>
 
 ---
 
-## ⚙️ Project Structure
+## 🎯 What is this?
 
-```
-PokeTacTix/
-├── cmd/api/              # Application entry point
-├── internal/             # Private application code
-│   ├── auth/            # Authentication
-│   ├── battle/          # Battle system
-│   ├── cards/           # Card management
-│   ├── pokemon/         # Pokemon data
-│   ├── shop/            # Shop system
-│   ├── stats/           # Statistics
-│   └── database/        # Database + migrations
-├── frontend/            # React frontend
-├── game/                # CLI battle logic
-├── docs/                # Documentation
-├── scripts/             # Utility scripts
-└── pkg/                 # Shared utilities
-```
+Battle, collect, and level up Pokémon cards in strategic turn-based combat. Build your perfect deck, master type advantages, and climb the ranks.
 
----
+<table>
+<tr>
+<td width="50%">
 
-## ✅ How to Play
+### 🎮 **Play Anywhere**
+- 🌐 **Web** - Play in browser
+- 💻 **CLI** - Terminal battles
+- 📱 **Mobile** - Coming soon
 
-### Web version 1.0.0 (alpha)
-1. **Frontend**:  
-   Browse to the GitHub Pages URL, which loads the card battlefield.
+</td>
+<td width="50%">
 
-2. **Search Pokémon**:  
-   Enter a name on the home page after clicking search — it fetches a styled card.
+### ⚔️ **Battle Modes**
+- 🥊 **1v1** - Quick battles
+- 👥 **5v5** - Team strategy
+- 🤖 **AI** - Smart opponents
 
-3. **1v1 Arena**:  
-   Head to the battle arena, choose **1v1** mode, and battle your Pokémon against AI:
-   - Select **Attack**, **Defend**, **Sacrifice**, etc.
-   - Buttons represent moves with type-based colors.
-   - Battle log shows turn progression and damage data.
-
-The frontend uses JS fetch calls to your live backend for everything — no page reloads once loaded.
-
-### CLI version 1.0.0 (alpha)
-
-1. Download the CLI from https://github.com/IfrunRuhin12/PokeTacTix/releases
-   - Linux: poketactix_linux_amd64, poketactix_linux_arm64
-   - Windows: poketactix_windows_amd64.exe, poketactix_windows_arm64.exe
-   - macOS: poketactix_darwin_amd64, poketactix_darwin_arm64
-2. On Linux/macOS: `chmod +x ./poketactix_*`
-3. Run the binary:
-   - Linux/macOS: `./poketactix_linux_amd64` (or your arch file)
-   - Windows: double-click or `poketactix_windows_amd64.exe` in cmd/PowerShell
+</td>
+</tr>
+</table>
 
 ---
 
-## 📚 API Documentation
+## ✨ Features
 
-Interactive API documentation available at: **http://localhost:3000/api/docs** (when running)
+<table>
+<tr>
+<td>
 
-The API includes endpoints for authentication, cards, battles, shop, and player stats.
+### 🃏 **Card Collection**
+Collect and level up Pokémon through battles and shop purchases
+
+</td>
+<td>
+
+### 🎲 **Strategic Combat**
+Type advantages, stamina management, and tactical decisions
+
+</td>
+</tr>
+<tr>
+<td>
+
+### 🏆 **Progression**
+Earn coins, track stats, unlock achievements
+
+</td>
+<td>
+
+### 🛒 **Shop System**
+Buy rare Pokémon, build your dream team
+
+</td>
+</tr>
+</table>
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
-Want to run PokeTacTix locally? It's easy:
+### 🌐 Web Version
 
 ```bash
 make dev
 ```
 
-That's it! Everything starts automatically.
+Opens at `http://localhost:5173` 🎉
 
-**See the docs for more:**
-- **[Quick Start](docs/quick-start.md)** - Get running in 60 seconds
-- **[Get Started Guide](docs/get-started.md)** - Step-by-step for beginners
-- **[Development Guide](docs/development.md)** - Full development docs
-- **[All Documentation](docs/)** - Complete documentation index
+### 💻 CLI Version
 
----
+**Download:** [Latest Release](https://github.com/IfrunRuhin12/PokeTacTix/releases)
 
-## 🚀 Latest Features (June, 2025)
+```bash
+# Linux/macOS
+chmod +x ./poketactix_*
+./poketactix_linux_amd64
 
-- **Modern 1v1 Battle Arena**: Beautiful, card-based UI with colored type badges, responsive layout, and smooth turn flow.
-- **Full Backend Logic**: All game rules (turns, moves, AI, sacrifice, surrender, damage, type multipliers) handled by Go backend for perfect consistency.
-- **Battle Log**: Grouped, turn-by-turn log matching the CLI, with move names and results.
-- **Surrender & Draw**: Surrender ends the battle instantly; draws are detected and shown.
-- **Result Banner**: Shows "You won!", "You lost", or "Draw!" based on the true outcome.
-- **5v5 Mode**: UI placeholder/under construction (coming soon).
-- **Frontend/Backend Sync**: All rules, turn order, and log formatting match between web and CLI.
+# Windows
+poketactix_windows_amd64.exe
+```
 
 ---
 
-## 🔮 What’s Next
+## 📚 Documentation
 
-- 5v5 **team battles** (full implementation)
-- Account system (login, persistent stats)
-- Multiplayer (PvP, matchmaking, live battles)
-- In-game store (buy/sell cards, cosmetics)
-- Card reveal/hide mechanics (fog of war, secret moves)
-- Deck building and export
-- More polish, animations, and accessibility improvements
+<table>
+<tr>
+<td align="center" width="25%">
+
+### ⚡ [Quick Start](docs/quick-start.md)
+*60 seconds to running*
+
+</td>
+<td align="center" width="25%">
+
+### 🛠️ [Development](docs/development.md)
+*Full dev setup*
+
+</td>
+<td align="center" width="25%">
+
+### 🚀 [Deploy](docs/DEPLOYMENT_GUIDE.md)
+*Production guide*
+
+</td>
+<td align="center" width="25%">
+
+### 📡 [API Docs](http://localhost:3000/api/docs)
+*Interactive API*
+
+</td>
+</tr>
+</table>
 
 ---
 
-## 👤 About
+## 🏗️ Tech Stack
 
-**PokeTacTix** is built by **Ifrun Kader Ruhin**, a student and dev leveling up full-stack real-time strategy games in Golang.
+<div align="center">
 
-Contributions are welcome — but watch my README evolve as the app does 😉  
-Expect new features and fresh rewrites soon.
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React + Vite + Tailwind CSS |
+| **Backend** | Go + Fiber |
+| **Database** | PostgreSQL (Neon) |
+| **Hosting** | Railway + Netlify |
+| **Auth** | JWT |
+
+</div>
 
 ---
 
-## 📄 License
+## 🎯 Roadmap
 
-This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license.  
-You're free to remix, adapt, and build upon it — just give credit and keep it non-commercial.  
-Full license text: https://creativecommons.org/licenses/by-nc/4.0/
+- [x] 1v1 Battles
+- [x] Card Collection
+- [x] Shop System
+- [x] Player Stats
+- [ ] 5v5 Team Battles
+- [ ] Multiplayer PvP
+- [ ] Trading System
+- [ ] Mobile App
+- [ ] Tournaments
 
-README.md
-Displaying README.md.
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Feel free to open issues or submit PRs.
+
+---
+
+<div align="center">
+
+### 👨‍💻 Built by **Ifrun Kader Ruhin**
+
+*Student & Full-Stack Developer*
+
+---
+
+### 📄 License
+
+**CC BY-NC 4.0** - Free for non-commercial use  
+[View License](https://creativecommons.org/licenses/by-nc/4.0/)
+
+---
+
+**⭐ Star this repo if you like it!**
+
+</div>

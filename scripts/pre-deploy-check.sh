@@ -210,9 +210,5 @@ else
     echo ""
     echo "You're ready to deploy! 🚀"
     echo ""
-    echo "Next steps:"
-    echo "1. Push to GitHub: git push origin main"
-    echo "2. Follow the deployment guide: docs/DEPLOYMENT_GUIDE.md"
-    echo "3. Or use quick deploy: docs/QUICK_DEPLOY.md"
     exit 0
 fi
