@@ -2,10 +2,20 @@
 nixPkgs = ["go"]
 
 [phases.install]
-cmds = ["go mod download"]
+cmds = [
+  "go mod download",
+  "go mod verify"
+]
 
 [phases.build]
-cmds = ["go build -o main ./cmd/api"]
+cmds = [
+  "go build -tags web -o main ./cmd/api"
+]
 
 [start]
 cmd = "./main"
+
+[variables]
+CGO_ENABLED = "0"
+GOOS = "linux"
+GOARCH = "amd64"

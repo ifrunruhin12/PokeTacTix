@@ -1,15 +1,22 @@
 # ◓ PokeTacTix
 
 A turn-based Pokémon card battle game 💥  
-**Frontend** (Alpine/Tailwind) hosted on **GitHub Pages**  
-**Backend** (Go + Fiber API) live on **Railway**
+**Frontend** (React + Vite) hosted on **Netlify**  
+**Backend** (Go + Fiber API) live on **Railway**  
+**Database** (PostgreSQL) on **Neon**
 
 ---
 
 ## 🧭 Live Demo
 
-- **Website**: https://ifrunruhin12.github.io/PokeTacTix/
-Hopefully will have it's own domain soon!
+- **Website**: [Coming Soon - Deploy with Netlify]
+- **API**: [Coming Soon - Deploy with Railway]
+
+## 🚀 Quick Deploy
+
+Want to deploy your own instance? See [Quick Deploy Guide](./docs/QUICK_DEPLOY.md) (30 minutes)
+
+For detailed deployment instructions, see [Deployment Guide](./docs/DEPLOYMENT_GUIDE.md)
 
 ---
 

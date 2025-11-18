@@ -1,3 +1,6 @@
+//go:build !cli
+// +build !cli
+
 package pokemon
 
 import (
@@ -5,44 +8,11 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 )
 
-var legendaryNames = []string{
-	"articuno", "zapdos", "moltres", "mewtwo", "raikou", "entei", "suicune", "lugia", "ho-oh",
-	"regirock", "regice", "registeel", "latias", "latios", "kyogre", "groudon", "rayquaza",
-	"uxie", "mesprit", "azelf", "dialga", "palkia", "heatran", "regigigas", "giratina", "cresselia",
-	"cobalion", "terrakion", "virizion", "tornadus", "thundurus", "reshiram", "zekrom", "landorus", "kyurem",
-	"xerneas", "yveltal", "zygarde", "tapu-koko", "tapu-lele", "tapu-bulu", "tapu-fini",
-	"cosmog", "cosmoem", "solgaleo", "lunala", "necrozma", "zamazenta", "zacian", "eternatus",
-	"kubfu", "urshifu", "regieleki", "regidrago", "glastrier", "spectrier", "calyrex", "enamorus",
-	"ting-lu", "chien-pao", "wo-chien", "chi-yu", "koraidon", "miraidon", "ogerpon",
-}
 
-var mythicalNames = []string{
-	"mew", "celebi", "jirachi", "deoxys", "phione", "manaphy", "darkrai", "shaymin", "arceus",
-	"victini", "keldeo", "meloetta", "genesect", "diancie", "hoopa", "volcanion",
-	"magearna", "marshadow", "zeraora", "meltan", "melmetal", "zarude",
-}
-
-// IsLegendaryOrMythical checks if a Pokemon is legendary or mythical
-func IsLegendaryOrMythical(name string) (isLegendary bool, isMythical bool) {
-	nameLower := strings.ToLower(name)
-
-	// Check if mythical
-	if slices.Contains(mythicalNames, nameLower) {
-		return false, true
-	}
-
-	// Check if legendary
-	if slices.Contains(legendaryNames, nameLower) {
-		return true, false
-	}
-
-	return false, false
-}
 
 // GetMoves fetches move details from the API
 func GetMoves(rawMoves []RawMove) []Move {
@@ -127,25 +97,21 @@ func FetchPokemon(name string) (Pokemon, []Move, error) {
 	return poke, pokeMoves, nil
 }
 
-// FetchRandomPokemonCard returns a random Card
-// There is a 0.01% chance for a mythical, 0.01% for a legendary, otherwise normal
+// FetchRandomPokemonCard returns a random Card from PokeAPI (web version)
 func FetchRandomPokemonCard(_ bool) Card {
 	mythicalOdds := 0.0001  // 0.01%
 	legendaryOdds := 0.0001 // 0.01%
-	maxRetries := 5         // Increased retries for better reliability
+	maxRetries := 5
 
 	for range maxRetries {
 		roll := rand.Float64()
 		var name string
 		if roll < mythicalOdds {
-			// Mythical
 			name = mythicalNames[rand.Intn(len(mythicalNames))]
 		} else if roll < mythicalOdds+legendaryOdds {
-			// Legendary
 			name = legendaryNames[rand.Intn(len(legendaryNames))]
 		} else {
-			// Normal - use Gen 1-5 for better reliability (fewer edge cases)
-			id := rand.Intn(649) + 1 // Gen 1-5
+			id := rand.Intn(649) + 1
 			name = fmt.Sprintf("%d", id)
 		}
 		poke, moves, err := FetchPokemon(name)
@@ -153,9 +119,7 @@ func FetchRandomPokemonCard(_ bool) Card {
 			continue
 		}
 		card := BuildCardFromPokemon(poke, moves)
-		// Ensure card has valid moves
 		if len(card.Moves) == 0 {
-			// Add a default move if none were found
 			card.Moves = []Move{
 				{Name: "tackle", Power: 40, StaminaCost: 13, Type: "normal"},
 			}
@@ -163,7 +127,7 @@ func FetchRandomPokemonCard(_ bool) Card {
 		return card
 	}
 
-	// Fallback to a reliable starter Pokemon if all retries fail
+	// Fallback to Pikachu
 	poke, moves, err := FetchPokemon("pikachu")
 	if err == nil {
 		card := BuildCardFromPokemon(poke, moves)
@@ -175,7 +139,7 @@ func FetchRandomPokemonCard(_ bool) Card {
 		return card
 	}
 
-	// Ultimate fallback - a valid dummy card with proper stats
+	// Ultimate fallback
 	return Card{
 		Name:    "Pikachu",
 		HP:      100,

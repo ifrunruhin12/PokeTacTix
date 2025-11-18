@@ -84,8 +84,17 @@ body {
   20%, 40%, 60%, 80% { transform: translateX(5px); }
 }
 
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .animate-shake {
   animation: shake 0.5s ease-in-out;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 3s linear infinite;
 }
 
 /* HP bar colors */

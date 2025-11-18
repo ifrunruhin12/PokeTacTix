@@ -5,6 +5,7 @@
 .env
 .env.local
 .env.*.local
+RAILWAY_ENV_VARS.md
 
 # Go build artifacts
 bin/
