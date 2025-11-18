@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 )
 
 var legendaryNames = []string{
@@ -49,13 +50,17 @@ func GetMoves(rawMoves []RawMove) []Move {
 	perm := rand.Perm(len(rawMoves))
 	var gameMoves []Move
 
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 3 * time.Second,
+	}
+
 	for _, i := range perm {
 		moveURL := rawMoves[i].Move.URL
-		resp, err := http.Get(moveURL)
+		resp, err := client.Get(moveURL)
 		if err != nil {
 			continue
 		}
-		defer resp.Body.Close()
 
 		var data struct {
 			Name  string `json:"name"`
@@ -66,8 +71,10 @@ func GetMoves(rawMoves []RawMove) []Move {
 		}
 
 		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+			resp.Body.Close()
 			continue
 		}
+		resp.Body.Close()
 
 		if data.Power <= 0 {
 			continue
@@ -91,12 +98,19 @@ func GetMoves(rawMoves []RawMove) []Move {
 // FetchPokemon fetches Pokemon data from the PokeAPI
 func FetchPokemon(name string) (Pokemon, []Move, error) {
 	url := "https://pokeapi.co/api/v2/pokemon/" + strings.ToLower(name)
-	resp, err := http.Get(url)
+
+	// Create HTTP client with timeout to prevent hanging
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	resp, err := client.Get(url)
 	if err != nil {
 		return Pokemon{}, nil, fmt.Errorf("failed to fetch pokemon data: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
 		return Pokemon{}, nil, fmt.Errorf("Pokemon \"%s\" not found. Please check the name and try again", name)
 	}
 
@@ -118,7 +132,7 @@ func FetchPokemon(name string) (Pokemon, []Move, error) {
 func FetchRandomPokemonCard(_ bool) Card {
 	mythicalOdds := 0.0001  // 0.01%
 	legendaryOdds := 0.0001 // 0.01%
-	maxRetries := 3
+	maxRetries := 5         // Increased retries for better reliability
 
 	for range maxRetries {
 		roll := rand.Float64()
@@ -130,17 +144,51 @@ func FetchRandomPokemonCard(_ bool) Card {
 			// Legendary
 			name = legendaryNames[rand.Intn(len(legendaryNames))]
 		} else {
-			// Normal
-			id := rand.Intn(898) + 1 // Gen 1-8, skip forms
+			// Normal - use Gen 1-5 for better reliability (fewer edge cases)
+			id := rand.Intn(649) + 1 // Gen 1-5
 			name = fmt.Sprintf("%d", id)
 		}
 		poke, moves, err := FetchPokemon(name)
 		if err != nil {
 			continue
 		}
-		return BuildCardFromPokemon(poke, moves)
+		card := BuildCardFromPokemon(poke, moves)
+		// Ensure card has valid moves
+		if len(card.Moves) == 0 {
+			// Add a default move if none were found
+			card.Moves = []Move{
+				{Name: "tackle", Power: 40, StaminaCost: 13, Type: "normal"},
+			}
+		}
+		return card
 	}
 
-	// Fallback dummy card
-	return Card{Name: "MissingNo", HP: 33, Types: []string{"???"}}
+	// Fallback to a reliable starter Pokemon if all retries fail
+	poke, moves, err := FetchPokemon("pikachu")
+	if err == nil {
+		card := BuildCardFromPokemon(poke, moves)
+		if len(card.Moves) == 0 {
+			card.Moves = []Move{
+				{Name: "thunderbolt", Power: 90, StaminaCost: 30, Type: "electric"},
+			}
+		}
+		return card
+	}
+
+	// Ultimate fallback - a valid dummy card with proper stats
+	return Card{
+		Name:    "Pikachu",
+		HP:      100,
+		HPMax:   100,
+		Stamina: 100,
+		Attack:  55,
+		Defense: 40,
+		Speed:   90,
+		Types:   []string{"electric"},
+		Moves: []Move{
+			{Name: "thunderbolt", Power: 90, StaminaCost: 30, Type: "electric"},
+			{Name: "quick-attack", Power: 40, StaminaCost: 13, Type: "normal"},
+		},
+		Sprite: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png",
+	}
 }
