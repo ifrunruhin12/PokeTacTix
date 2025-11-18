@@ -258,8 +258,17 @@ func main() {
 	successCount := 0
 	failCount := 0
 	
+	fmt.Println("\n🔄 Fetching Pokemon data from PokeAPI...")
+	fmt.Println("This will take 5-10 minutes (649 Pokemon)")
+	fmt.Println("Progress:")
+	
 	// Fetch Pokemon 1-649 (Gen 1-5)
 	for id := 1; id <= 649; id++ {
+		// Show progress every 10 Pokemon
+		if id%10 == 0 || id == 1 {
+			fmt.Printf("\r  [%d/649] %.1f%% complete...", id, float64(id)/649*100)
+		}
+		
 		log.Printf("Fetching Pokemon %d/649...", id)
 		
 		pokemon, err := fetchPokemonData(id, client)
@@ -291,14 +300,10 @@ func main() {
 		
 		// Rate limiting: 1 request per 100ms
 		time.Sleep(100 * time.Millisecond)
-		
-		// Progress update every 50 Pokemon
-		if id%50 == 0 {
-			log.Printf("Progress: %d/649 (Success: %d, Failed: %d)", id, successCount, failCount)
-		}
 	}
 	
-	log.Printf("Fetch complete! Success: %d, Failed: %d", successCount, failCount)
+	fmt.Printf("\r  [649/649] 100%% complete!    \n\n")
+	log.Printf("✅ Fetch complete! Success: %d, Failed: %d", successCount, failCount)
 	
 	// Create output directory
 	outputDir := "internal/pokemon/data"
@@ -324,7 +329,7 @@ func main() {
 	fileInfo, _ := file.Stat()
 	sizeMB := float64(fileInfo.Size()) / (1024 * 1024)
 	
-	log.Printf("Successfully generated %s (%.2f MB)", outputPath, sizeMB)
-	log.Printf("Total Pokemon: %d", len(database.Pokemon))
-	log.Println("Generation complete!")
+	log.Printf("💾 Successfully generated %s (%.2f MB)", outputPath, sizeMB)
+	log.Printf("📊 Total Pokemon: %d", len(database.Pokemon))
+	log.Println("🎉 Generation complete!")
 }

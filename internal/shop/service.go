@@ -71,22 +71,13 @@ func (s *Service) generateInventory() {
 	// Add 10-15 common/uncommon Pokemon
 	commonUncommonCount := 10 + rand.Intn(6) // 10-15
 	for i := 0; i < commonUncommonCount; i++ {
-		// Random Pokemon ID from Gen 1-8 (excluding legendaries)
-		pokemonID := rand.Intn(898) + 1
-		pokemonName := fmt.Sprintf("%d", pokemonID)
-
-		poke, moves, err := pokemon.FetchPokemon(pokemonName)
-		if err != nil {
-			continue
-		}
-
+		// Use offline data - fetch random Pokemon card
+		card := pokemon.FetchRandomPokemonCard(false)
+		
 		// Skip if legendary or mythical
-		isLegendary, isMythical := pokemon.IsLegendaryOrMythical(poke.Name)
-		if isLegendary || isMythical {
+		if card.IsLegendary || card.IsMythical {
 			continue
 		}
-
-		card := pokemon.BuildCardFromPokemon(poke, moves)
 
 		// Determine rarity and price based on base stats
 		totalStats := card.Attack + card.Defense + card.Speed + card.HPMax
@@ -124,21 +115,13 @@ func (s *Service) generateInventory() {
 	// Add 5-8 rare Pokemon
 	rareCount := 5 + rand.Intn(4) // 5-8
 	for i := 0; i < rareCount; i++ {
-		pokemonID := rand.Intn(898) + 1
-		pokemonName := fmt.Sprintf("%d", pokemonID)
-
-		poke, moves, err := pokemon.FetchPokemon(pokemonName)
-		if err != nil {
-			continue
-		}
-
+		// Use offline data - fetch random Pokemon card
+		card := pokemon.FetchRandomPokemonCard(false)
+		
 		// Skip if legendary or mythical
-		isLegendary, isMythical := pokemon.IsLegendaryOrMythical(poke.Name)
-		if isLegendary || isMythical {
+		if card.IsLegendary || card.IsMythical {
 			continue
 		}
-
-		card := pokemon.BuildCardFromPokemon(poke, moves)
 
 		items = append(items, ShopItem{
 			PokemonName: card.Name,
@@ -162,42 +145,28 @@ func (s *Service) generateInventory() {
 		specialCount := 1 + rand.Intn(2) // 1-2
 
 		for i := 0; i < specialCount; i++ {
-			// 50/50 chance between legendary and mythical
-			var pokemonName string
-			var isLegendary, isMythical bool
+			// Try to get a legendary/mythical from offline data
+			card := pokemon.FetchRandomPokemonCard(true) // true = allow special
+			
+			// Determine if it's legendary or mythical
+			isLegendary := card.IsLegendary
+			isMythical := card.IsMythical
+			
+			// If we didn't get a special Pokemon, skip this iteration
+			if !isLegendary && !isMythical {
+				continue
+			}
+			
 			var price int
 			var rarity string
-
-			if rand.Float64() < 0.5 {
-				// Legendary
-				legendaryList := []string{
-					"articuno", "zapdos", "moltres", "mewtwo", "raikou", "entei", "suicune", "lugia", "ho-oh",
-					"regirock", "regice", "registeel", "latias", "latios", "kyogre", "groudon", "rayquaza",
-				}
-				pokemonName = legendaryList[rand.Intn(len(legendaryList))]
-				isLegendary = true
-				isMythical = false
+			
+			if isLegendary {
 				price = 2500
 				rarity = "legendary"
 			} else {
-				// Mythical
-				mythicalList := []string{
-					"mew", "celebi", "jirachi", "deoxys", "manaphy", "darkrai", "shaymin",
-					"victini", "keldeo", "meloetta", "genesect", "diancie", "hoopa", "volcanion",
-				}
-				pokemonName = mythicalList[rand.Intn(len(mythicalList))]
-				isLegendary = false
-				isMythical = true
 				price = 5000
 				rarity = "mythical"
 			}
-
-			poke, moves, err := pokemon.FetchPokemon(pokemonName)
-			if err != nil {
-				continue
-			}
-
-			card := pokemon.BuildCardFromPokemon(poke, moves)
 
 			items = append(items, ShopItem{
 				PokemonName: card.Name,
