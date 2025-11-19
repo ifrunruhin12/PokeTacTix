@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ PokeTacTix
+# <img src="https://raw.githubusercontent.com/ifrunruhin12/PokeTacTix/refs/heads/main/frontend/public/assets/pokeball-throwing.gif"/> PokeTacTix
 
 ### *Strategic Turn-Based Pokémon Card Battles*
 
@@ -8,15 +8,15 @@
 <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
 <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
 
-**[🎮 Play Now](#) • [📖 Docs](./docs/)**
+**[🎮 Play Now](poketactix.netlify.app) • [📖 Docs](./docs/)**
 
 </div>
 
 ---
 
-## 🎯 What is this?
+## 🎯 What is PokeTacTix?
 
-Battle, collect, and level up Pokémon cards in strategic turn-based combat. Build your perfect deck, master type advantages, and climb the ranks.
+PokeTactix is a strategic game where you battle, collect, and level up Pokémon cards in strategic turn-based combat. Build your perfect deck, master type advantages, and climb the ranks.
 
 <table>
 <tr>
