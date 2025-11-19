@@ -8,7 +8,7 @@
 <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
 <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
 
-**[🎮 Play Now](#) • [📖 Docs](./docs/) • [🚀 Deploy](./docs/QUICK_DEPLOY.md)**
+**[🎮 Play Now](#) • [📖 Docs](./docs/)**
 
 </div>
 
@@ -80,11 +80,7 @@ Buy rare Pokémon, build your dream team
 
 ### 🌐 Web Version
 
-```bash
-make dev
-```
-
-Opens at `http://localhost:5173` 🎉
+Click the link and start playing `http://poketactix.netlify.app` 🎉
 
 ### 💻 CLI Version
 
@@ -119,8 +115,8 @@ poketactix_windows_amd64.exe
 </td>
 <td align="center" width="25%">
 
-### 🚀 [Deploy](docs/DEPLOYMENT_GUIDE.md)
-*Production guide*
+### 🚀 [Get Started](docs/get-started.md)
+*How to kick off things*
 
 </td>
 <td align="center" width="25%">
@@ -156,7 +152,7 @@ poketactix_windows_amd64.exe
 - [x] Card Collection
 - [x] Shop System
 - [x] Player Stats
-- [ ] 5v5 Team Battles
+- [x] 5v5 Team Battles
 - [ ] Multiplayer PvP
 - [ ] Trading System
 - [ ] Mobile App
@@ -174,7 +170,7 @@ Contributions welcome! Feel free to open issues or submit PRs.
 
 ### 👨‍💻 Built by **Ifrun Kader Ruhin**
 
-*Student & Full-Stack Developer*
+*Self-taught engineer & constant learner*
 
 ---
 
