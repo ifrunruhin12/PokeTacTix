@@ -562,6 +562,18 @@ func (bc *BattleCommand) handleBattleEnd(bs *battle.BattleState, mode string) er
 		fmt.Println(ui.Colorize("✓ Game saved successfully", ui.ColorGreen))
 	}
 
+	// Check if shop should be refreshed
+	if bc.gameState.ShopState.BattlesSinceRefresh >= 10 {
+		shopCmd := NewShopCommand(bc.gameState, bc.renderer, bc.scanner)
+		if err := shopCmd.CheckAndRefreshShop(); err != nil {
+			fmt.Printf("Warning: Failed to refresh shop: %v\n", err)
+		}
+		// Save again after shop refresh
+		if err := storage.SaveGameState(bc.gameState); err != nil {
+			fmt.Printf("Warning: Failed to save shop refresh: %v\n", err)
+		}
+	}
+
 	fmt.Println()
 	fmt.Println("Press Enter to continue...")
 	bc.scanner.Scan()

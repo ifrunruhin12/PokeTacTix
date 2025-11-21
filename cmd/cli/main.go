@@ -117,7 +117,14 @@ func runCommandLoop(state *storage.GameState) {
 			handleDeckCommand(state, renderer, scanner, parts)
 
 		case "stats", "st":
-			showStats(state)
+			statsCmd := commands.NewStatsCommand(state, renderer, scanner)
+			if err := statsCmd.ViewStats(); err != nil {
+				if ui.GetColorSupport() {
+					fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Stats error: %v", err), ui.ColorRed))
+				} else {
+					fmt.Printf("Stats error: %v\n", err)
+				}
+			}
 
 		case "battle", "b":
 			battleCmd := commands.NewBattleCommand(state, renderer, scanner)
@@ -129,6 +136,22 @@ func runCommandLoop(state *storage.GameState) {
 				}
 			}
 			// Reload game state after battle
+			var err error
+			state, err = storage.LoadGameState()
+			if err != nil {
+				log.Printf("Warning: Failed to reload game state: %v", err)
+			}
+
+		case "shop", "s":
+			shopCmd := commands.NewShopCommand(state, renderer, scanner)
+			if err := shopCmd.ViewShop(); err != nil {
+				if ui.GetColorSupport() {
+					fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Shop error: %v", err), ui.ColorRed))
+				} else {
+					fmt.Printf("Shop error: %v\n", err)
+				}
+			}
+			// Reload game state after shop
 			var err error
 			state, err = storage.LoadGameState()
 			if err != nil {
@@ -179,6 +202,7 @@ func showHelp() {
 		{"deck", "d", "View your battle deck"},
 		{"deck edit", "", "Edit your battle deck"},
 		{"battle", "b", "Start a battle (1v1 or 5v5)"},
+		{"shop", "s", "Visit the Pokemon shop"},
 		{"stats", "st", "View your battle statistics"},
 		{"quit", "q, exit", "Exit the game"},
 		{"reset", "", "Reset game (delete save file)"},
@@ -193,11 +217,6 @@ func showHelp() {
 	}
 
 	fmt.Println()
-	if ui.GetColorSupport() {
-		fmt.Println(ui.Colorize("Note: Shop and other commands are coming soon!", ui.ColorYellow))
-	} else {
-		fmt.Println("Note: Shop and other commands are coming soon!")
-	}
 }
 
 func handleDeckCommand(state *storage.GameState, renderer *ui.Renderer, scanner *bufio.Scanner, parts []string) {
@@ -241,46 +260,7 @@ func handleDeckCommand(state *storage.GameState, renderer *ui.Renderer, scanner 
 	}
 }
 
-func showStats(state *storage.GameState) {
-	fmt.Println()
-	if ui.GetColorSupport() {
-		fmt.Println(ui.Colorize("=== BATTLE STATISTICS ===", ui.ColorBrightYellow))
-	} else {
-		fmt.Println("=== BATTLE STATISTICS ===")
-	}
-	fmt.Println()
 
-	// 1v1 Stats
-	fmt.Println("1v1 Battles:")
-	fmt.Printf("  Total: %d\n", state.Stats.TotalBattles1v1)
-	fmt.Printf("  Wins: %d\n", state.Stats.Wins1v1)
-	fmt.Printf("  Losses: %d\n", state.Stats.Losses1v1)
-	fmt.Printf("  Draws: %d\n", state.Stats.Draws1v1)
-	if state.Stats.TotalBattles1v1 > 0 {
-		winRate := float64(state.Stats.Wins1v1) / float64(state.Stats.TotalBattles1v1) * 100
-		fmt.Printf("  Win Rate: %.1f%%\n", winRate)
-	}
-	fmt.Println()
-
-	// 5v5 Stats
-	fmt.Println("5v5 Battles:")
-	fmt.Printf("  Total: %d\n", state.Stats.TotalBattles5v5)
-	fmt.Printf("  Wins: %d\n", state.Stats.Wins5v5)
-	fmt.Printf("  Losses: %d\n", state.Stats.Losses5v5)
-	fmt.Printf("  Draws: %d\n", state.Stats.Draws5v5)
-	if state.Stats.TotalBattles5v5 > 0 {
-		winRate := float64(state.Stats.Wins5v5) / float64(state.Stats.TotalBattles5v5) * 100
-		fmt.Printf("  Win Rate: %.1f%%\n", winRate)
-	}
-	fmt.Println()
-
-	// Overall Stats
-	fmt.Println("Overall:")
-	fmt.Printf("  Total Pokemon: %d\n", state.Stats.TotalPokemon)
-	fmt.Printf("  Highest Level: %d\n", state.Stats.HighestLevel)
-	fmt.Printf("  Total Coins Earned: %d\n", state.Stats.TotalCoinsEarned)
-	fmt.Printf("  Current Coins: %d\n", state.Coins)
-}
 
 func confirmReset() bool {
 	fmt.Println()
