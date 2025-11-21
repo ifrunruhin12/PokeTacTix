@@ -47,6 +47,7 @@ type Move struct {
 
 // Card represents a Pokemon card for battles
 type Card struct {
+	CardID      int      // Database card ID (for tracking XP rewards)
 	Name        string
 	HP          int
 	HPMax       int

@@ -232,16 +232,29 @@ func (r *Renderer) renderPokemonCard(card *battle.BattleCard, isPlayer bool) str
 	// Separator
 	result.WriteString("├────────────────────────┤\n")
 
-	// HP Bar
-	hpBar := RenderHPBar(card.HP, card.HPMax, 16)
-	// Strip to fit
-	hpDisplay := fmt.Sprintf("│ HP:  %-16s │\n", stripANSIToLength(hpBar, 16))
-	result.WriteString(hpDisplay)
+	// HP Bar - render with smaller bar width to fit numeric values
+	hpBar := RenderHPBar(card.HP, card.HPMax, 8)
+	hpStripped := stripANSI(hpBar)
+	hpPadding := 18 - len(hpStripped)
+	if hpPadding < 0 {
+		hpPadding = 0
+	}
+	result.WriteString("│ HP:  ")
+	result.WriteString(hpBar)
+	result.WriteString(strings.Repeat(" ", hpPadding))
+	result.WriteString(" │\n")
 
-	// Stamina Bar
-	staminaBar := RenderStaminaBar(card.Stamina, card.StaminaMax, 16)
-	staDisplay := fmt.Sprintf("│ STA: %-16s │\n", stripANSIToLength(staminaBar, 16))
-	result.WriteString(staDisplay)
+	// Stamina Bar - render with smaller bar width to fit numeric values
+	staminaBar := RenderStaminaBar(card.Stamina, card.StaminaMax, 8)
+	staStripped := stripANSI(staminaBar)
+	staPadding := 18 - len(staStripped)
+	if staPadding < 0 {
+		staPadding = 0
+	}
+	result.WriteString("│ STA: ")
+	result.WriteString(staminaBar)
+	result.WriteString(strings.Repeat(" ", staPadding))
+	result.WriteString(" │\n")
 
 	// Stats
 	result.WriteString(fmt.Sprintf("│ ATK: %-3d  DEF: %-3d    │\n", card.Attack, card.Defense))

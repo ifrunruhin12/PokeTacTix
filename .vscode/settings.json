@@ -1,2 +1,6 @@
 {
+  "go.buildTags": "cli",
+  "gopls": {
+    "build.buildFlags": ["-tags=cli"]
+  }
 }

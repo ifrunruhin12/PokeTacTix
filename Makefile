@@ -100,6 +100,17 @@ build: ## 🔨 Build Go binary and check for compile errors
 	@go build -o bin/poketactix ./cmd/api
 	@echo "✅ Build complete - binary at bin/poketactix"
 
+build-cli: ## 🎮 Build CLI binary
+	@echo "Building CLI binary..."
+	@go build -tags cli -o bin/poketactix-cli ./cmd/cli
+	@echo "✅ CLI build complete - binary at bin/poketactix-cli"
+	@echo ""
+	@echo "Run with: ./bin/poketactix-cli"
+
+run-cli: build-cli ## 🎮 Build and run CLI
+	@echo ""
+	@./bin/poketactix-cli
+
 build-docker: ## 🔨 Rebuild all Docker containers
 	@echo "Building containers..."
 	@docker-compose build

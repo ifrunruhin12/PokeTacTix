@@ -164,7 +164,11 @@ func (r *Renderer) RenderBorderedMenu(options []MenuOption, selected int, title 
 	for i, option := range options {
 		isSelected := i == selected
 
-		// Option line
+		// Build plain text version for length calculation
+		plainOption := fmt.Sprintf("   [%d] %s", i+1, option.Label)
+		plainLen := len(plainOption)
+
+		// Option line with potential coloring
 		var optionLine string
 		if isSelected {
 			if r.ColorSupport {
@@ -174,11 +178,11 @@ func (r *Renderer) RenderBorderedMenu(options []MenuOption, selected int, title 
 				optionLine = fmt.Sprintf(" >[%d] %s", i+1, option.Label)
 			}
 		} else {
-			optionLine = fmt.Sprintf("   [%d] %s", i+1, option.Label)
+			optionLine = plainOption
 		}
 
-		// Pad to width
-		padding := maxWidth - len(fmt.Sprintf("   [%d] %s", i+1, option.Label))
+		// Pad to width (use plain length for calculation)
+		padding := maxWidth - plainLen
 		if padding < 0 {
 			padding = 0
 		}
@@ -190,17 +194,21 @@ func (r *Renderer) RenderBorderedMenu(options []MenuOption, selected int, title 
 
 		// Description line if present
 		if option.Description != "" {
-			descLine := "     " + option.Description
-			if r.ColorSupport {
-				descLine = Colorize(descLine, ColorGray)
-			}
+			plainDesc := "     " + option.Description
+			plainDescLen := len(plainDesc)
 			
 			// Truncate if too long
-			if len(descLine) > maxWidth-2 {
-				descLine = descLine[:maxWidth-5] + "..."
+			if plainDescLen > maxWidth {
+				plainDesc = plainDesc[:maxWidth-3] + "..."
+				plainDescLen = maxWidth
 			}
 			
-			descPadding := maxWidth - len("     "+option.Description)
+			descLine := plainDesc
+			if r.ColorSupport {
+				descLine = Colorize(plainDesc, ColorGray)
+			}
+			
+			descPadding := maxWidth - plainDescLen
 			if descPadding < 0 {
 				descPadding = 0
 			}

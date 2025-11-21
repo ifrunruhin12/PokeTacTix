@@ -46,15 +46,25 @@ func CalculateAllRewards(bs *BattleState) *ComprehensiveRewards {
 	}
 
 	// Calculate coins based on mode and outcome
-	if bs.Winner == "player" {
+	switch bs.Winner {
+	case "player":
+		// Win rewards
 		switch bs.Mode {
 		case "1v1":
 			rewards.CoinsEarned = 50
 		case "5v5":
 			rewards.CoinsEarned = 150
 		}
-	} else {
-		// Consolation coins for losing
+	case "draw":
+		// Draw rewards (more than loss, less than win)
+		switch bs.Mode {
+		case "1v1":
+			rewards.CoinsEarned = 25
+		case "5v5":
+			rewards.CoinsEarned = 75
+		}
+	default:
+		// Loss consolation coins
 		rewards.CoinsEarned = 10
 	}
 
@@ -390,12 +400,16 @@ func RecordBattleHistory(ctx context.Context, db *pgxpool.Pool, userID int, bs *
 	case "1v1":
 		if result == "win" {
 			column = "wins_1v1"
+		} else if result == "draw" {
+			column = "draws_1v1"
 		} else {
 			column = "losses_1v1"
 		}
 	case "5v5":
 		if result == "win" {
 			column = "wins_5v5"
+		} else if result == "draw" {
+			column = "draws_5v5"
 		} else {
 			column = "losses_5v5"
 		}

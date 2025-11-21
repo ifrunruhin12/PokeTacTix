@@ -32,26 +32,38 @@ func CalculateXPForBattle(bs *BattleState) map[int]int {
 
 	// Determine base XP based on mode and result
 	var baseXP int
-	isWin := bs.Winner == "player"
+	
+	switch bs.Winner {
+	case "player":
+		// Win XP
+		if bs.Mode == "1v1" {
+			baseXP = 20
+		} else {
+			baseXP = 15
+		}
+	case "draw":
+		// Draw XP (more than loss, less than win)
+		if bs.Mode == "1v1" {
+			baseXP = 10
+		} else {
+			baseXP = 8
+		}
+	default:
+		// Loss XP
+		baseXP = 5
+	}
 
 	switch bs.Mode {
 	case "1v1":
-		if isWin {
-			baseXP = 20
-		} else {
-			baseXP = 5
-		}
-		// In 1v1, only the active Pokemon gets XP
-		playerCard := bs.GetActivePlayerCard()
-		if playerCard != nil {
-			xpMap[playerCard.CardID] = baseXP
+		// In 1v1, find the Pokemon that actually participated
+		// This is the Pokemon that took damage or was knocked out
+		for _, card := range bs.PlayerDeck {
+			if card.HP < card.HPMax || card.IsKnockedOut {
+				xpMap[card.CardID] = baseXP
+				break // Only one Pokemon participates in 1v1
+			}
 		}
 	case "5v5":
-		if isWin {
-			baseXP = 15
-		} else {
-			baseXP = 5
-		}
 		// In 5v5, all Pokemon that participated get XP
 		// A Pokemon participated if it took damage or was knocked out
 		for _, card := range bs.PlayerDeck {

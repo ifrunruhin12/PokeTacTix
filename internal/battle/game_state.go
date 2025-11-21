@@ -61,7 +61,13 @@ type TurnState struct {
 }
 
 // ConvertToBattleCard converts a pokemon.Card to a BattleCard
-func ConvertToBattleCard(card pokemon.Card, cardID int) BattleCard {
+func ConvertToBattleCard(card pokemon.Card, fallbackID int) BattleCard {
+	// Use the card's CardID if available, otherwise use fallbackID
+	cardID := card.CardID
+	if cardID == 0 {
+		cardID = fallbackID
+	}
+	
 	return BattleCard{
 		CardID:       cardID,
 		Name:         card.Name,
@@ -76,7 +82,7 @@ func ConvertToBattleCard(card pokemon.Card, cardID int) BattleCard {
 		Moves:        card.Moves,
 		Sprite:       card.Sprite,
 		IsKnockedOut: card.HP <= 0,
-		Level:        1, // Default level, will be updated from database
+		Level:        card.Level,
 	}
 }
 

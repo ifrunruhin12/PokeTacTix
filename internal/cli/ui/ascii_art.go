@@ -7,17 +7,16 @@ import (
 
 // LogoASCII is the PokeTacTix game logo
 const LogoASCII = `
-╔═══════════════════════════════════════════════════════════════════════════╗
-║  ██████╗  ██████╗ ██╗  ██╗███████╗████████╗ █████╗  ██████╗████████╗██╗██╗ ██╗ ║
-║  ██╔══██╗██╔═══██╗██║ ██╔╝██╔════╝╚══██╔══╝██╔══██╗██╔════╝╚══██╔══╝██║╚██╗██╔╝ ║
-║  ██████╔╝██║   ██║█████╔╝ █████╗     ██║   ███████║██║        ██║   ██║ ╚███╔╝  ║
-║  ██╔═══╝ ██║   ██║██╔═██╗ ██╔══╝     ██║   ██╔══██║██║        ██║   ██║ ██╔██╗  ║
-║  ██║     ╚██████╔╝██║  ██╗███████╗   ██║   ██║  ██║╚██████╗   ██║   ██║██╔╝ ██╗ ║
-║  ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝   ╚═╝   ╚═╝╚═╝  ╚═╝ ║
-╚═══════════════════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║  ██████╗  ██████╗ ██╗  ██╗███████╗████████╗ █████╗  ██████╗████████╗██╗██╗  ██╗  ║
+║  ██╔══██╗██╔═══██╗██║ ██╔╝██╔════╝╚══██╔══╝██╔══██╗██╔════╝╚══██╔══╝██║╚██╗██╔╝  ║
+║  ██████╔╝██║   ██║█████╔╝ █████╗     ██║   ███████║██║        ██║   ██║ ╚███╔╝   ║
+║  ██╔═══╝ ██║   ██║██╔═██╗ ██╔══╝     ██║   ██╔══██║██║        ██║   ██║ ██╔██╗   ║
+║  ██║     ╚██████╔╝██║  ██╗███████╗   ██║   ██║  ██║╚██████╗   ██║   ██║██╔╝ ██╗  ║
+║  ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝   ╚═╝   ╚═╝╚═╝  ╚═╝  ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
 `
 
-// PokeballASCII is a simple Pokeball representation for face-down cards
 const PokeballASCII = `
      ___
    /     \
@@ -26,14 +25,12 @@ const PokeballASCII = `
    \_____/
 `
 
-// SmallPokeballASCII is a compact Pokeball for inline use
 const SmallPokeballASCII = `
   ___
  / ◯ \
  \___/
 `
 
-// RenderLogo displays the game logo with optional color
 func RenderLogo() string {
 	if GetColorSupport() {
 		return Colorize(LogoASCII, ColorBrightCyan)
@@ -41,10 +38,6 @@ func RenderLogo() string {
 	return LogoASCII
 }
 
-// RenderHPBar creates an ASCII HP bar visualization
-// current: current HP value
-// max: maximum HP value
-// width: width of the bar in characters (default 20 if <= 0)
 func RenderHPBar(current, max int, width int) string {
 	if width <= 0 {
 		width = 20
@@ -84,10 +77,6 @@ func RenderHPBar(current, max int, width int) string {
 	return fmt.Sprintf("%s %d/%d", bar, current, max)
 }
 
-// RenderStaminaBar creates an ASCII stamina bar visualization
-// current: current stamina value
-// max: maximum stamina value
-// width: width of the bar in characters (default 20 if <= 0)
 func RenderStaminaBar(current, max int, width int) string {
 	if width <= 0 {
 		width = 20
@@ -120,7 +109,7 @@ func RenderStaminaBar(current, max int, width int) string {
 // RenderTypeBadge creates a colored type badge
 func RenderTypeBadge(pokemonType string) string {
 	typeName := strings.ToUpper(pokemonType)
-	
+
 	// Pad to consistent width (10 characters)
 	if len(typeName) < 10 {
 		padding := (10 - len(typeName)) / 2
@@ -188,7 +177,7 @@ func RenderBox(title string, content []string, width int) string {
 	titleLen := len(title)
 	leftPad := (width - titleLen - 2) / 2
 	rightPad := width - titleLen - 2 - leftPad
-	
+
 	result.WriteString("┌")
 	result.WriteString(strings.Repeat("─", leftPad))
 	result.WriteString(" " + title + " ")
@@ -233,6 +222,6 @@ func RenderProgressBar(current, max int, width int, label string) string {
 	empty := width - filled
 
 	bar := strings.Repeat("█", filled) + strings.Repeat("░", empty)
-	
+
 	return fmt.Sprintf("%s: %s %d/%d (%.0f%%)", label, bar, current, max, percentage*100)
 }

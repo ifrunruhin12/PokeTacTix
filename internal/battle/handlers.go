@@ -66,6 +66,7 @@ func ConvertPlayerCardToPokemonCard(dbCard database.PlayerCard) pokemon.Card {
 	stats := dbCard.GetCurrentStats()
 
 	return pokemon.Card{
+		CardID:      dbCard.ID, // Store the database card ID
 		Name:        dbCard.PokemonName,
 		HP:          stats.HP,
 		HPMax:       stats.HP,
