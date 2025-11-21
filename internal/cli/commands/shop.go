@@ -298,7 +298,7 @@ func (sc *ShopCommand) BuyPokemon(index int) error {
 		return fmt.Errorf("not enough coins! You need %d coins but only have %d", item.Price, sc.gameState.Coins)
 	}
 
-	// Display purchase confirmation
+	// Display purchase details and get confirmation
 	fmt.Println()
 	fmt.Println(strings.Repeat("─", 60))
 	fmt.Println(ui.Colorize("PURCHASE CONFIRMATION", ui.Bold+ui.ColorBrightYellow))
@@ -323,18 +323,18 @@ func (sc *ShopCommand) BuyPokemon(index int) error {
 	fmt.Printf("Stats: HP=%d, ATK=%d, DEF=%d, SPD=%d\n",
 		item.BaseHP, item.BaseAttack, item.BaseDefense, item.BaseSpeed)
 	fmt.Printf("Rarity: %s\n", strings.ToUpper(item.Rarity))
-	fmt.Printf("Price: %s\n", ui.Colorize(fmt.Sprintf("%d coins", item.Price), ui.ColorYellow))
 	fmt.Println()
-	fmt.Printf("Your coins after purchase: %d\n", sc.gameState.Coins-item.Price)
-	fmt.Println()
-	fmt.Print("Confirm purchase? (y/n): ")
 
-	if !sc.scanner.Scan() {
-		return fmt.Errorf("failed to read input")
+	// Use confirmation prompt for expensive purchases (>= 250 coins)
+	var confirmed bool
+	if item.Price >= 250 {
+		confirmed = ui.ConfirmExpensivePurchase(sc.scanner, item.Name, item.Price, sc.gameState.Coins)
+	} else {
+		// For cheaper items, use simple confirmation
+		confirmed = ui.ConfirmationPrompt(sc.scanner, "Confirm purchase?", true)
 	}
 
-	confirm := strings.ToLower(strings.TrimSpace(sc.scanner.Text()))
-	if confirm != "y" && confirm != "yes" {
+	if !confirmed {
 		fmt.Println()
 		fmt.Println(ui.Colorize("Purchase cancelled.", ui.ColorYellow))
 		time.Sleep(1 * time.Second)

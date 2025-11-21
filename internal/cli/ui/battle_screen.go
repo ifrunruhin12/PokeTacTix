@@ -409,3 +409,94 @@ func (r *Renderer) RenderPokemonSwitchMenu(deck []battle.BattleCard, activeIdx i
 
 	return result.String()
 }
+
+// RenderBattleScreenCondensed displays a condensed battle state for quick battle mode
+func (r *Renderer) RenderBattleScreenCondensed(bs *battle.BattleState) string {
+	var result strings.Builder
+
+	// Simple header
+	result.WriteString(strings.Repeat("═", 60))
+	result.WriteString("\n")
+	
+	title := fmt.Sprintf("BATTLE %s | Turn %d", strings.ToUpper(bs.Mode), bs.TurnNumber)
+	if r.ColorSupport {
+		result.WriteString(Colorize(title, Bold+ColorBrightCyan))
+	} else {
+		result.WriteString(title)
+	}
+	result.WriteString("\n")
+	result.WriteString(strings.Repeat("═", 60))
+	result.WriteString("\n\n")
+
+	// Get active Pokemon
+	playerActive := bs.GetActivePlayerCard()
+	aiActive := bs.GetActiveAICard()
+
+	// Player Pokemon (condensed)
+	if playerActive != nil {
+		result.WriteString("PLAYER: ")
+		if r.ColorSupport {
+			result.WriteString(Colorize(playerActive.Name, Bold+ColorBrightGreen))
+		} else {
+			result.WriteString(playerActive.Name)
+		}
+		result.WriteString(fmt.Sprintf(" (Lv %d)\n", playerActive.Level))
+		
+		// HP bar
+		result.WriteString("  HP:  ")
+		result.WriteString(RenderHPBar(playerActive.HP, playerActive.HPMax, 30))
+		result.WriteString(fmt.Sprintf(" %d/%d\n", playerActive.HP, playerActive.HPMax))
+		
+		// Stamina bar
+		result.WriteString("  STA: ")
+		result.WriteString(RenderStaminaBar(playerActive.Stamina, playerActive.Speed*2, 30))
+		result.WriteString(fmt.Sprintf(" %d/%d\n", playerActive.Stamina, playerActive.Speed*2))
+		
+		// Deck status
+		aliveCount := 0
+		for _, card := range bs.PlayerDeck {
+			if card.HP > 0 {
+				aliveCount++
+			}
+		}
+		result.WriteString(fmt.Sprintf("  Deck: %d/%d alive\n", aliveCount, len(bs.PlayerDeck)))
+	}
+
+	result.WriteString("\n")
+
+	// AI Pokemon (condensed)
+	if aiActive != nil {
+		result.WriteString("AI: ")
+		if r.ColorSupport {
+			result.WriteString(Colorize(aiActive.Name, Bold+ColorBrightRed))
+		} else {
+			result.WriteString(aiActive.Name)
+		}
+		result.WriteString(fmt.Sprintf(" (Lv %d)\n", aiActive.Level))
+		
+		// HP bar
+		result.WriteString("  HP:  ")
+		result.WriteString(RenderHPBar(aiActive.HP, aiActive.HPMax, 30))
+		result.WriteString(fmt.Sprintf(" %d/%d\n", aiActive.HP, aiActive.HPMax))
+		
+		// Stamina bar
+		result.WriteString("  STA: ")
+		result.WriteString(RenderStaminaBar(aiActive.Stamina, aiActive.Speed*2, 30))
+		result.WriteString(fmt.Sprintf(" %d/%d\n", aiActive.Stamina, aiActive.Speed*2))
+		
+		// Deck status
+		aliveCount := 0
+		for _, card := range bs.AIDeck {
+			if card.HP > 0 {
+				aliveCount++
+			}
+		}
+		result.WriteString(fmt.Sprintf("  Deck: %d/%d alive\n", aliveCount, len(bs.AIDeck)))
+	}
+
+	result.WriteString("\n")
+	result.WriteString(strings.Repeat("═", 60))
+	result.WriteString("\n")
+
+	return result.String()
+}

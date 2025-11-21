@@ -77,8 +77,18 @@ func runCommandLoop(state *storage.GameState) {
 	scanner := bufio.NewScanner(os.Stdin)
 	renderer := ui.NewRenderer()
 
+	// Create command handler
+	cmdHandler := commands.NewCommandHandler(state, renderer, scanner)
+
 	fmt.Println("Type 'help' for available commands or 'quit' to exit.")
 	fmt.Println()
+
+	// Show initial hint for new players
+	totalBattles := state.Stats.TotalBattles1v1 + state.Stats.TotalBattles5v5
+	if totalBattles < 3 {
+		cmdHandler.DisplayCommandHints()
+		fmt.Println()
+	}
 
 	for {
 		fmt.Print("> ")
@@ -93,174 +103,59 @@ func runCommandLoop(state *storage.GameState) {
 
 		// Parse command
 		parts := strings.Fields(input)
-		command := strings.ToLower(parts[0])
+		command := parts[0]
+		args := []string{}
+		if len(parts) > 1 {
+			args = parts[1:]
+		}
 
-		// Handle commands
-		switch command {
-		case "help", "h":
-			showHelp()
-
-		case "info", "i":
+		// Handle special commands that aren't in the command handler
+		if strings.ToLower(command) == "info" || strings.ToLower(command) == "i" {
 			displayPlayerInfo(state)
+			fmt.Println()
+			continue
+		}
 
-		case "collection", "c":
-			collectionCmd := commands.NewCollectionCommand(state, renderer, scanner)
-			if err := collectionCmd.ViewCollection(); err != nil {
-				if ui.GetColorSupport() {
-					fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Collection error: %v", err), ui.ColorRed))
-				} else {
-					fmt.Printf("Collection error: %v\n", err)
-				}
-			}
-
-		case "deck", "d":
-			handleDeckCommand(state, renderer, scanner, parts)
-
-		case "stats", "st":
-			statsCmd := commands.NewStatsCommand(state, renderer, scanner)
-			if err := statsCmd.ViewStats(); err != nil {
-				if ui.GetColorSupport() {
-					fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Stats error: %v", err), ui.ColorRed))
-				} else {
-					fmt.Printf("Stats error: %v\n", err)
-				}
-			}
-
-		case "battle", "b":
-			battleCmd := commands.NewBattleCommand(state, renderer, scanner)
-			if err := battleCmd.StartBattle(); err != nil {
-				if ui.GetColorSupport() {
-					fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Battle error: %v", err), ui.ColorRed))
-				} else {
-					fmt.Printf("Battle error: %v\n", err)
-				}
-			}
-			// Reload game state after battle
-			var err error
-			state, err = storage.LoadGameState()
-			if err != nil {
-				log.Printf("Warning: Failed to reload game state: %v", err)
-			}
-
-		case "shop", "s":
-			shopCmd := commands.NewShopCommand(state, renderer, scanner)
-			if err := shopCmd.ViewShop(); err != nil {
-				if ui.GetColorSupport() {
-					fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Shop error: %v", err), ui.ColorRed))
-				} else {
-					fmt.Printf("Shop error: %v\n", err)
-				}
-			}
-			// Reload game state after shop
-			var err error
-			state, err = storage.LoadGameState()
-			if err != nil {
-				log.Printf("Warning: Failed to reload game state: %v", err)
-			}
-
-		case "quit", "q", "exit":
-			fmt.Println("\nThanks for playing PokeTacTix!")
-			fmt.Println("Your progress has been saved.")
-			return
-
-		case "reset":
+		if strings.ToLower(command) == "reset" {
 			if confirmReset() {
 				resetGame()
 				return
 			}
+			fmt.Println()
+			continue
+		}
 
-		default:
-			if ui.GetColorSupport() {
-				fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Unknown command: %s", command), ui.ColorRed))
-			} else {
-				fmt.Printf("Unknown command: %s\n", command)
+		// Use the command handler for all other commands
+		err := cmdHandler.HandleCommand(command, args)
+		if err != nil {
+			// Check if it's a quit signal
+			if err.Error() == "QUIT" {
+				return
 			}
-			fmt.Println("Type 'help' for available commands.")
+
+			// Display error if it's not handled by the command handler
+			if ui.GetColorSupport() {
+				fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Error: %v", err), ui.ColorRed))
+			} else {
+				fmt.Printf("Error: %v\n", err)
+			}
+		}
+
+		// Reload game state after commands that might modify it
+		cmdLower := strings.ToLower(command)
+		if cmdLower == "battle" || cmdLower == "b" || 
+		   cmdLower == "shop" || cmdLower == "s" ||
+		   (cmdLower == "deck" && len(args) > 0 && strings.ToLower(args[0]) == "edit") {
+			var reloadErr error
+			state, reloadErr = storage.LoadGameState()
+			if reloadErr != nil {
+				log.Printf("Warning: Failed to reload game state: %v", reloadErr)
+			}
 		}
 
 		fmt.Println()
 	}
 }
-
-func showHelp() {
-	fmt.Println()
-	if ui.GetColorSupport() {
-		fmt.Println(ui.Colorize("=== AVAILABLE COMMANDS ===", ui.ColorBrightYellow))
-	} else {
-		fmt.Println("=== AVAILABLE COMMANDS ===")
-	}
-	fmt.Println()
-
-	commands := []struct {
-		name    string
-		aliases string
-		desc    string
-	}{
-		{"help", "h", "Show this help message"},
-		{"info", "i", "Display player information"},
-		{"collection", "c", "View your Pokemon collection"},
-		{"deck", "d", "View your battle deck"},
-		{"deck edit", "", "Edit your battle deck"},
-		{"battle", "b", "Start a battle (1v1 or 5v5)"},
-		{"shop", "s", "Visit the Pokemon shop"},
-		{"stats", "st", "View your battle statistics"},
-		{"quit", "q, exit", "Exit the game"},
-		{"reset", "", "Reset game (delete save file)"},
-	}
-
-	for _, cmd := range commands {
-		if cmd.aliases != "" {
-			fmt.Printf("  %-15s (%s) - %s\n", cmd.name, cmd.aliases, cmd.desc)
-		} else {
-			fmt.Printf("  %-15s - %s\n", cmd.name, cmd.desc)
-		}
-	}
-
-	fmt.Println()
-}
-
-func handleDeckCommand(state *storage.GameState, renderer *ui.Renderer, scanner *bufio.Scanner, parts []string) {
-	deckCmd := commands.NewDeckCommand(state, renderer, scanner)
-
-	// Check if subcommand is provided
-	if len(parts) > 1 {
-		subcommand := strings.ToLower(parts[1])
-		switch subcommand {
-		case "edit", "e":
-			if err := deckCmd.EditDeck(); err != nil {
-				if ui.GetColorSupport() {
-					fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Deck edit error: %v", err), ui.ColorRed))
-				} else {
-					fmt.Printf("Deck edit error: %v\n", err)
-				}
-			}
-			// Reload game state after editing
-			var err error
-			state, err = storage.LoadGameState()
-			if err != nil {
-				log.Printf("Warning: Failed to reload game state: %v", err)
-			}
-		default:
-			if ui.GetColorSupport() {
-				fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Unknown deck subcommand: %s", subcommand), ui.ColorRed))
-			} else {
-				fmt.Printf("Unknown deck subcommand: %s\n", subcommand)
-			}
-			fmt.Println("Available subcommands: edit")
-		}
-	} else {
-		// No subcommand, just view the deck
-		if err := deckCmd.ViewDeck(); err != nil {
-			if ui.GetColorSupport() {
-				fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Deck view error: %v", err), ui.ColorRed))
-			} else {
-				fmt.Printf("Deck view error: %v\n", err)
-			}
-		}
-	}
-}
-
-
 
 func confirmReset() bool {
 	fmt.Println()

@@ -183,11 +183,20 @@ func (bc *BattleCommand) generateAIDeck(mode string) ([]pokemon.Card, error) {
 
 // runBattleLoop runs the main battle loop
 func (bc *BattleCommand) runBattleLoop(bs *battle.BattleState, mode string) error {
+	// Check if quick battle mode is enabled
+	quickBattle := bc.gameState.Settings.QuickBattle
+
 	// Main battle loop - continues until battle is over
 	for !bs.BattleOver {
 		// Clear screen and display battle state
 		bc.renderer.Clear()
-		fmt.Println(bc.renderer.RenderBattleScreen(bs))
+		
+		// In quick battle mode, show condensed battle screen
+		if quickBattle {
+			fmt.Println(bc.renderer.RenderBattleScreenCondensed(bs))
+		} else {
+			fmt.Println(bc.renderer.RenderBattleScreen(bs))
+		}
 		fmt.Println()
 
 		// Check if it's player's turn
@@ -210,27 +219,43 @@ func (bc *BattleCommand) runBattleLoop(bs *battle.BattleState, mode string) erro
 			} else {
 				fmt.Println("\nYou surrendered this round!")
 			}
-			fmt.Println("Press Enter to continue...")
-			bc.scanner.Scan()
+			if !quickBattle {
+				fmt.Println("Press Enter to continue...")
+				bc.scanner.Scan()
+			}
 		}
 
 		// Process the move
 		logEntries, err := battle.ProcessMove(bs, action, moveIdx)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
-			fmt.Println("Press Enter to continue...")
-			bc.scanner.Scan()
+			if !quickBattle {
+				fmt.Println("Press Enter to continue...")
+				bc.scanner.Scan()
+			}
 			continue
 		}
 
 		// Display battle log
 		bc.renderer.Clear()
-		fmt.Println(bc.renderer.RenderBattleScreen(bs))
+		
+		if quickBattle {
+			fmt.Println(bc.renderer.RenderBattleScreenCondensed(bs))
+		} else {
+			fmt.Println(bc.renderer.RenderBattleScreen(bs))
+		}
 		fmt.Println()
-		fmt.Println(bc.renderer.RenderBattleLogSimple(logEntries, 10))
-		fmt.Println()
-		fmt.Println("Press Enter to continue...")
-		bc.scanner.Scan()
+		
+		// In quick battle mode, show condensed log
+		if quickBattle {
+			fmt.Println(bc.renderer.RenderBattleLogSimple(logEntries, 5))
+			// Add a short delay in quick battle mode based on speed setting
+			ui.Sleep(bc.gameState.Settings.BattleSpeed, "short")
+		} else {
+			fmt.Println(bc.renderer.RenderBattleLogSimple(logEntries, 10))
+			fmt.Println("Press Enter to continue...")
+			bc.scanner.Scan()
+		}
 
 		// Check for Pokemon switching in 5v5 mode
 		if mode == "5v5" && !bs.BattleOver {

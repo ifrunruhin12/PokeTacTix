@@ -8,15 +8,22 @@ import (
 
 // GameState represents the complete state of the CLI game
 type GameState struct {
-	PlayerName   string        `json:"player_name"`
-	Coins        int           `json:"coins"`
-	Collection   []PlayerCard  `json:"collection"`
-	Deck         []int         `json:"deck"` // Card IDs (indices in Collection)
-	Stats        PlayerStats   `json:"stats"`
-	ShopState    ShopState     `json:"shop_state"`
+	PlayerName    string         `json:"player_name"`
+	Coins         int            `json:"coins"`
+	Collection    []PlayerCard   `json:"collection"`
+	Deck          []int          `json:"deck"` // Card IDs (indices in Collection)
+	Stats         PlayerStats    `json:"stats"`
+	ShopState     ShopState      `json:"shop_state"`
 	BattleHistory []BattleRecord `json:"battle_history,omitempty"`
-	LastSaved    time.Time     `json:"last_saved"`
-	Version      string        `json:"version"`
+	Settings      GameSettings   `json:"settings"`
+	LastSaved     time.Time      `json:"last_saved"`
+	Version       string         `json:"version"`
+}
+
+// GameSettings stores user preferences
+type GameSettings struct {
+	QuickBattle bool   `json:"quick_battle"` // Skip animations and delays
+	BattleSpeed string `json:"battle_speed"` // "slow", "normal", "fast"
 }
 
 // PlayerCard represents a Pokemon card owned by the player in CLI mode
