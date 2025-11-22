@@ -125,6 +125,8 @@ build-cli-all: ## 🎮 Build CLI binaries for all platforms
 	@echo ""
 	@echo "Binaries created:"
 	@ls -lh bin/poketactix-cli-* 2>/dev/null || true
+	@echo ""
+	@echo "💡 To create a release, run: ./scripts/tag-release.sh"
 
 run-cli: build-cli ## 🎮 Build and run CLI
 	@echo ""
@@ -162,9 +164,6 @@ fmt: ## 🎨 Format Go code
 
 test: ## 🧪 Run tests
 	@docker-compose exec backend go test ./...
-
-release: ## 📦 Create release package for CLI
-	@./scripts/create-release.sh
 
 # ============================================================================
 # Individual Service Commands

@@ -14,12 +14,12 @@ make build-cli
 make build-cli-all
 ```
 
-### Create Release Package
+### Create and Push Release Tag
 ```bash
-make release
-# or
-./scripts/create-release.sh
+./scripts/tag-release.sh
 ```
+
+This triggers GitHub Actions to build and release automatically.
 
 ### Check Version
 ```bash
@@ -99,34 +99,38 @@ Features:
 
 ## Release Process
 
-### Automated (GitHub Actions)
+### Automated (Recommended)
 
-1. Create and push a version tag:
-   ```bash
-   git tag -a v1.0.0 -m "Release v1.0.0"
-   git push origin v1.0.0
-   ```
+Use the tag-release script to create and push a version tag:
 
-2. GitHub Actions automatically:
-   - Builds all platform binaries
-   - Creates release archives
-   - Generates checksums
-   - Creates GitHub release
-   - Uploads all assets
+```bash
+./scripts/tag-release.sh
+```
 
-### Manual
+This will:
+1. Prompt you for a version number (e.g., v1.0.0)
+2. Prompt you for release notes
+3. Create an annotated git tag
+4. Push the tag to GitHub
+5. Trigger GitHub Actions to build and release automatically
 
-1. Build binaries:
-   ```bash
-   make build-cli-all
-   ```
+GitHub Actions will then:
+- Build all platform binaries
+- Create release archives
+- Generate checksums
+- Create GitHub release
+- Upload all assets
 
-2. Create release package:
-   ```bash
-   ./scripts/create-release.sh
-   ```
+### Manual Tag Creation
 
-3. Follow prompts and upload to GitHub
+If you prefer to create tags manually:
+
+```bash
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+```
+
+The GitHub Actions workflow will still run automatically.
 
 See [RELEASE_PROCESS.md](RELEASE_PROCESS.md) for detailed instructions.
 

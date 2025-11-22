@@ -20,7 +20,7 @@ This document describes the process for creating and publishing new releases of 
 - [ ] Review and update CLI_README.md if needed
 - [ ] Commit all changes
 
-### 2. Version Tagging
+### 2. Create Release Tag
 
 Choose a version number following [Semantic Versioning](https://semver.org/):
 
@@ -28,14 +28,23 @@ Choose a version number following [Semantic Versioning](https://semver.org/):
 - **Minor** (0.X.0): New features, backwards compatible
 - **Patch** (0.0.X): Bug fixes, backwards compatible
 
+**Recommended: Use the tag-release script**
+
 ```bash
-# Create and push a version tag
+./scripts/tag-release.sh
+```
+
+The script will guide you through creating and pushing a tag.
+
+**Alternative: Manual tag creation**
+
+```bash
 VERSION="v1.0.0"  # Change this to your version
 git tag -a $VERSION -m "Release $VERSION"
 git push origin $VERSION
 ```
 
-### 3. Automated Release (Recommended)
+### 3. Automated Build and Release
 
 Once you push a tag, GitHub Actions will automatically:
 

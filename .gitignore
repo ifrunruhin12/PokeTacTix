@@ -80,3 +80,10 @@ api
 
 # Migration temporary files
 *.sql~
+
+# Release artifacts
+release/
+*.tar.gz
+*.zip
+SHA256SUMS
+MD5SUMS
