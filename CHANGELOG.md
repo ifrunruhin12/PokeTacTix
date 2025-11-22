@@ -8,23 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial CLI implementation with offline gameplay
-- 649 Pokemon from Gen 1-5
-- 1v1 and 5v5 battle modes
-- Local save system with automatic backups
-- Shop system for purchasing Pokemon
-- Statistics tracking
-- Deck management
-- ASCII art and color support
-- Cross-platform support (Windows, macOS, Linux)
+- Nothing yet
 
 ### Changed
-- N/A
+- Nothing yet
 
 ### Fixed
-- N/A
+- Nothing yet
 
-## [1.0.0] - YYYY-MM-DD
+## [1.0.0] - 2025-11-22
 
 ### Added
 - Initial release of PokeTacTix CLI
@@ -80,7 +72,7 @@ powershell -ExecutionPolicy Bypass -Command "iwr https://github.com/ifrunruhin12
 ```
 
 ### Manual
-1. Download the latest binary from [releases](https://github.com/yourusername/poketactix/releases/latest)
+1. Download the latest binary from [releases](https://github.com/ifrunruhin12/poketactix/releases/latest)
 2. Replace your existing binary
 3. Your save file will be preserved
 
