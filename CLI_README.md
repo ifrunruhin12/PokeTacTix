@@ -30,13 +30,13 @@ A terminal-based Pokemon battle game that works completely offline. Battle, coll
 ### Quick Install (macOS/Linux)
 
 ```bash
-curl -L https://github.com/yourusername/poketactix/raw/main/scripts/install.sh | bash
+curl -L https://github.com/ifrunruhin12/poketactix/raw/main/scripts/install.sh | bash
 ```
 
 ### Quick Install (Windows)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "iwr https://github.com/yourusername/poketactix/raw/main/scripts/install.ps1 | iex"
+powershell -ExecutionPolicy Bypass -Command "iwr https://github.com/ifrunruhin12/poketactix/raw/main/scripts/install.ps1 | iex"
 ```
 
 ### Manual Installation
@@ -71,7 +71,7 @@ powershell -ExecutionPolicy Bypass -Command "iwr https://github.com/yourusername
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/poketactix.git
+git clone https://github.com/ifrunruhin12/poketactix.git
 cd poketactix
 
 # Build for your platform

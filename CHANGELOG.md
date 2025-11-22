@@ -71,12 +71,12 @@ Run the installation script again:
 
 **macOS/Linux:**
 ```bash
-curl -L https://github.com/yourusername/poketactix/raw/main/scripts/install.sh | bash
+curl -L https://github.com/ifrunruhin12/poketactix/raw/main/scripts/install.sh | bash
 ```
 
 **Windows:**
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "iwr https://github.com/yourusername/poketactix/raw/main/scripts/install.ps1 | iex"
+powershell -ExecutionPolicy Bypass -Command "iwr https://github.com/ifrunruhin12/poketactix/raw/main/scripts/install.ps1 | iex"
 ```
 
 ### Manual
@@ -106,6 +106,5 @@ If you were using a development version, your save file should be compatible. If
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/poketactix/issues)
+- **Issues**: [GitHub Issues](https://github.com/ifrunruhin12/poketactix/issues)
 - **Documentation**: [CLI_README.md](CLI_README.md)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/poketactix/discussions)
