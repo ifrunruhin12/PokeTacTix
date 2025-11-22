@@ -1,6 +1,3 @@
-//go:build cli
-// +build cli
-
 package pokemon
 
 import (
@@ -91,31 +88,33 @@ func GetPokemonByID(id int) (*PokemonEntry, error) {
 // GetRandomPokemon returns a random Pokemon from the database
 // excludeLegendary: if true, excludes legendary Pokemon
 // excludeMythical: if true, excludes mythical Pokemon
+// Optimized to avoid copying entire Pokemon slice
 func GetRandomPokemon(excludeLegendary, excludeMythical bool) (*PokemonEntry, error) {
 	db, err := LoadPokemonDatabase()
 	if err != nil {
 		return nil, err
 	}
 	
-	// Filter Pokemon based on exclusions
-	var candidates []PokemonEntry
-	for _, pokemon := range db.Pokemon {
+	// Build index list instead of copying Pokemon entries (memory optimization)
+	var candidateIndices []int
+	for i := range db.Pokemon {
+		pokemon := &db.Pokemon[i]
 		if excludeLegendary && pokemon.IsLegendary {
 			continue
 		}
 		if excludeMythical && pokemon.IsMythical {
 			continue
 		}
-		candidates = append(candidates, pokemon)
+		candidateIndices = append(candidateIndices, i)
 	}
 	
-	if len(candidates) == 0 {
+	if len(candidateIndices) == 0 {
 		return nil, fmt.Errorf("no Pokemon available with given filters")
 	}
 	
-	// Select random Pokemon
-	selected := candidates[rand.Intn(len(candidates))]
-	return &selected, nil
+	// Select random Pokemon by index
+	selectedIdx := candidateIndices[rand.Intn(len(candidateIndices))]
+	return &db.Pokemon[selectedIdx], nil
 }
 
 // GetDatabaseStats returns statistics about the loaded database

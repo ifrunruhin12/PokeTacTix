@@ -100,12 +100,31 @@ build: ## 🔨 Build Go binary and check for compile errors
 	@go build -o bin/poketactix ./cmd/api
 	@echo "✅ Build complete - binary at bin/poketactix"
 
-build-cli: ## 🎮 Build CLI binary
+build-cli: ## 🎮 Build CLI binary for current platform
 	@echo "Building CLI binary..."
-	@go build -tags cli -o bin/poketactix-cli ./cmd/cli
+	@go build -ldflags="-s -w -X main.Version=$$(git describe --tags --always --dirty 2>/dev/null || echo 'dev') -X main.BuildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.CommitHash=$$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')" -o bin/poketactix-cli ./cmd/cli
 	@echo "✅ CLI build complete - binary at bin/poketactix-cli"
 	@echo ""
 	@echo "Run with: ./bin/poketactix-cli"
+
+build-cli-all: ## 🎮 Build CLI binaries for all platforms
+	@echo "Building CLI binaries for all platforms..."
+	@mkdir -p bin
+	@echo "Building for Windows (amd64)..."
+	@GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$$(git describe --tags --always --dirty 2>/dev/null || echo 'dev') -X main.BuildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.CommitHash=$$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')" -o bin/poketactix-cli-windows-amd64.exe ./cmd/cli
+	@echo "Building for macOS (amd64)..."
+	@GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$$(git describe --tags --always --dirty 2>/dev/null || echo 'dev') -X main.BuildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.CommitHash=$$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')" -o bin/poketactix-cli-darwin-amd64 ./cmd/cli
+	@echo "Building for macOS (arm64)..."
+	@GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.Version=$$(git describe --tags --always --dirty 2>/dev/null || echo 'dev') -X main.BuildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.CommitHash=$$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')" -o bin/poketactix-cli-darwin-arm64 ./cmd/cli
+	@echo "Building for Linux (amd64)..."
+	@GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$$(git describe --tags --always --dirty 2>/dev/null || echo 'dev') -X main.BuildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.CommitHash=$$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')" -o bin/poketactix-cli-linux-amd64 ./cmd/cli
+	@echo "Building for Linux (arm64)..."
+	@GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.Version=$$(git describe --tags --always --dirty 2>/dev/null || echo 'dev') -X main.BuildDate=$$(date -u +%Y-%m-%dT%H:%M:%SZ) -X main.CommitHash=$$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')" -o bin/poketactix-cli-linux-arm64 ./cmd/cli
+	@echo ""
+	@echo "✅ All CLI builds complete!"
+	@echo ""
+	@echo "Binaries created:"
+	@ls -lh bin/poketactix-cli-* 2>/dev/null || true
 
 run-cli: build-cli ## 🎮 Build and run CLI
 	@echo ""
@@ -143,6 +162,9 @@ fmt: ## 🎨 Format Go code
 
 test: ## 🧪 Run tests
 	@docker-compose exec backend go test ./...
+
+release: ## 📦 Create release package for CLI
+	@./scripts/create-release.sh
 
 # ============================================================================
 # Individual Service Commands

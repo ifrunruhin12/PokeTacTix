@@ -89,9 +89,23 @@ func ColorizeType(text, pokemonType string) string {
 var globalColorSupport bool
 
 // DetectColorSupport checks if the terminal supports ANSI colors
+// Supports NO_COLOR environment variable and various terminal emulators
 func DetectColorSupport() bool {
 	// Check NO_COLOR environment variable (universal standard)
+	// https://no-color.org/
 	if os.Getenv("NO_COLOR") != "" {
+		globalColorSupport = false
+		return false
+	}
+
+	// Check CLICOLOR_FORCE for forced color output
+	if os.Getenv("CLICOLOR_FORCE") != "" && os.Getenv("CLICOLOR_FORCE") != "0" {
+		globalColorSupport = true
+		return true
+	}
+
+	// Check CLICOLOR for color preference
+	if os.Getenv("CLICOLOR") == "0" {
 		globalColorSupport = false
 		return false
 	}
@@ -117,6 +131,12 @@ func DetectColorSupport() bool {
 		"ansi",
 		"cygwin",
 		"linux",
+		"vt100",
+		"vt220",
+		"konsole",
+		"gnome",
+		"alacritty",
+		"kitty",
 	}
 
 	termLower := strings.ToLower(term)
@@ -127,14 +147,30 @@ func DetectColorSupport() bool {
 		}
 	}
 
-	// Check COLORTERM environment variable
+	// Check COLORTERM environment variable (modern terminals)
 	if os.Getenv("COLORTERM") != "" {
 		globalColorSupport = true
 		return true
 	}
 
 	// On Windows, check for modern terminal support
-	if os.Getenv("WT_SESSION") != "" || os.Getenv("ConEmuANSI") == "ON" {
+	// Windows Terminal, ConEmu, and other modern emulators
+	if os.Getenv("WT_SESSION") != "" || 
+	   os.Getenv("WT_PROFILE_ID") != "" ||
+	   os.Getenv("ConEmuANSI") == "ON" ||
+	   os.Getenv("ANSICON") != "" {
+		globalColorSupport = true
+		return true
+	}
+
+	// Check for iTerm2 on macOS
+	if strings.Contains(os.Getenv("TERM_PROGRAM"), "iTerm") {
+		globalColorSupport = true
+		return true
+	}
+
+	// Check for VS Code integrated terminal
+	if os.Getenv("TERM_PROGRAM") == "vscode" {
 		globalColorSupport = true
 		return true
 	}

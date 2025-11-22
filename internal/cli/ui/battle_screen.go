@@ -71,10 +71,22 @@ func (r *Renderer) renderBattleArena(bs *battle.BattleState, width int) string {
 	aiActive := bs.GetActiveAICard()
 
 	// Deck status line
+	playerStatus := r.renderDeckStatus("PLAYER", bs.PlayerDeck, bs.PlayerActiveIdx)
+	aiStatus := r.renderDeckStatus("AI", bs.AIDeck, bs.AIActiveIdx)
+	vsText := "  VS  "
+	
+	// Calculate total length without ANSI codes
+	statusLen := len(stripANSI(playerStatus)) + len(vsText) + len(stripANSI(aiStatus))
+	padding := width - statusLen - 4 // 4 for borders and spaces
+	if padding < 0 {
+		padding = 0
+	}
+	
 	result.WriteString("║ ")
-	result.WriteString(r.renderDeckStatus("PLAYER", bs.PlayerDeck, bs.PlayerActiveIdx, width/2-4))
-	result.WriteString("  VS  ")
-	result.WriteString(r.renderDeckStatus("AI", bs.AIDeck, bs.AIActiveIdx, width/2-4))
+	result.WriteString(playerStatus)
+	result.WriteString(vsText)
+	result.WriteString(aiStatus)
+	result.WriteString(strings.Repeat(" ", padding))
 	result.WriteString(" ║\n")
 
 	result.WriteString("║")
@@ -94,8 +106,12 @@ func (r *Renderer) renderBattleArena(bs *battle.BattleState, width int) string {
 		maxLines = len(aiLines)
 	}
 
-	cardWidth := 30
-	spacing := width - (cardWidth * 2) - 6
+	// Card width is 26 characters (including borders)
+	cardWidth := 26
+	// Calculate spacing between cards
+	totalCardWidth := cardWidth * 2
+	availableSpace := width - 4 // 4 for outer borders and padding
+	spacing := availableSpace - totalCardWidth
 	if spacing < 2 {
 		spacing = 2
 	}
@@ -104,16 +120,9 @@ func (r *Renderer) renderBattleArena(bs *battle.BattleState, width int) string {
 		result.WriteString("║ ")
 
 		// Player card line
-		if i < len(playerLines) {
+		if i < len(playerLines) && playerLines[i] != "" {
 			line := playerLines[i]
-			// Remove ANSI codes for length calculation
-			displayLen := len(stripANSI(line))
 			result.WriteString(line)
-			padding := cardWidth - displayLen
-			if padding < 0 {
-				padding = 0
-			}
-			result.WriteString(strings.Repeat(" ", padding))
 		} else {
 			result.WriteString(strings.Repeat(" ", cardWidth))
 		}
@@ -121,15 +130,9 @@ func (r *Renderer) renderBattleArena(bs *battle.BattleState, width int) string {
 		result.WriteString(strings.Repeat(" ", spacing))
 
 		// AI card line
-		if i < len(aiLines) {
+		if i < len(aiLines) && aiLines[i] != "" {
 			line := aiLines[i]
-			displayLen := len(stripANSI(line))
 			result.WriteString(line)
-			padding := cardWidth - displayLen
-			if padding < 0 {
-				padding = 0
-			}
-			result.WriteString(strings.Repeat(" ", padding))
 		} else {
 			result.WriteString(strings.Repeat(" ", cardWidth))
 		}
@@ -145,7 +148,7 @@ func (r *Renderer) renderBattleArena(bs *battle.BattleState, width int) string {
 }
 
 // renderDeckStatus shows the deck status with indicators
-func (r *Renderer) renderDeckStatus(label string, deck []battle.BattleCard, activeIdx int, maxWidth int) string {
+func (r *Renderer) renderDeckStatus(label string, deck []battle.BattleCard, activeIdx int) string {
 	var result strings.Builder
 
 	if r.ColorSupport {
@@ -172,96 +175,125 @@ func (r *Renderer) renderDeckStatus(label string, deck []battle.BattleCard, acti
 	return result.String()
 }
 
-// renderPokemonCard renders a single Pokemon card
+// renderPokemonCard renders a single Pokemon card (26 chars wide)
 func (r *Renderer) renderPokemonCard(card *battle.BattleCard, isPlayer bool) string {
 	if card == nil {
-		return "No Pokemon"
+		// Return empty card placeholder
+		var result strings.Builder
+		for i := 0; i < 11; i++ {
+			result.WriteString(strings.Repeat(" ", 26))
+			if i < 10 {
+				result.WriteString("\n")
+			}
+		}
+		return result.String()
 	}
 
 	var result strings.Builder
 
-	// Card border top
-	result.WriteString("┌────────────────────────┐\n")
+	// Card border top (26 chars)
+	result.WriteString("┌────────────────────────┐")
 
 	// Pokemon name
-	nameLabel := "│ "
+	result.WriteString("\n│ ")
 	if isPlayer {
-		nameLabel += "[ACTIVE] "
+		result.WriteString("[ACTIVE] ")
 	} else {
-		nameLabel += "[ENEMY]  "
+		result.WriteString("[ENEMY]  ")
 	}
 	
 	name := card.Name
-	if len(name) > 14 {
-		name = name[:14]
+	nameLen := len(name)
+	if nameLen > 13 {
+		name = name[:13]
+		nameLen = 13
 	}
 	
 	if r.ColorSupport {
-		nameLabel += Colorize(name, Bold+ColorBrightWhite)
+		result.WriteString(Colorize(name, Bold+ColorBrightWhite))
 	} else {
-		nameLabel += name
+		result.WriteString(name)
 	}
 	
-	// Pad to card width
-	displayLen := 10 + len(card.Name)
-	if len(card.Name) > 14 {
-		displayLen = 24
+	// Pad to 22 chars inside (24 - 2 for borders)
+	// 9 for label + name + padding = 22
+	padding := 22 - 9 - nameLen
+	if padding < 0 {
+		padding = 0
 	}
-	nameLabel += strings.Repeat(" ", 24-displayLen) + " │"
-	result.WriteString(nameLabel + "\n")
+	result.WriteString(strings.Repeat(" ", padding))
+	result.WriteString(" │")
 
 	// Level
-	levelLine := fmt.Sprintf("│ Lv %-19d │\n", card.Level)
-	result.WriteString(levelLine)
+	result.WriteString(fmt.Sprintf("\n│ Lv %-19d │", card.Level))
 
 	// Types
-	typesStr := "│ "
+	result.WriteString("\n│ ")
+	typesText := ""
 	for i, t := range card.Types {
 		if i > 0 {
-			typesStr += "/"
+			typesText += "/"
 		}
-		if r.ColorSupport {
-			typesStr += ColorizeType(strings.ToUpper(t), t)
-		} else {
-			typesStr += strings.ToUpper(t)
-		}
+		typesText += strings.ToUpper(t)
 	}
-	typesStr += strings.Repeat(" ", 22-len(strings.Join(card.Types, "/"))) + " │\n"
-	result.WriteString(typesStr)
+	
+	if r.ColorSupport {
+		// Apply color to each type
+		coloredTypes := ""
+		for i, t := range card.Types {
+			if i > 0 {
+				coloredTypes += "/"
+			}
+			coloredTypes += ColorizeType(strings.ToUpper(t), t)
+		}
+		result.WriteString(coloredTypes)
+	} else {
+		result.WriteString(typesText)
+	}
+	
+	typePadding := 22 - len(typesText)
+	if typePadding < 0 {
+		typePadding = 0
+	}
+	result.WriteString(strings.Repeat(" ", typePadding))
+	result.WriteString(" │")
 
 	// Separator
-	result.WriteString("├────────────────────────┤\n")
+	result.WriteString("\n├────────────────────────┤")
 
-	// HP Bar - render with smaller bar width to fit numeric values
-	hpBar := RenderHPBar(card.HP, card.HPMax, 8)
+	// HP Bar - use smaller bar width since it includes numbers
+	result.WriteString("\n│ HP:  ")
+	hpBar := RenderHPBar(card.HP, card.HPMax, 6)
+	result.WriteString(hpBar)
 	hpStripped := stripANSI(hpBar)
-	hpPadding := 18 - len(hpStripped)
+	// Total width: 26 chars
+	// "│ HP:  " = 7 chars, "│" = 1 char, so bar + padding = 18 chars
+	hpPadding := 18 - len([]rune(hpStripped))
 	if hpPadding < 0 {
 		hpPadding = 0
 	}
-	result.WriteString("│ HP:  ")
-	result.WriteString(hpBar)
 	result.WriteString(strings.Repeat(" ", hpPadding))
-	result.WriteString(" │\n")
+	result.WriteString("│")
 
-	// Stamina Bar - render with smaller bar width to fit numeric values
-	staminaBar := RenderStaminaBar(card.Stamina, card.StaminaMax, 8)
+	// Stamina Bar - use smaller bar width since it includes numbers
+	result.WriteString("\n│ STA: ")
+	staminaBar := RenderStaminaBar(card.Stamina, card.StaminaMax, 6)
+	result.WriteString(staminaBar)
 	staStripped := stripANSI(staminaBar)
-	staPadding := 18 - len(staStripped)
+	// "│ STA: " = 7 chars, "│" = 1 char, so bar + padding = 18 chars
+	staPadding := 18 - len([]rune(staStripped))
 	if staPadding < 0 {
 		staPadding = 0
 	}
-	result.WriteString("│ STA: ")
-	result.WriteString(staminaBar)
 	result.WriteString(strings.Repeat(" ", staPadding))
-	result.WriteString(" │\n")
+	result.WriteString("│")
 
-	// Stats
-	result.WriteString(fmt.Sprintf("│ ATK: %-3d  DEF: %-3d    │\n", card.Attack, card.Defense))
-	result.WriteString(fmt.Sprintf("│ SPD: %-17d │\n", card.Speed))
+	// Stats - ensure proper spacing (24 chars inside borders)
+	result.WriteString(fmt.Sprintf("\n│ ATK: %-3d  DEF: %-3d     │", card.Attack, card.Defense))
+	result.WriteString(fmt.Sprintf("\n│ SPD: %-18d│", card.Speed))
 
 	// Card border bottom
-	result.WriteString("└────────────────────────┘")
+	result.WriteString("\n└────────────────────────┘")
 
 	return result.String()
 }

@@ -2,7 +2,6 @@ package storage
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -28,23 +27,7 @@ func setupTestEnvironment(t *testing.T) (string, func()) {
 	return tmpDir, cleanup
 }
 
-func TestGetSaveFilePath(t *testing.T) {
-	_, cleanup := setupTestEnvironment(t)
-	defer cleanup()
-
-	path, err := GetSaveFilePath()
-	if err != nil {
-		t.Fatalf("GetSaveFilePath failed: %v", err)
-	}
-
-	if !filepath.IsAbs(path) {
-		t.Errorf("Expected absolute path, got: %s", path)
-	}
-
-	if filepath.Base(path) != SaveFileName {
-		t.Errorf("Expected filename %s, got: %s", SaveFileName, filepath.Base(path))
-	}
-}
+// Note: TestGetSaveFilePath is in paths_test.go
 
 func TestCreateNewGameState(t *testing.T) {
 	playerName := "TestPlayer"

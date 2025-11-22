@@ -12,14 +12,12 @@ import (
 	"pokemon-cli/internal/pokemon"
 )
 
-// BattleCommand handles battle-related commands
 type BattleCommand struct {
 	gameState *storage.GameState
 	renderer  *ui.Renderer
 	scanner   *bufio.Scanner
 }
 
-// NewBattleCommand creates a new battle command handler
 func NewBattleCommand(gameState *storage.GameState, renderer *ui.Renderer, scanner *bufio.Scanner) *BattleCommand {
 	return &BattleCommand{
 		gameState: gameState,
@@ -28,9 +26,7 @@ func NewBattleCommand(gameState *storage.GameState, renderer *ui.Renderer, scann
 	}
 }
 
-// StartBattle initiates a battle with mode selection (1v1 or 5v5)
 func (bc *BattleCommand) StartBattle() error {
-	// Check if player has a deck
 	if len(bc.gameState.Deck) == 0 {
 		return fmt.Errorf("you don't have any Pokemon in your deck. Use 'deck edit' to create a deck")
 	}
@@ -39,12 +35,10 @@ func (bc *BattleCommand) StartBattle() error {
 		return fmt.Errorf("your deck must have exactly 5 Pokemon. Use 'deck edit' to complete your deck")
 	}
 
-	// Clear screen and show battle mode selection
 	bc.renderer.Clear()
 	fmt.Println(ui.RenderLogo())
 	fmt.Println()
 
-	// Prompt for battle mode
 	modeOptions := []ui.MenuOption{
 		{
 			Label:       "1v1 Battle",
@@ -92,19 +86,16 @@ func (bc *BattleCommand) StartBattle() error {
 		break
 	}
 
-	// Load player deck from game state
 	playerDeck, err := bc.loadPlayerDeck(mode)
 	if err != nil {
 		return fmt.Errorf("failed to load player deck: %w", err)
 	}
 
-	// Generate AI opponent deck using offline data
 	aiDeck, err := bc.generateAIDeck(mode)
 	if err != nil {
 		return fmt.Errorf("failed to generate AI deck: %w", err)
 	}
 
-	// Initialize battle state
 	battleState, err := battle.StartBattle(0, mode, playerDeck, aiDeck)
 	if err != nil {
 		return fmt.Errorf("failed to start battle: %w", err)
@@ -119,21 +110,17 @@ func (bc *BattleCommand) StartBattle() error {
 	fmt.Println("Press Enter to begin...")
 	bc.scanner.Scan()
 
-	// Start the battle loop
 	return bc.runBattleLoop(battleState, mode)
 }
 
-// loadPlayerDeck loads the player's deck from game state
 func (bc *BattleCommand) loadPlayerDeck(mode string) ([]pokemon.Card, error) {
 	var playerDeck []pokemon.Card
 
 	if mode == "1v1" {
-		// For 1v1, select one random Pokemon from the deck
 		if len(bc.gameState.Deck) == 0 {
 			return nil, fmt.Errorf("no Pokemon in deck")
 		}
 
-		// Use first Pokemon for simplicity (could randomize)
 		cardIdx := bc.gameState.Deck[0]
 		if cardIdx < 0 || cardIdx >= len(bc.gameState.Collection) {
 			return nil, fmt.Errorf("invalid card index in deck")
@@ -142,7 +129,6 @@ func (bc *BattleCommand) loadPlayerDeck(mode string) ([]pokemon.Card, error) {
 		playerCard := bc.gameState.Collection[cardIdx]
 		playerDeck = []pokemon.Card{playerCard.ToCard()}
 	} else {
-		// For 5v5, load all 5 Pokemon from deck
 		if len(bc.gameState.Deck) != 5 {
 			return nil, fmt.Errorf("deck must have exactly 5 Pokemon for 5v5 battles")
 		}
@@ -161,7 +147,6 @@ func (bc *BattleCommand) loadPlayerDeck(mode string) ([]pokemon.Card, error) {
 	return playerDeck, nil
 }
 
-// generateAIDeck generates an AI opponent deck using offline data
 func (bc *BattleCommand) generateAIDeck(mode string) ([]pokemon.Card, error) {
 	var aiDeck []pokemon.Card
 	var count int
@@ -172,7 +157,6 @@ func (bc *BattleCommand) generateAIDeck(mode string) ([]pokemon.Card, error) {
 		count = 5
 	}
 
-	// Generate random Pokemon for AI deck
 	for i := 0; i < count; i++ {
 		card := pokemon.FetchRandomPokemonCardOffline()
 		aiDeck = append(aiDeck, card)
@@ -181,17 +165,12 @@ func (bc *BattleCommand) generateAIDeck(mode string) ([]pokemon.Card, error) {
 	return aiDeck, nil
 }
 
-// runBattleLoop runs the main battle loop
 func (bc *BattleCommand) runBattleLoop(bs *battle.BattleState, mode string) error {
-	// Check if quick battle mode is enabled
 	quickBattle := bc.gameState.Settings.QuickBattle
 
-	// Main battle loop - continues until battle is over
 	for !bs.BattleOver {
-		// Clear screen and display battle state
 		bc.renderer.Clear()
-		
-		// In quick battle mode, show condensed battle screen
+
 		if quickBattle {
 			fmt.Println(bc.renderer.RenderBattleScreenCondensed(bs))
 		} else {
@@ -199,20 +178,16 @@ func (bc *BattleCommand) runBattleLoop(bs *battle.BattleState, mode string) erro
 		}
 		fmt.Println()
 
-		// Check if it's player's turn
 		if bs.WhoseTurn != "player" {
-			// This shouldn't happen in our implementation, but handle it
 			fmt.Println("Waiting for AI...")
 			continue
 		}
 
-		// Prompt player for action
 		action, moveIdx, err := bc.promptPlayerAction(bs)
 		if err != nil {
 			return err
 		}
 
-		// Handle surrender
 		if action == "surrender" {
 			if mode == "1v1" {
 				fmt.Println("\nYou surrendered the battle!")
@@ -225,7 +200,6 @@ func (bc *BattleCommand) runBattleLoop(bs *battle.BattleState, mode string) erro
 			}
 		}
 
-		// Process the move
 		logEntries, err := battle.ProcessMove(bs, action, moveIdx)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
@@ -236,20 +210,17 @@ func (bc *BattleCommand) runBattleLoop(bs *battle.BattleState, mode string) erro
 			continue
 		}
 
-		// Display battle log
 		bc.renderer.Clear()
-		
+
 		if quickBattle {
 			fmt.Println(bc.renderer.RenderBattleScreenCondensed(bs))
 		} else {
 			fmt.Println(bc.renderer.RenderBattleScreen(bs))
 		}
 		fmt.Println()
-		
-		// In quick battle mode, show condensed log
+
 		if quickBattle {
 			fmt.Println(bc.renderer.RenderBattleLogSimple(logEntries, 5))
-			// Add a short delay in quick battle mode based on speed setting
 			ui.Sleep(bc.gameState.Settings.BattleSpeed, "short")
 		} else {
 			fmt.Println(bc.renderer.RenderBattleLogSimple(logEntries, 10))
@@ -257,11 +228,9 @@ func (bc *BattleCommand) runBattleLoop(bs *battle.BattleState, mode string) erro
 			bc.scanner.Scan()
 		}
 
-		// Check for Pokemon switching in 5v5 mode
 		if mode == "5v5" && !bs.BattleOver {
 			playerCard := bs.GetActivePlayerCard()
 			if playerCard != nil && playerCard.HP <= 0 && bs.HasPlayerPokemonAlive() {
-				// Player's Pokemon was knocked out, must switch
 				err := bc.handlePokemonSwitch(bs, true)
 				if err != nil {
 					return err
@@ -270,15 +239,12 @@ func (bc *BattleCommand) runBattleLoop(bs *battle.BattleState, mode string) erro
 		}
 	}
 
-	// Battle is over, handle end of battle
 	return bc.handleBattleEnd(bs, mode)
 }
 
-
-// promptPlayerAction prompts the player to select an action
 func (bc *BattleCommand) promptPlayerAction(bs *battle.BattleState) (string, *int, error) {
 	actions := []string{"Attack", "Defend", "Pass", "Sacrifice", "Surrender"}
-	
+
 	fmt.Println(bc.renderer.RenderBattleActions(actions, -1))
 	fmt.Print("Select action (1-5): ")
 
@@ -296,7 +262,6 @@ func (bc *BattleCommand) promptPlayerAction(bs *battle.BattleState) (string, *in
 
 		switch choice {
 		case 1:
-			// Attack - need to select move
 			return bc.promptMoveSelection(bs)
 		case 2:
 			return "defend", nil, nil
@@ -310,14 +275,12 @@ func (bc *BattleCommand) promptPlayerAction(bs *battle.BattleState) (string, *in
 	}
 }
 
-// promptMoveSelection prompts the player to select a move for attack
 func (bc *BattleCommand) promptMoveSelection(bs *battle.BattleState) (string, *int, error) {
 	playerCard := bs.GetActivePlayerCard()
 	if playerCard == nil {
 		return "", nil, fmt.Errorf("no active Pokemon")
 	}
 
-	// Display move selection menu
 	bc.renderer.Clear()
 	fmt.Println(bc.renderer.RenderBattleScreen(bs))
 	fmt.Println()
@@ -336,39 +299,32 @@ func (bc *BattleCommand) promptMoveSelection(bs *battle.BattleState) (string, *i
 			continue
 		}
 
-		// Allow canceling back to action menu
 		if choice == 0 {
 			return bc.promptPlayerAction(bs)
 		}
 
 		moveIdx := choice - 1
 
-		// Validate move index
 		if moveIdx < 0 || moveIdx >= len(playerCard.Moves) {
 			fmt.Print("Invalid move. Enter 1-4 or 0 to go back: ")
 			continue
 		}
 
-		// Validate stamina availability
 		move := playerCard.Moves[moveIdx]
 		if playerCard.Stamina < move.StaminaCost {
 			fmt.Printf("Not enough stamina! Need %d, have %d. Choose another move: ", move.StaminaCost, playerCard.Stamina)
 			continue
 		}
 
-		// Return attack action with move index
 		return "attack", &moveIdx, nil
 	}
 }
 
-// handlePokemonSwitch handles Pokemon switching in 5v5 battles
 func (bc *BattleCommand) handlePokemonSwitch(bs *battle.BattleState, forced bool) error {
-	// Check if player has any Pokemon left
 	if !bs.HasPlayerPokemonAlive() {
-		return nil // Battle will end
+		return nil
 	}
 
-	// Display Pokemon switch menu
 	bc.renderer.Clear()
 	fmt.Println(bc.renderer.RenderBattleScreen(bs))
 	fmt.Println()
@@ -380,7 +336,6 @@ func (bc *BattleCommand) handlePokemonSwitch(bs *battle.BattleState, forced bool
 	}
 	fmt.Println()
 
-	// Show available Pokemon
 	fmt.Println(bc.renderer.RenderPokemonSwitchMenu(bs.PlayerDeck, bs.PlayerActiveIdx, -1))
 	fmt.Print("\nSelect Pokemon (1-4): ")
 
@@ -396,7 +351,6 @@ func (bc *BattleCommand) handlePokemonSwitch(bs *battle.BattleState, forced bool
 			continue
 		}
 
-		// Map choice to actual deck index (skipping active and KO'd Pokemon)
 		validIdx := 0
 		newIdx := -1
 		for i, card := range bs.PlayerDeck {
@@ -415,13 +369,11 @@ func (bc *BattleCommand) handlePokemonSwitch(bs *battle.BattleState, forced bool
 			continue
 		}
 
-		// Prevent selection of knocked out Pokemon (double check)
 		if bs.PlayerDeck[newIdx].HP <= 0 {
 			fmt.Print("That Pokemon is knocked out. Choose another: ")
 			continue
 		}
 
-		// Switch to the selected Pokemon
 		err = battle.SwitchPokemon(bs, newIdx)
 		if err != nil {
 			fmt.Printf("Error switching Pokemon: %v\n", err)
@@ -436,9 +388,7 @@ func (bc *BattleCommand) handlePokemonSwitch(bs *battle.BattleState, forced bool
 	}
 }
 
-// handleBattleEnd handles the end of battle, rewards, and stats updates
 func (bc *BattleCommand) handleBattleEnd(bs *battle.BattleState, mode string) error {
-	// Clear screen and display final battle state
 	bc.renderer.Clear()
 	fmt.Println(bc.renderer.RenderBattleScreen(bs))
 	fmt.Println()
@@ -487,12 +437,10 @@ func (bc *BattleCommand) handleBattleEnd(bs *battle.BattleState, mode string) er
 	fmt.Println(strings.Repeat("═", 60))
 	fmt.Println()
 
-	// Award coins
 	bc.gameState.Coins += coinsEarned
 	fmt.Printf("Coins earned: +%d (Total: %d)\n", coinsEarned, bc.gameState.Coins)
 	fmt.Println()
 
-	// Award XP and check for level-ups
 	if xpPerPokemon > 0 {
 		fmt.Println("Experience gained:")
 		leveledUp := false
@@ -506,18 +454,15 @@ func (bc *BattleCommand) handleBattleEnd(bs *battle.BattleState, mode string) er
 			oldLevel := card.Level
 			card.XP += xpPerPokemon
 
-			// Check for level-up (100 XP per level)
 			xpNeeded := 100
 			if card.XP >= xpNeeded {
 				card.Level++
 				card.XP -= xpNeeded
 				leveledUp = true
 
-				// Display level-up notification
 				fmt.Printf("  %s: +%d XP → ", card.Name, xpPerPokemon)
 				fmt.Println(ui.Colorize(fmt.Sprintf("LEVEL UP! %d → %d", oldLevel, card.Level), ui.Bold+ui.ColorBrightYellow))
 
-				// Show new stats
 				newStats := card.GetCurrentStats()
 				fmt.Printf("    New stats: HP: %d, ATK: %d, DEF: %d, SPD: %d\n",
 					newStats.HP, newStats.Attack, newStats.Defense, newStats.Speed)
@@ -536,7 +481,6 @@ func (bc *BattleCommand) handleBattleEnd(bs *battle.BattleState, mode string) er
 		}
 	}
 
-	// Update player stats
 	if mode == "1v1" {
 		bc.gameState.Stats.TotalBattles1v1++
 		switch result {
@@ -561,7 +505,6 @@ func (bc *BattleCommand) handleBattleEnd(bs *battle.BattleState, mode string) er
 
 	bc.gameState.Stats.TotalCoinsEarned += coinsEarned
 
-	// Add battle to history
 	battleRecord := storage.BattleRecord{
 		Mode:        mode,
 		Result:      strings.ToLower(result),
@@ -570,15 +513,12 @@ func (bc *BattleCommand) handleBattleEnd(bs *battle.BattleState, mode string) er
 	}
 	bc.gameState.BattleHistory = append(bc.gameState.BattleHistory, battleRecord)
 
-	// Keep only last 20 battles in history
 	if len(bc.gameState.BattleHistory) > 20 {
 		bc.gameState.BattleHistory = bc.gameState.BattleHistory[len(bc.gameState.BattleHistory)-20:]
 	}
 
-	// Update shop refresh counter
 	bc.gameState.ShopState.BattlesSinceRefresh++
 
-	// Save updated game state
 	err := storage.SaveGameState(bc.gameState)
 	if err != nil {
 		fmt.Printf("Warning: Failed to save game state: %v\n", err)
@@ -587,13 +527,11 @@ func (bc *BattleCommand) handleBattleEnd(bs *battle.BattleState, mode string) er
 		fmt.Println(ui.Colorize("✓ Game saved successfully", ui.ColorGreen))
 	}
 
-	// Check if shop should be refreshed
 	if bc.gameState.ShopState.BattlesSinceRefresh >= 10 {
 		shopCmd := NewShopCommand(bc.gameState, bc.renderer, bc.scanner)
 		if err := shopCmd.CheckAndRefreshShop(); err != nil {
 			fmt.Printf("Warning: Failed to refresh shop: %v\n", err)
 		}
-		// Save again after shop refresh
 		if err := storage.SaveGameState(bc.gameState); err != nil {
 			fmt.Printf("Warning: Failed to save shop refresh: %v\n", err)
 		}
@@ -603,7 +541,6 @@ func (bc *BattleCommand) handleBattleEnd(bs *battle.BattleState, mode string) er
 	fmt.Println("Press Enter to continue...")
 	bc.scanner.Scan()
 
-	// Handle post-battle Pokemon selection for 5v5 victories
 	if mode == "5v5" && bs.Winner == "player" {
 		return bc.handlePostBattlePokemonSelection(bs)
 	}
@@ -611,12 +548,9 @@ func (bc *BattleCommand) handleBattleEnd(bs *battle.BattleState, mode string) er
 	return nil
 }
 
-// handlePostBattlePokemonSelection handles Pokemon selection after 5v5 victory
 func (bc *BattleCommand) handlePostBattlePokemonSelection(bs *battle.BattleState) error {
-	// Clear screen
 	bc.renderer.Clear()
 
-	// Display victory bonus message
 	fmt.Println()
 	fmt.Println(ui.Colorize("🎁 VICTORY BONUS! 🎁", ui.Bold+ui.ColorBrightGreen))
 	fmt.Println()
@@ -625,7 +559,6 @@ func (bc *BattleCommand) handlePostBattlePokemonSelection(bs *battle.BattleState
 	fmt.Println(strings.Repeat("═", 70))
 	fmt.Println()
 
-	// Display all AI Pokemon with full details
 	for i, aiCard := range bs.AIDeck {
 		fmt.Printf("[%d] ", i+1)
 		if bc.renderer.ColorSupport {
@@ -673,7 +606,6 @@ func (bc *BattleCommand) handlePostBattlePokemonSelection(bs *battle.BattleState
 	fmt.Println(strings.Repeat("═", 70))
 	fmt.Print("\nSelect Pokemon to add to your collection (1-5): ")
 
-	// Prompt for selection
 	for {
 		if !bc.scanner.Scan() {
 			return fmt.Errorf("failed to read input")
@@ -689,7 +621,6 @@ func (bc *BattleCommand) handlePostBattlePokemonSelection(bs *battle.BattleState
 		selectedIdx := choice - 1
 		selectedCard := bs.AIDeck[selectedIdx]
 
-		// Convert BattleCard to PlayerCard
 		newCard := storage.PlayerCard{
 			ID:          len(bc.gameState.Collection), // Assign new ID
 			PokemonID:   selectedCard.CardID,
@@ -708,17 +639,14 @@ func (bc *BattleCommand) handlePostBattlePokemonSelection(bs *battle.BattleState
 			AcquiredAt:  bs.CreatedAt,
 		}
 
-		// Add to collection
 		bc.gameState.Collection = append(bc.gameState.Collection, newCard)
 		bc.gameState.Stats.TotalPokemon = len(bc.gameState.Collection)
 
-		// Save game state
 		err = storage.SaveGameState(bc.gameState)
 		if err != nil {
 			fmt.Printf("Warning: Failed to save game state: %v\n", err)
 		}
 
-		// Display confirmation
 		fmt.Println()
 		fmt.Println(ui.Colorize(fmt.Sprintf("✓ %s has been added to your collection!", selectedCard.Name), ui.Bold+ui.ColorBrightGreen))
 		fmt.Println()

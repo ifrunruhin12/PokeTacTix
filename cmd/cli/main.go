@@ -1,6 +1,3 @@
-//go:build cli
-// +build cli
-
 package main
 
 import (
@@ -8,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 
 	"pokemon-cli/internal/cli/commands"
@@ -16,10 +14,18 @@ import (
 	"pokemon-cli/internal/cli/ui"
 )
 
-const version = "0.1.0-alpha"
+var (
+	Version    = "dev"
+	BuildDate  = "unknown"
+	CommitHash = "unknown"
+	GoVersion  = runtime.Version()
+)
 
 func main() {
-	// Check if this is first launch
+	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v" || os.Args[1] == "version") {
+		displayVersion()
+		return
+	}
 	isFirst, err := setup.IsFirstLaunch()
 	if err != nil {
 		log.Fatalf("Error checking first launch: %v", err)
@@ -28,19 +34,16 @@ func main() {
 	var gameState *storage.GameState
 
 	if isFirst {
-		// Run first-time setup
 		gameState, err = setup.RunCompleteSetup()
 		if err != nil {
 			log.Fatalf("Setup failed: %v", err)
 		}
 	} else {
-		// Load existing game state
 		gameState, err = storage.LoadGameState()
 		if err != nil {
 			log.Fatalf("Failed to load game state: %v", err)
 		}
 
-		// Welcome back message
 		renderer := ui.NewRenderer()
 		renderer.Clear()
 		fmt.Println(ui.RenderLogo())
@@ -52,10 +55,8 @@ func main() {
 		}
 	}
 
-	// Display player info
 	displayPlayerInfo(gameState)
 
-	// Start command loop
 	runCommandLoop(gameState)
 }
 
@@ -77,13 +78,11 @@ func runCommandLoop(state *storage.GameState) {
 	scanner := bufio.NewScanner(os.Stdin)
 	renderer := ui.NewRenderer()
 
-	// Create command handler
 	cmdHandler := commands.NewCommandHandler(state, renderer, scanner)
 
 	fmt.Println("Type 'help' for available commands or 'quit' to exit.")
 	fmt.Println()
 
-	// Show initial hint for new players
 	totalBattles := state.Stats.TotalBattles1v1 + state.Stats.TotalBattles5v5
 	if totalBattles < 3 {
 		cmdHandler.DisplayCommandHints()
@@ -101,7 +100,6 @@ func runCommandLoop(state *storage.GameState) {
 			continue
 		}
 
-		// Parse command
 		parts := strings.Fields(input)
 		command := parts[0]
 		args := []string{}
@@ -109,7 +107,6 @@ func runCommandLoop(state *storage.GameState) {
 			args = parts[1:]
 		}
 
-		// Handle special commands that aren't in the command handler
 		if strings.ToLower(command) == "info" || strings.ToLower(command) == "i" {
 			displayPlayerInfo(state)
 			fmt.Println()
@@ -125,15 +122,12 @@ func runCommandLoop(state *storage.GameState) {
 			continue
 		}
 
-		// Use the command handler for all other commands
 		err := cmdHandler.HandleCommand(command, args)
 		if err != nil {
-			// Check if it's a quit signal
 			if err.Error() == "QUIT" {
 				return
 			}
 
-			// Display error if it's not handled by the command handler
 			if ui.GetColorSupport() {
 				fmt.Printf("%s\n", ui.Colorize(fmt.Sprintf("Error: %v", err), ui.ColorRed))
 			} else {
@@ -141,11 +135,10 @@ func runCommandLoop(state *storage.GameState) {
 			}
 		}
 
-		// Reload game state after commands that might modify it
 		cmdLower := strings.ToLower(command)
-		if cmdLower == "battle" || cmdLower == "b" || 
-		   cmdLower == "shop" || cmdLower == "s" ||
-		   (cmdLower == "deck" && len(args) > 0 && strings.ToLower(args[0]) == "edit") {
+		if cmdLower == "battle" || cmdLower == "b" ||
+			cmdLower == "shop" || cmdLower == "s" ||
+			(cmdLower == "deck" && len(args) > 0 && strings.ToLower(args[0]) == "edit") {
 			var reloadErr error
 			state, reloadErr = storage.LoadGameState()
 			if reloadErr != nil {
@@ -189,4 +182,16 @@ func resetGame() {
 	} else {
 		fmt.Println("\n✓ Save file deleted. Restart the game to begin fresh!")
 	}
+}
+
+func displayVersion() {
+	fmt.Println()
+	fmt.Println(ui.RenderLogo())
+	fmt.Println()
+	fmt.Printf("Version:      %s\n", Version)
+	fmt.Printf("Build Date:   %s\n", BuildDate)
+	fmt.Printf("Commit:       %s\n", CommitHash)
+	fmt.Printf("Go Version:   %s\n", GoVersion)
+	fmt.Printf("Platform:     %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	fmt.Println()
 }

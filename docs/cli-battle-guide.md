@@ -19,11 +19,13 @@ or
 When you start a battle, you'll be prompted to choose a mode:
 
 ### 1v1 Battle
+
 - Quick battle with one random Pokemon from your deck
 - Rewards: 50 coins on victory, 20 XP
 - Faster gameplay for quick sessions
 
 ### 5v5 Battle
+
 - Full battle with all 5 Pokemon in your deck
 - Rewards: 150 coins on victory, 15 XP per Pokemon
 - Victory bonus: Choose one Pokemon from AI's team to add to your collection
@@ -62,6 +64,7 @@ During battle, you can choose from these actions:
 ## Pokemon Switching (5v5 Only)
 
 When your active Pokemon is knocked out in 5v5 mode:
+
 - You'll be prompted to select another Pokemon
 - Cannot select knocked out Pokemon
 - View HP, stamina, types, and stats before choosing
@@ -70,16 +73,19 @@ When your active Pokemon is knocked out in 5v5 mode:
 ## Battle Rewards
 
 ### Victory Rewards
+
 - **1v1**: 50 coins, 20 XP to your Pokemon
 - **5v5**: 150 coins, 15 XP to each Pokemon in your deck
 - **5v5 Bonus**: Choose one Pokemon from AI's team to add to your collection
 
 ### Loss Rewards
+
 - **1v1**: 10 coins
 - **5v5**: 25 coins
 - No XP awarded
 
 ### Draw Rewards
+
 - **1v1**: 25 coins, 10 XP
 - **5v5**: 75 coins, 8 XP per Pokemon
 
@@ -106,6 +112,7 @@ When your active Pokemon is knocked out in 5v5 mode:
 ## Requirements
 
 Before starting a battle:
+
 - You must have exactly 5 Pokemon in your deck
 - Use `deck` command to view your current deck
 - Use `collection` command to see all available Pokemon
@@ -137,18 +144,13 @@ Press Enter to continue...
 ## Troubleshooting
 
 **"You don't have any Pokemon in your deck"**
+
 - Your deck is empty. This shouldn't happen after setup, but if it does, contact support.
 
 **"Your deck must have exactly 5 Pokemon"**
+
 - Deck editing is not yet implemented. You should have 5 Pokemon from the starter deck.
 
 **"Failed to load player deck"**
+
 - Your save file may be corrupted. Try the `reset` command to start fresh.
-
-## Coming Soon
-
-- Deck editing commands
-- Shop to buy new Pokemon
-- Battle history viewer
-- Tournament mode
-- Leaderboards

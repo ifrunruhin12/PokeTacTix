@@ -18,42 +18,7 @@ func TestNewRenderer(t *testing.T) {
 	}
 }
 
-func TestColorize(t *testing.T) {
-	// Test with color support enabled
-	SetColorSupport(true)
-	result := Colorize("test", ColorRed)
-	if result != ColorRed+"test"+ColorReset {
-		t.Errorf("Colorize with support enabled failed: got %q", result)
-	}
-
-	// Test with color support disabled
-	SetColorSupport(false)
-	result = Colorize("test", ColorRed)
-	if result != "test" {
-		t.Errorf("Colorize with support disabled failed: got %q", result)
-	}
-}
-
-func TestColorizeType(t *testing.T) {
-	SetColorSupport(true)
-	
-	tests := []struct {
-		text     string
-		poketype string
-		expected string
-	}{
-		{"Fire", "fire", ColorRed + "Fire" + ColorReset},
-		{"Water", "water", ColorBlue + "Water" + ColorReset},
-		{"Grass", "grass", ColorGreen + "Grass" + ColorReset},
-	}
-
-	for _, tt := range tests {
-		result := ColorizeType(tt.text, tt.poketype)
-		if result != tt.expected {
-			t.Errorf("ColorizeType(%q, %q) = %q, want %q", tt.text, tt.poketype, result, tt.expected)
-		}
-	}
-}
+// Note: TestColorize and TestColorizeType are in colors_test.go
 
 func TestRenderHPBar(t *testing.T) {
 	tests := []struct {

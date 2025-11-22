@@ -35,9 +35,14 @@ type BattleLog struct {
 }
 
 // NewBattleLog creates a new battle log with a maximum entry limit
+// Optimized to limit memory usage (default 50 entries max)
 func NewBattleLog(maxEntries int) *BattleLog {
 	if maxEntries <= 0 {
 		maxEntries = 10
+	}
+	// Cap at 50 entries to prevent excessive memory usage
+	if maxEntries > 50 {
+		maxEntries = 50
 	}
 	return &BattleLog{
 		Entries:    make([]LogEntry, 0, maxEntries),
@@ -46,6 +51,7 @@ func NewBattleLog(maxEntries int) *BattleLog {
 }
 
 // Add adds a new entry to the battle log
+// Optimized to prevent memory growth beyond MaxEntries
 func (bl *BattleLog) Add(message string, entryType LogEntryType) {
 	entry := LogEntry{
 		Message:   message,
@@ -55,9 +61,12 @@ func (bl *BattleLog) Add(message string, entryType LogEntryType) {
 
 	bl.Entries = append(bl.Entries, entry)
 
-	// Keep only the last MaxEntries
+	// Keep only the last MaxEntries and free old memory
 	if len(bl.Entries) > bl.MaxEntries {
-		bl.Entries = bl.Entries[len(bl.Entries)-bl.MaxEntries:]
+		// Create new slice to allow GC to reclaim old entries
+		newEntries := make([]LogEntry, bl.MaxEntries)
+		copy(newEntries, bl.Entries[len(bl.Entries)-bl.MaxEntries:])
+		bl.Entries = newEntries
 	}
 }
 
