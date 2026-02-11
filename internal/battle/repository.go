@@ -308,32 +308,35 @@ func (r *Repository) UpdatePlayerStatsInTx(ctx context.Context, tx pgx.Tx, userI
 		switch result {
 		case "win":
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_1v1, wins_1v1, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_1v1, wins_1v1, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 0, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
 				    wins_1v1 = player_stats.wins_1v1 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = 0,
 				    updated_at = NOW()
 			`
 		case "loss":
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_1v1, losses_1v1, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_1v1, losses_1v1, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 1, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
 				    losses_1v1 = player_stats.losses_1v1 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = player_stats.consecutive_losses + 1,
 				    updated_at = NOW()
 			`
 		default: // draw
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_1v1, draws_1v1, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_1v1, draws_1v1, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 0, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
 				    draws_1v1 = player_stats.draws_1v1 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = 0,
 				    updated_at = NOW()
 			`
 		}
@@ -341,32 +344,35 @@ func (r *Repository) UpdatePlayerStatsInTx(ctx context.Context, tx pgx.Tx, userI
 		switch result {
 		case "win":
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_5v5, wins_5v5, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_5v5, wins_5v5, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 0, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
 				    wins_5v5 = player_stats.wins_5v5 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = 0,
 				    updated_at = NOW()
 			`
 		case "loss":
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_5v5, losses_5v5, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_5v5, losses_5v5, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 1, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
 				    losses_5v5 = player_stats.losses_5v5 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = player_stats.consecutive_losses + 1,
 				    updated_at = NOW()
 			`
 		default: // draw
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_5v5, draws_5v5, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_5v5, draws_5v5, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 0, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
 				    draws_5v5 = player_stats.draws_5v5 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = 0,
 				    updated_at = NOW()
 			`
 		}
