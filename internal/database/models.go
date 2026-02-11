@@ -79,18 +79,19 @@ type BattleHistory struct {
 
 // PlayerStats represents player statistics
 type PlayerStats struct {
-	UserID           int       `json:"user_id"`
-	TotalBattles1v1  int       `json:"total_battles_1v1"`
-	Wins1v1          int       `json:"wins_1v1"`
-	Losses1v1        int       `json:"losses_1v1"`
-	Draws1v1         int       `json:"draws_1v1"`
-	TotalBattles5v5  int       `json:"total_battles_5v5"`
-	Wins5v5          int       `json:"wins_5v5"`
-	Losses5v5        int       `json:"losses_5v5"`
-	Draws5v5         int       `json:"draws_5v5"`
-	TotalCoinsEarned int       `json:"total_coins_earned"`
-	HighestLevel     int       `json:"highest_level"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	UserID            int       `json:"user_id"`
+	TotalBattles1v1   int       `json:"total_battles_1v1"`
+	Wins1v1           int       `json:"wins_1v1"`
+	Losses1v1         int       `json:"losses_1v1"`
+	Draws1v1          int       `json:"draws_1v1"`
+	TotalBattles5v5   int       `json:"total_battles_5v5"`
+	Wins5v5           int       `json:"wins_5v5"`
+	Losses5v5         int       `json:"losses_5v5"`
+	Draws5v5          int       `json:"draws_5v5"`
+	TotalCoinsEarned  int       `json:"total_coins_earned"`
+	HighestLevel      int       `json:"highest_level"`
+	ConsecutiveLosses int       `json:"consecutive_losses"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // Achievement represents an achievement definition

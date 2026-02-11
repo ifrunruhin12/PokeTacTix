@@ -54,64 +54,70 @@ func (r *Repository) updatePlayerStats(ctx context.Context, userID int, mode, re
 	if mode == "1v1" {
 		if result == "win" {
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_1v1, wins_1v1, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_1v1, wins_1v1, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 0, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
 				    wins_1v1 = player_stats.wins_1v1 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = 0,
 				    updated_at = NOW()
 			`
 		} else if result == "loss" {
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_1v1, losses_1v1, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_1v1, losses_1v1, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 1, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
 				    losses_1v1 = player_stats.losses_1v1 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = player_stats.consecutive_losses + 1,
 				    updated_at = NOW()
 			`
 		} else { // result == "draw"
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_1v1, draws_1v1, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_1v1, draws_1v1, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 0, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_1v1 = player_stats.total_battles_1v1 + 1,
 				    draws_1v1 = player_stats.draws_1v1 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = 0,
 				    updated_at = NOW()
 			`
 		}
 	} else { // mode == "5v5"
 		if result == "win" {
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_5v5, wins_5v5, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_5v5, wins_5v5, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 0, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
 				    wins_5v5 = player_stats.wins_5v5 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = 0,
 				    updated_at = NOW()
 			`
 		} else if result == "loss" {
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_5v5, losses_5v5, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_5v5, losses_5v5, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 1, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
 				    losses_5v5 = player_stats.losses_5v5 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = player_stats.consecutive_losses + 1,
 				    updated_at = NOW()
 			`
 		} else { // result == "draw"
 			query = `
-				INSERT INTO player_stats (user_id, total_battles_5v5, draws_5v5, total_coins_earned, updated_at)
-				VALUES ($1, 1, 1, $2, NOW())
+				INSERT INTO player_stats (user_id, total_battles_5v5, draws_5v5, total_coins_earned, consecutive_losses, updated_at)
+				VALUES ($1, 1, 1, $2, 0, NOW())
 				ON CONFLICT (user_id) DO UPDATE
 				SET total_battles_5v5 = player_stats.total_battles_5v5 + 1,
 				    draws_5v5 = player_stats.draws_5v5 + 1,
 				    total_coins_earned = player_stats.total_coins_earned + $2,
+				    consecutive_losses = 0,
 				    updated_at = NOW()
 			`
 		}
@@ -141,6 +147,7 @@ func (r *Repository) GetPlayerStats(ctx context.Context, userID int) (*database.
 			COALESCE(draws_5v5, 0),
 			COALESCE(total_coins_earned, 0),
 			COALESCE(highest_level, 1),
+			COALESCE(consecutive_losses, 0),
 			updated_at
 		FROM player_stats
 		WHERE user_id = $1
@@ -155,6 +162,7 @@ func (r *Repository) GetPlayerStats(ctx context.Context, userID int) (*database.
 		&stats.Draws5v5,
 		&stats.TotalCoinsEarned,
 		&stats.HighestLevel,
+		&stats.ConsecutiveLosses,
 		&stats.UpdatedAt,
 	)
 
@@ -172,6 +180,7 @@ func (r *Repository) GetPlayerStats(ctx context.Context, userID int) (*database.
 			stats.Draws5v5 = 0
 			stats.TotalCoinsEarned = 0
 			stats.HighestLevel = 1
+			stats.ConsecutiveLosses = 0
 			return stats, nil
 		}
 		return nil, fmt.Errorf("failed to get player stats: %w", err)

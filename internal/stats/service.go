@@ -96,6 +96,8 @@ func (s *Service) CheckAndUnlockAchievements(ctx context.Context, userID int) ([
 			if err == nil && hasMythical {
 				shouldUnlock = true
 			}
+		case "consecutive_losses":
+			shouldUnlock = stats.ConsecutiveLosses >= ach.RequirementValue
 		}
 
 		if shouldUnlock {
