@@ -26,9 +26,22 @@ export const purchaseCard = async (pokemonName) => {
   return response.data;
 };
 
+/**
+ * Purchase game tokens from the shop
+ * @param {number} quantity - Number of tokens to purchase (1-10)
+ * @returns {Promise<Object>} Purchase result with tokens added and remaining coins
+ */
+export const purchaseTokens = async (quantity) => {
+  const response = await api.post('/api/shop/tokens/purchase', {
+    quantity,
+  });
+  return response.data;
+};
+
 const shopService = {
   getInventory,
   purchaseCard,
+  purchaseTokens,
 };
 
 export default shopService;

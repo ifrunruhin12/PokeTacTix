@@ -8,16 +8,19 @@ import (
 
 // GameState represents the complete state of the CLI game
 type GameState struct {
-	PlayerName    string         `json:"player_name"`
-	Coins         int            `json:"coins"`
-	Collection    []PlayerCard   `json:"collection"`
-	Deck          []int          `json:"deck"` // Card IDs (indices in Collection)
-	Stats         PlayerStats    `json:"stats"`
-	ShopState     ShopState      `json:"shop_state"`
-	BattleHistory []BattleRecord `json:"battle_history,omitempty"`
-	Settings      GameSettings   `json:"settings"`
-	LastSaved     time.Time      `json:"last_saved"`
-	Version       string         `json:"version"`
+	PlayerName           string         `json:"player_name"`
+	Coins                int            `json:"coins"`
+	GameTokens           int            `json:"game_tokens"`
+	LastTokenReset       time.Time      `json:"last_token_reset"`
+	TokensPurchasedToday int            `json:"tokens_purchased_today"`
+	Collection           []PlayerCard   `json:"collection"`
+	Deck                 []int          `json:"deck"` // Card IDs (indices in Collection)
+	Stats                PlayerStats    `json:"stats"`
+	ShopState            ShopState      `json:"shop_state"`
+	BattleHistory        []BattleRecord `json:"battle_history,omitempty"`
+	Settings             GameSettings   `json:"settings"`
+	LastSaved            time.Time      `json:"last_saved"`
+	Version              string         `json:"version"`
 }
 
 // GameSettings stores user preferences

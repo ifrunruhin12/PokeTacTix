@@ -7,13 +7,16 @@ import (
 
 // User represents a user account
 type User struct {
-	ID           int       `json:"id"`
-	Username     string    `json:"username"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
-	Coins        int       `json:"coins"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID                   int       `json:"id"`
+	Username             string    `json:"username"`
+	Email                string    `json:"email"`
+	PasswordHash         string    `json:"-"`
+	Coins                int       `json:"coins"`
+	GameTokens           int       `json:"game_tokens"`
+	LastTokenReset       time.Time `json:"last_token_reset"`
+	TokensPurchasedToday int       `json:"tokens_purchased_today"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // PlayerCard represents a Pokemon card owned by a player

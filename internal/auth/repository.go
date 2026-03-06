@@ -23,9 +23,9 @@ func NewRepository(db *pgxpool.Pool) *Repository {
 // Create creates a new user
 func (r *Repository) Create(ctx context.Context, username, email, passwordHash string) (*database.User, error) {
 	query := `
-		INSERT INTO users (username, email, password_hash, coins)
-		VALUES ($1, $2, $3, 0)
-		RETURNING id, username, email, password_hash, coins, created_at, updated_at
+		INSERT INTO users (username, email, password_hash, coins, game_tokens, last_token_reset, tokens_purchased_today)
+		VALUES ($1, $2, $3, 0, 5, CURRENT_DATE, 0)
+		RETURNING id, username, email, password_hash, coins, game_tokens, last_token_reset, tokens_purchased_today, created_at, updated_at
 	`
 
 	user := &database.User{}
@@ -35,6 +35,9 @@ func (r *Repository) Create(ctx context.Context, username, email, passwordHash s
 		&user.Email,
 		&user.PasswordHash,
 		&user.Coins,
+		&user.GameTokens,
+		&user.LastTokenReset,
+		&user.TokensPurchasedToday,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -49,7 +52,7 @@ func (r *Repository) Create(ctx context.Context, username, email, passwordHash s
 // GetByID retrieves a user by ID
 func (r *Repository) GetByID(ctx context.Context, id int) (*database.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, coins, created_at, updated_at
+		SELECT id, username, email, password_hash, coins, game_tokens, last_token_reset, tokens_purchased_today, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -61,6 +64,9 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*database.User, error
 		&user.Email,
 		&user.PasswordHash,
 		&user.Coins,
+		&user.GameTokens,
+		&user.LastTokenReset,
+		&user.TokensPurchasedToday,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -78,7 +84,7 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*database.User, error
 // GetByUsername retrieves a user by username
 func (r *Repository) GetByUsername(ctx context.Context, username string) (*database.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, coins, created_at, updated_at
+		SELECT id, username, email, password_hash, coins, game_tokens, last_token_reset, tokens_purchased_today, created_at, updated_at
 		FROM users
 		WHERE username = $1
 	`
@@ -90,6 +96,9 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*datab
 		&user.Email,
 		&user.PasswordHash,
 		&user.Coins,
+		&user.GameTokens,
+		&user.LastTokenReset,
+		&user.TokensPurchasedToday,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -107,7 +116,7 @@ func (r *Repository) GetByUsername(ctx context.Context, username string) (*datab
 // GetByEmail retrieves a user by email
 func (r *Repository) GetByEmail(ctx context.Context, email string) (*database.User, error) {
 	query := `
-		SELECT id, username, email, password_hash, coins, created_at, updated_at
+		SELECT id, username, email, password_hash, coins, game_tokens, last_token_reset, tokens_purchased_today, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -119,6 +128,9 @@ func (r *Repository) GetByEmail(ctx context.Context, email string) (*database.Us
 		&user.Email,
 		&user.PasswordHash,
 		&user.Coins,
+		&user.GameTokens,
+		&user.LastTokenReset,
+		&user.TokensPurchasedToday,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)

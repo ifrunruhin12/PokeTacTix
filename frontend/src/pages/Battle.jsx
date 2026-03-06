@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BattleArena, BattleEntryAnimation } from '../components/battle';
 import { startBattle, submitMove, switchPokemon, selectReward } from '../services/battle.service';
+import tokenService from '../services/token.service';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Battle() {
@@ -11,6 +12,8 @@ export default function Battle() {
   const [error, setError] = useState(null);
   const [battleMode, setBattleMode] = useState(null);
   const [showEntryAnimation, setShowEntryAnimation] = useState(false);
+  const [tokenData, setTokenData] = useState(null);
+  const [loadingTokens, setLoadingTokens] = useState(true);
 
   // Transform backend response to frontend format
   const transformBattleState = (response) => {
@@ -128,6 +131,27 @@ export default function Battle() {
     return transformed;
   };
 
+  // Fetch token balance
+  const fetchTokenBalance = async () => {
+    setLoadingTokens(true);
+    try {
+      const data = await tokenService.getTokenBalance();
+      setTokenData(data);
+    } catch (error) {
+      console.error('Failed to fetch token balance:', error);
+      setError('Failed to load token information');
+    } finally {
+      setLoadingTokens(false);
+    }
+  };
+
+  // Fetch token balance on mount and when returning from battle
+  useEffect(() => {
+    if (!battleState) {
+      fetchTokenBalance();
+    }
+  }, [battleState]);
+
   // Start a new battle
   const handleStartBattle = async (mode) => {
     setLoading(true);
@@ -139,8 +163,18 @@ export default function Battle() {
       setBattleMode(mode);
       setShowEntryAnimation(true);
     } catch (err) {
-      setError(err.response?.data?.error?.message || 'Failed to start battle');
+      const errorMessage = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to start battle';
+      
+      // Check if it's an insufficient tokens error
+      if (errorMessage.includes('token') || errorMessage.includes('INSUFFICIENT_TOKENS')) {
+        setError('insufficient_tokens');
+      } else {
+        setError(errorMessage);
+      }
       console.error('Error starting battle:', err);
+      
+      // Refresh token balance after error
+      fetchTokenBalance();
     } finally {
       setLoading(false);
     }
@@ -278,6 +312,10 @@ export default function Battle() {
 
   // Battle mode selection screen
   if (!battleState && !loading) {
+    const tokens = tokenData?.game_tokens || 0;
+    const hasNoTokens = tokens === 0;
+    const hasLowTokens = tokens > 0 && tokens <= 2;
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
         <motion.div
@@ -293,7 +331,65 @@ export default function Battle() {
               Choose your battle mode and test your skills!
             </p>
 
-            {error && (
+            {/* Token Display */}
+            {!loadingTokens && tokenData && (
+              <div className="mb-6 bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">🎫</span>
+                    <div>
+                      <div className="text-white font-semibold text-lg">
+                        {tokens > (tokenData?.daily_token_limit || 10) ? `${tokens} Tokens` : `${tokens}/${tokenData?.daily_token_limit || 10} Tokens`}
+                      </div>
+                      <div className="text-gray-400 text-sm">
+                        Resets at {tokenData.reset_time} ({tokenData.time_until_reset})
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-yellow-400 text-sm">
+                      1v1 costs {tokenData?.token_cost_1v1 || 1} token{(tokenData?.token_cost_1v1 || 1) !== 1 ? 's' : ''} | 
+                      5v5 costs {tokenData?.token_cost_5v5 || 2} token{(tokenData?.token_cost_5v5 || 2) !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* No Tokens Error */}
+            {hasNoTokens && (
+              <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">⚠️</span>
+                  <span className="font-semibold">No Tokens Available</span>
+                </div>
+                <p className="text-sm mb-3">
+                  You don't have any tokens to start a battle. Purchase more tokens from the shop or wait for your daily reset.
+                </p>
+                <button
+                  onClick={() => navigate('/shop')}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Go to Shop →
+                </button>
+              </div>
+            )}
+
+            {/* Low Tokens Warning */}
+            {hasLowTokens && (
+              <div className="bg-yellow-900/50 border border-yellow-500 text-yellow-200 px-4 py-3 rounded-lg mb-6">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">⚠️</span>
+                  <span className="font-semibold">Low on Tokens!</span>
+                </div>
+                <p className="text-sm mt-1">
+                  You only have {tokens} token{tokens !== 1 ? 's' : ''} remaining. Consider purchasing more from the shop.
+                </p>
+              </div>
+            )}
+
+            {/* Other Errors */}
+            {error && error !== 'insufficient_tokens' && (
               <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg mb-6">
                 {error}
               </div>
@@ -302,38 +398,54 @@ export default function Battle() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* 1v1 Battle */}
               <motion.button
-                whileHover={{ scale: 1.05, y: -5 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleStartBattle('1v1')}
-                className="bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white rounded-xl p-6 shadow-lg transition-all"
+                whileHover={!hasNoTokens ? { scale: 1.05, y: -5 } : {}}
+                whileTap={!hasNoTokens ? { scale: 0.95 } : {}}
+                onClick={() => !hasNoTokens && handleStartBattle('1v1')}
+                disabled={hasNoTokens}
+                className={`rounded-xl p-6 shadow-lg transition-all ${
+                  hasNoTokens
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed opacity-50'
+                    : 'bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white'
+                }`}
               >
                 <div className="text-5xl mb-4">⚔️</div>
                 <h2 className="text-2xl font-bold mb-2">1v1 Battle</h2>
-                <p className="text-blue-100 text-sm mb-4">
+                <p className={`text-sm mb-4 ${hasNoTokens ? 'text-gray-500' : 'text-blue-100'}`}>
                   Quick battle with one Pokemon
                 </p>
-                <div className="text-yellow-300 font-semibold">
+                <div className={`font-semibold ${hasNoTokens ? 'text-gray-500' : 'text-yellow-300'}`}>
                   💰 Win: 50 coins | Loss: 10 coins
+                </div>
+                <div className={`text-sm mt-2 ${hasNoTokens ? 'text-gray-500' : 'text-blue-200'}`}>
+                  🎫 Costs {tokenData?.token_cost_1v1 || 1} token{(tokenData?.token_cost_1v1 || 1) !== 1 ? 's' : ''}
                 </div>
               </motion.button>
 
               {/* 5v5 Battle */}
               <motion.button
-                whileHover={{ scale: 1.05, y: -5 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleStartBattle('5v5')}
-                className="bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white rounded-xl p-6 shadow-lg transition-all"
+                whileHover={!hasNoTokens ? { scale: 1.05, y: -5 } : {}}
+                whileTap={!hasNoTokens ? { scale: 0.95 } : {}}
+                onClick={() => !hasNoTokens && handleStartBattle('5v5')}
+                disabled={hasNoTokens}
+                className={`rounded-xl p-6 shadow-lg transition-all ${
+                  hasNoTokens
+                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed opacity-50'
+                    : 'bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white'
+                }`}
               >
                 <div className="text-5xl mb-4">🏆</div>
                 <h2 className="text-2xl font-bold mb-2">5v5 Battle</h2>
-                <p className="text-purple-100 text-sm mb-4">
+                <p className={`text-sm mb-4 ${hasNoTokens ? 'text-gray-500' : 'text-purple-100'}`}>
                   Epic battle with your full team
                 </p>
-                <div className="text-yellow-300 font-semibold">
+                <div className={`font-semibold ${hasNoTokens ? 'text-gray-500' : 'text-yellow-300'}`}>
                   💰 Win: 150 coins | Loss: 25 coins
                 </div>
-                <div className="text-green-300 text-xs mt-2">
+                <div className={`text-xs mt-2 ${hasNoTokens ? 'text-gray-500' : 'text-green-300'}`}>
                   + Choose 1 opponent Pokemon on victory!
+                </div>
+                <div className={`text-sm mt-1 ${hasNoTokens ? 'text-gray-500' : 'text-purple-200'}`}>
+                  🎫 Costs {tokenData?.token_cost_5v5 || 2} token{(tokenData?.token_cost_5v5 || 2) !== 1 ? 's' : ''}
                 </div>
               </motion.button>
             </div>

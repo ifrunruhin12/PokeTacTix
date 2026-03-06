@@ -5,6 +5,11 @@ info:
     PokeTacTix is a Pokemon card battle game API that allows players to collect Pokemon cards, 
     battle against AI opponents, purchase cards from the shop, and track their progress.
     
+    ## Game Token System
+    Players receive 5 free game tokens daily that reset at a configured time (default: 00:00 UTC).
+    Each battle (1v1 or 5v5) consumes 1 token. Additional tokens can be purchased from the shop
+    for 100 coins each, with a maximum of 10 token purchases per day.
+    
     ## Authentication
     Most endpoints require JWT authentication. Include the token in the Authorization header:
     ```
@@ -37,6 +42,8 @@ tags:
     description: 1v1 and 5v5 battle operations
   - name: Shop
     description: Pokemon card shop and purchases
+  - name: Tokens
+    description: Game token balance and management
   - name: Profile
     description: Player statistics, history, and achievements
 
@@ -80,6 +87,19 @@ components:
         coins:
           type: integer
           example: 500
+        game_tokens:
+          type: integer
+          description: Current number of game tokens
+          example: 3
+        last_token_reset:
+          type: string
+          format: date
+          description: Date of last token reset
+          example: "2024-01-20"
+        tokens_purchased_today:
+          type: integer
+          description: Number of tokens purchased today
+          example: 2
         created_at:
           type: string
           format: date-time
@@ -433,6 +453,73 @@ components:
         unlocked:
           type: boolean
           example: true
+
+    TokenBalanceResponse:
+      type: object
+      properties:
+        game_tokens:
+          type: integer
+          description: Current number of game tokens
+          example: 3
+        time_until_reset:
+          type: string
+          description: Human-readable time until next daily reset
+          example: "6h 15m"
+        reset_time:
+          type: string
+          description: Configured daily reset time in UTC
+          example: "00:00 UTC"
+        tokens_purchased_today:
+          type: integer
+          description: Number of tokens purchased today
+          example: 2
+        daily_purchase_limit:
+          type: integer
+          description: Maximum tokens that can be purchased per day
+          example: 10
+
+    TokenPurchaseRequest:
+      type: object
+      required:
+        - quantity
+      properties:
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Number of tokens to purchase (1-10)
+          example: 5
+
+    TokenPurchaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        tokens_added:
+          type: integer
+          description: Number of tokens added to balance
+          example: 5
+        new_token_balance:
+          type: integer
+          description: Updated token balance after purchase
+          example: 8
+        coins_spent:
+          type: integer
+          description: Total coins spent on purchase
+          example: 500
+        remaining_coins:
+          type: integer
+          description: Remaining coin balance after purchase
+          example: 1200
+        tokens_purchased_today:
+          type: integer
+          description: Total tokens purchased today after this transaction
+          example: 7
+        daily_limit_remaining:
+          type: integer
+          description: Remaining tokens that can be purchased today
+          example: 3
 
 paths:
   /api/auth/register:
@@ -802,6 +889,12 @@ paths:
         - **1v1**: Single Pokemon battle, quick matches
         - **5v5**: Full deck battle, strategic gameplay
         
+        **Token Requirement:**
+        - Each battle consumes 1 game token
+        - Players must have at least 1 token to start a battle
+        - Tokens can be purchased from the shop (100 coins each)
+        - Tokens reset to 5 daily at configured time (default: 00:00 UTC)
+        
         The battle state is stored server-side and can be retrieved using the battle ID.
       security:
         - BearerAuth: []
@@ -831,10 +924,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                error:
-                  code: INVALID_DECK
-                  message: You must have exactly 5 cards in your deck to battle
+              examples:
+                invalid_deck:
+                  value:
+                    error:
+                      code: INVALID_DECK
+                      message: You must have exactly 5 cards in your deck to battle
+                insufficient_tokens:
+                  value:
+                    error:
+                      code: INSUFFICIENT_TOKENS
+                      message: "You don't have enough tokens to start a battle. Purchase more tokens from the shop or wait for daily reset at 00:00 UTC."
         '401':
           description: Unauthorized
           content:
@@ -1144,6 +1244,7 @@ paths:
         - 10-15 common/uncommon Pokemon
         - 5-8 rare Pokemon
         - 15% chance for 1-2 legendary/mythical Pokemon
+        - Game tokens available for purchase (100 coins each, 10/day max)
         
         **Pricing:**
         - Common: 100 coins
@@ -1151,6 +1252,7 @@ paths:
         - Rare: 500 coins
         - Legendary: 2500 coins (1500 during discount)
         - Mythical: 5000 coins (3500 during discount)
+        - Game Token: 100 coins (10 per day maximum)
       security:
         - BearerAuth: []
       responses:
@@ -1277,6 +1379,145 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /api/shop/tokens/purchase:
+    post:
+      tags:
+        - Shop
+        - Tokens
+      summary: Purchase game tokens
+      description: |
+        Purchase game tokens using coins to extend daily battle limits.
+        
+        **Token System:**
+        - Each token allows one battle (1v1 or 5v5)
+        - Price: 100 coins per token
+        - Daily purchase limit: 10 tokens
+        - Tokens reset daily at configured time (default: 00:00 UTC)
+        - Purchase limit resets at the same time
+        
+        **Rate Limit:** 10 requests per minute
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenPurchaseRequest'
+            example:
+              quantity: 5
+      responses:
+        '200':
+          description: Token purchase successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPurchaseResponse'
+              example:
+                success: true
+                tokens_added: 5
+                new_token_balance: 8
+                coins_spent: 500
+                remaining_coins: 1200
+                tokens_purchased_today: 7
+                daily_limit_remaining: 3
+        '400':
+          description: Invalid purchase request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_quantity:
+                  value:
+                    error:
+                      code: INVALID_QUANTITY
+                      message: "Quantity must be between 1 and 10"
+                daily_limit_exceeded:
+                  value:
+                    error:
+                      code: DAILY_LIMIT_EXCEEDED
+                      message: "Daily token purchase limit reached. You can purchase 3/10 tokens today. Resets at 00:00 UTC."
+        '402':
+          description: Insufficient coins
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: INSUFFICIENT_COINS
+                  message: "Not enough coins. Need 500 coins, have 300 coins."
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/tokens/balance:
+    get:
+      tags:
+        - Tokens
+      summary: Get token balance and reset information
+      description: |
+        Retrieve the current game token balance and related information for the authenticated user.
+        
+        **Token Information:**
+        - Current token count
+        - Time until next daily reset
+        - Configured reset time (e.g., "00:00 UTC")
+        - Tokens purchased today
+        - Daily purchase limit
+        
+        **Daily Reset:**
+        - Tokens reset to 5 at configured time (default: 00:00 UTC)
+        - Purchase counter resets at the same time
+        - Purchased tokens above the daily limit are preserved
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Token balance retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenBalanceResponse'
+              example:
+                game_tokens: 3
+                time_until_reset: "6h 15m"
+                reset_time: "00:00 UTC"
+                tokens_purchased_today: 2
+                daily_purchase_limit: 10
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missing_token:
+                  value:
+                    error:
+                      code: UNAUTHORIZED
+                      message: Missing or invalid authentication token
+                expired_token:
+                  value:
+                    error:
+                      code: TOKEN_EXPIRED
+                      message: JWT token has expired
+                invalid_token:
+                  value:
+                    error:
+                      code: TOKEN_INVALID
+                      message: JWT token is malformed or invalid
 
   /api/profile/stats:
     get:

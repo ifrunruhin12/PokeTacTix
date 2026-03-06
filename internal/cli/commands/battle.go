@@ -3,8 +3,10 @@ package commands
 import (
 	"bufio"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"pokemon-cli/internal/battle"
 	"pokemon-cli/internal/cli/storage"
@@ -41,14 +43,19 @@ func (bc *BattleCommand) StartBattle() error {
 
 	modeOptions := []ui.MenuOption{
 		{
-			Label:       "1v1 Battle",
+			Label:       "1v1 Battle (costs 1 token)",
 			Description: "Quick battle with one random Pokemon from your deck",
 			Value:       "1v1",
 		},
 		{
-			Label:       "5v5 Battle",
+			Label:       "5v5 Battle (costs 1 token)",
 			Description: "Full battle with all 5 Pokemon in your deck",
 			Value:       "5v5",
+		},
+		{
+			Label:       "View Token Info",
+			Description: "Show current tokens, reset time, and time until reset",
+			Value:       "token_info",
 		},
 		{
 			Label:       "Cancel",
@@ -58,7 +65,7 @@ func (bc *BattleCommand) StartBattle() error {
 	}
 
 	fmt.Println(bc.renderer.RenderBorderedMenu(modeOptions, 0, "SELECT BATTLE MODE"))
-	fmt.Print("Enter your choice (1-3): ")
+	fmt.Print("Enter your choice (1-4): ")
 
 	var mode string
 	for {
@@ -68,14 +75,24 @@ func (bc *BattleCommand) StartBattle() error {
 
 		input := strings.TrimSpace(bc.scanner.Text())
 		choice, err := strconv.Atoi(input)
-		if err != nil || choice < 1 || choice > 3 {
-			fmt.Print("Invalid choice. Enter 1, 2, or 3: ")
+		if err != nil || choice < 1 || choice > 4 {
+			fmt.Print("Invalid choice. Enter 1, 2, 3, or 4: ")
 			continue
 		}
 
-		if choice == 3 {
+		if choice == 4 {
 			fmt.Println("Battle cancelled.")
 			return nil
+		}
+
+		if choice == 3 {
+			// Display token info
+			bc.displayTokenInfo()
+			fmt.Println()
+			fmt.Println("Press Enter to continue...")
+			bc.scanner.Scan()
+			// Return to start of battle menu
+			return bc.StartBattle()
 		}
 
 		if choice == 1 {
@@ -84,6 +101,23 @@ func (bc *BattleCommand) StartBattle() error {
 			mode = "5v5"
 		}
 		break
+	}
+
+	// Check if user has enough tokens
+	if bc.gameState.GameTokens < 1 {
+		fmt.Println()
+		fmt.Println(ui.Colorize("❌ Insufficient Tokens!", ui.ColorRed))
+		fmt.Println()
+		fmt.Println("You don't have enough tokens to start a battle.")
+		fmt.Printf("Current tokens: %d/5\n", bc.gameState.GameTokens)
+		fmt.Println()
+		bc.displayTokenInfo()
+		fmt.Println()
+		fmt.Println("You can purchase more tokens from the shop or wait for the daily reset.")
+		fmt.Println()
+		fmt.Println("Press Enter to return to main menu...")
+		bc.scanner.Scan()
+		return nil
 	}
 
 	playerDeck, err := bc.loadPlayerDeck(mode)
@@ -96,17 +130,33 @@ func (bc *BattleCommand) StartBattle() error {
 		return fmt.Errorf("failed to generate AI deck: %w", err)
 	}
 
+	// Consume 1 token before starting the battle
+	bc.gameState.GameTokens--
+	
+	// Save the game state to persist token consumption
+	err = storage.SaveGameState(bc.gameState)
+	if err != nil {
+		// Rollback token consumption if save fails
+		bc.gameState.GameTokens++
+		return fmt.Errorf("failed to save game state: %w", err)
+	}
+
 	battleState, err := battle.StartBattle(0, mode, playerDeck, aiDeck)
 	if err != nil {
+		// Rollback token consumption if battle start fails
+		bc.gameState.GameTokens++
+		storage.SaveGameState(bc.gameState)
 		return fmt.Errorf("failed to start battle: %w", err)
 	}
 
 	fmt.Println()
+	fmt.Println(ui.Colorize("✓ 1 token consumed", ui.ColorYellow))
 	if mode == "1v1" {
 		fmt.Printf("Starting 1v1 battle with %s!\n", playerDeck[0].Name)
 	} else {
 		fmt.Println("Starting 5v5 battle with your full deck!")
 	}
+	fmt.Printf("Tokens remaining: %d\n", bc.gameState.GameTokens)
 	fmt.Println("Press Enter to begin...")
 	bc.scanner.Scan()
 
@@ -145,6 +195,49 @@ func (bc *BattleCommand) loadPlayerDeck(mode string) ([]pokemon.Card, error) {
 	}
 
 	return playerDeck, nil
+}
+
+// displayTokenInfo shows detailed token information
+func (bc *BattleCommand) displayTokenInfo() {
+	// Get configured reset time (default 00:00 UTC)
+	resetTimeStr := os.Getenv("TOKEN_RESET_TIME")
+	if resetTimeStr == "" {
+		resetTimeStr = "00:00"
+	}
+	
+	// Parse reset time
+	resetHour := 0
+	resetMinute := 0
+	fmt.Sscanf(resetTimeStr, "%d:%d", &resetHour, &resetMinute)
+	
+	// Get current time in UTC
+	now := time.Now().UTC()
+	
+	// Calculate next reset time
+	nextReset := time.Date(now.Year(), now.Month(), now.Day(), resetHour, resetMinute, 0, 0, time.UTC)
+	
+	// If reset time has passed today, move to tomorrow
+	if now.After(nextReset) || now.Equal(nextReset) {
+		nextReset = nextReset.Add(24 * time.Hour)
+	}
+	
+	// Calculate duration until reset
+	duration := nextReset.Sub(now)
+	hours := int(duration.Hours())
+	minutes := int(duration.Minutes()) % 60
+	
+	fmt.Println(ui.RenderDivider(60, "═"))
+	fmt.Println(ui.Colorize("🎫 TOKEN INFORMATION", ui.Bold+ui.ColorBrightCyan))
+	fmt.Println(ui.RenderDivider(60, "═"))
+	fmt.Println()
+	fmt.Printf("Current Tokens: %d/5\n", bc.gameState.GameTokens)
+	fmt.Printf("Daily Reset: %s UTC (in %dh %dm)\n", resetTimeStr, hours, minutes)
+	fmt.Printf("Tokens Purchased Today: %d/10\n", bc.gameState.TokensPurchasedToday)
+	fmt.Println()
+	fmt.Println("Each battle (1v1 or 5v5) costs 1 token.")
+	fmt.Println("Tokens reset to 5 daily at the configured time.")
+	fmt.Println("You can purchase additional tokens from the shop (100 coins each).")
+	fmt.Println(ui.RenderDivider(60, "═"))
 }
 
 func (bc *BattleCommand) generateAIDeck(mode string) ([]pokemon.Card, error) {

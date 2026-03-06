@@ -23,12 +23,22 @@ type ShopItem struct {
 	Moves       []pokemon.Move `json:"moves"`
 }
 
+// GameTokenItem represents game tokens available for purchase
+type GameTokenItem struct {
+	ItemType           string `json:"item_type"`            // "game_token"
+	Price              int    `json:"price"`                // 100 coins per token
+	AvailableQuantity  int    `json:"available_quantity"`   // 10 - tokens_purchased_today
+	MaxDailyPurchase   int    `json:"max_daily_purchase"`   // 10
+	Description        string `json:"description"`
+}
+
 // ShopInventory represents the current shop state
 type ShopInventory struct {
-	Items           []ShopItem `json:"items"`
-	DiscountActive  bool       `json:"discount_active"`
-	DiscountPercent int        `json:"discount_percent"`
-	RefreshTime     time.Time  `json:"refresh_time"`
+	Items           []ShopItem     `json:"items"`
+	GameTokens      *GameTokenItem `json:"game_tokens,omitempty"` // Token purchase option
+	DiscountActive  bool           `json:"discount_active"`
+	DiscountPercent int            `json:"discount_percent"`
+	RefreshTime     time.Time      `json:"refresh_time"`
 }
 
 // PurchaseRequest represents a purchase request
@@ -40,4 +50,20 @@ type PurchaseRequest struct {
 type PurchaseResponse struct {
 	Card           any `json:"card"`
 	RemainingCoins int `json:"remaining_coins"`
+}
+
+// TokenPurchaseRequest represents a token purchase request
+type TokenPurchaseRequest struct {
+	Quantity int `json:"quantity"` // 1-10
+}
+
+// TokenPurchaseResponse represents a token purchase response
+type TokenPurchaseResponse struct {
+	Success              bool `json:"success"`
+	TokensAdded          int  `json:"tokens_added"`
+	NewTokenBalance      int  `json:"new_token_balance"`
+	CoinsSpent           int  `json:"coins_spent"`
+	RemainingCoins       int  `json:"remaining_coins"`
+	TokensPurchasedToday int  `json:"tokens_purchased_today"`
+	DailyLimitRemaining  int  `json:"daily_limit_remaining"`
 }

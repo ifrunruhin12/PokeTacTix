@@ -5,6 +5,7 @@ import ShopGrid from '../components/shop/ShopGrid';
 import ShopFilters from '../components/shop/ShopFilters';
 import PurchaseModal from '../components/shop/PurchaseModal';
 import DiscountBanner from '../components/shop/DiscountBanner';
+import TokenPurchaseSection from '../components/shop/TokenPurchaseSection';
 import api from '../services/api';
 
 export default function Shop() {
@@ -24,6 +25,11 @@ export default function Shop() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [purchaseError, setPurchaseError] = useState(null);
+  
+  // Token purchase state
+  const [isTokenProcessing, setIsTokenProcessing] = useState(false);
+  const [tokenPurchaseError, setTokenPurchaseError] = useState(null);
+  const [tokenSuccessMessage, setTokenSuccessMessage] = useState(null);
   
   // Success message state
   const [successMessage, setSuccessMessage] = useState(null);
@@ -118,6 +124,30 @@ export default function Shop() {
     }
   };
 
+  const handleTokenPurchase = async (quantity) => {
+    try {
+      setIsTokenProcessing(true);
+      setTokenPurchaseError(null);
+      setTokenSuccessMessage(null);
+      
+      const result = await shopService.purchaseTokens(quantity);
+      
+      // Update user coins
+      updateUser({ coins: result.remaining_coins });
+      
+      // Show success message
+      setTokenSuccessMessage(
+        `Successfully purchased ${result.tokens_added} token${result.tokens_added > 1 ? 's' : ''} for ${result.coins_spent} coins!`
+      );
+      setTimeout(() => setTokenSuccessMessage(null), 5000);
+      
+    } catch (err) {
+      setTokenPurchaseError(err.response?.data?.error || err.message || 'Failed to purchase tokens');
+    } finally {
+      setIsTokenProcessing(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 py-8">
@@ -182,6 +212,15 @@ export default function Shop() {
             refreshTime={inventory.refresh_time}
           />
         )}
+
+        {/* Token Purchase Section */}
+        <TokenPurchaseSection
+          userCoins={user?.coins || 0}
+          onPurchase={handleTokenPurchase}
+          isProcessing={isTokenProcessing}
+          error={tokenPurchaseError}
+          successMessage={tokenSuccessMessage}
+        />
 
         {/* Filters */}
         <ShopFilters

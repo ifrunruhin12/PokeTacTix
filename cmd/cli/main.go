@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"pokemon-cli/internal/cli/commands"
 	"pokemon-cli/internal/cli/setup"
@@ -62,8 +63,14 @@ func main() {
 
 func displayPlayerInfo(state *storage.GameState) {
 	fmt.Println(ui.RenderDivider(75, "═"))
-	fmt.Printf("Coins: %d | Pokemon: %d | Deck: %d\n",
+	
+	// Calculate time until token reset
+	resetTimeStr := getTokenResetInfo(state)
+	
+	fmt.Printf("Coins: %d | Tokens: %d/5 %s | Pokemon: %d | Deck: %d\n",
 		state.Coins,
+		state.GameTokens,
+		resetTimeStr,
 		len(state.Collection),
 		len(state.Deck))
 	fmt.Printf("Battles: %d (1v1: %d W/%d L | 5v5: %d W/%d L)\n",
@@ -72,6 +79,38 @@ func displayPlayerInfo(state *storage.GameState) {
 		state.Stats.Wins5v5, state.Stats.Losses5v5)
 	fmt.Println(ui.RenderDivider(75, "═"))
 	fmt.Println()
+}
+
+// getTokenResetInfo returns a formatted string showing when tokens reset
+func getTokenResetInfo(state *storage.GameState) string {
+	// Get configured reset time (default 00:00 UTC)
+	resetTimeStr := os.Getenv("TOKEN_RESET_TIME")
+	if resetTimeStr == "" {
+		resetTimeStr = "00:00"
+	}
+	
+	// Parse reset time
+	resetHour := 0
+	resetMinute := 0
+	fmt.Sscanf(resetTimeStr, "%d:%d", &resetHour, &resetMinute)
+	
+	// Get current time in UTC
+	now := time.Now().UTC()
+	
+	// Calculate next reset time
+	nextReset := time.Date(now.Year(), now.Month(), now.Day(), resetHour, resetMinute, 0, 0, time.UTC)
+	
+	// If reset time has passed today, move to tomorrow
+	if now.After(nextReset) || now.Equal(nextReset) {
+		nextReset = nextReset.Add(24 * time.Hour)
+	}
+	
+	// Calculate duration until reset
+	duration := nextReset.Sub(now)
+	hours := int(duration.Hours())
+	minutes := int(duration.Minutes()) % 60
+	
+	return fmt.Sprintf("(resets at %s UTC in %dh %dm)", resetTimeStr, hours, minutes)
 }
 
 func runCommandLoop(state *storage.GameState) {

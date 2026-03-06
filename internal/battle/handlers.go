@@ -22,12 +22,21 @@ type Handler struct {
 	sessions     map[string]*Session // Legacy in-memory sessions for backward compatibility
 	repo         *Repository         // Database repository for persistent storage
 	statsService StatsService        // Stats service for achievement checking
+	tokenService TokenService        // Token service for token management
 	mu           sync.RWMutex        // Mutex for thread-safe access to legacy sessions
 }
 
 // StatsService defines the interface for stats operations
 type StatsService interface {
 	CheckAndUnlockAchievements(ctx context.Context, userID int) ([]database.AchievementWithStatus, error)
+}
+
+// TokenService defines the interface for token operations
+type TokenService interface {
+	GetTokenBalance(ctx context.Context, userID int) (int, error)
+	ConsumeToken(ctx context.Context, userID int, mode string) error
+	CheckAndResetTokens(ctx context.Context, userID int) error
+	GetTokenCostForMode(mode string) int
 }
 
 // Session holds core game state plus web-only turn state (legacy support)
@@ -37,11 +46,12 @@ type Session struct {
 }
 
 // NewHandler creates a new battle handler
-func NewHandler(db *pgxpool.Pool, statsService StatsService) *Handler {
+func NewHandler(db *pgxpool.Pool, statsService StatsService, tokenService TokenService) *Handler {
 	return &Handler{
 		sessions:     make(map[string]*Session),
 		repo:         NewRepository(db),
 		statsService: statsService,
+		tokenService: tokenService,
 	}
 }
 
@@ -140,6 +150,39 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 		})
 	}
 
+	// Check and reset tokens if needed (24-hour reset)
+	if err := h.tokenService.CheckAndResetTokens(c.Context(), userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "TOKEN_SYSTEM_ERROR",
+				"message": "Failed to check token status",
+			},
+		})
+	}
+
+	// Get token cost for the selected mode
+	tokenCost := h.tokenService.GetTokenCostForMode(req.Mode)
+
+	// Verify user has enough tokens for this battle mode
+	tokenBalance, err := h.tokenService.GetTokenBalance(c.Context(), userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "TOKEN_SYSTEM_ERROR",
+				"message": "Failed to retrieve token balance",
+			},
+		})
+	}
+
+	if tokenBalance < tokenCost {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "INSUFFICIENT_TOKENS",
+				"message": fmt.Sprintf("You don't have enough tokens to start a %s battle. Required: %d, Available: %d. Purchase more tokens from the shop or wait for daily reset.", req.Mode, tokenCost, tokenBalance),
+			},
+		})
+	}
+
 	// Fetch player's deck from database
 	playerDeckCards, err := h.repo.GetUserDeck(c.Context(), userID)
 	if err != nil {
@@ -208,12 +251,27 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Save battle state to database
+	// Save battle state to database BEFORE consuming tokens
+	// This ensures we only consume tokens if the battle is successfully persisted
 	if err := h.SaveBattleState(c, battleState); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fiber.Map{
 				"code":    "DATABASE_ERROR",
 				"message": "Failed to save battle session",
+			},
+		})
+	}
+
+	// Consume tokens AFTER battle is successfully saved
+	// This ensures tokens are only consumed if the battle actually starts and is persisted
+	if err := h.tokenService.ConsumeToken(c.Context(), userID, req.Mode); err != nil {
+		// Token consumption failed after battle was saved
+		// Delete the battle state to maintain consistency
+		_ = h.DeleteBattleState(c, battleState.ID)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "TOKEN_CONSUMPTION_FAILED",
+				"message": "Failed to consume token. Please try again.",
 			},
 		})
 	}

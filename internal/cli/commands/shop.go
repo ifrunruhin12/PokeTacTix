@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -147,6 +148,7 @@ func (sc *ShopCommand) ViewShop() error {
 		// Display options
 		fmt.Println("Options:")
 		fmt.Println("  [1-" + strconv.Itoa(len(sc.gameState.ShopState.Inventory)) + "] Buy Pokemon by number")
+		fmt.Println("  [T] Buy Game Tokens (100 coins each, 10/day max, resets at " + getResetTimeString() + " UTC)")
 		fmt.Println("  [R] Refresh shop (costs 50 coins)")
 		fmt.Println("  [Q] Back to menu")
 		fmt.Println()
@@ -162,6 +164,14 @@ func (sc *ShopCommand) ViewShop() error {
 		switch input {
 		case "Q":
 			return nil
+		case "T":
+			// Token purchase
+			if err := sc.PurchaseTokens(); err != nil {
+				fmt.Println()
+				fmt.Println(ui.Colorize(fmt.Sprintf("Error: %v", err), ui.ColorRed))
+				fmt.Println("Press Enter to continue...")
+				sc.scanner.Scan()
+			}
 		case "R":
 			// Manual refresh for 50 coins
 			if sc.gameState.Coins < 50 {
@@ -428,6 +438,151 @@ func (sc *ShopCommand) CheckAndRefreshShop() error {
 
 		time.Sleep(2 * time.Second)
 	}
+
+	return nil
+}
+
+// getResetTimeString returns the configured token reset time
+func getResetTimeString() string {
+	resetTime := os.Getenv("TOKEN_RESET_TIME")
+	if resetTime == "" {
+		resetTime = "00:00"
+	}
+	return resetTime
+}
+
+// PurchaseTokens handles the token purchase flow
+func (sc *ShopCommand) PurchaseTokens() error {
+	// Clear screen
+	sc.renderer.Clear()
+
+	// Display header
+	fmt.Println(ui.RenderLogo())
+	fmt.Println()
+	fmt.Println(strings.Repeat("═", 80))
+	fmt.Println(ui.Colorize("BUY GAME TOKENS", ui.Bold+ui.ColorBrightCyan))
+	fmt.Println(strings.Repeat("═", 80))
+	fmt.Println()
+
+	// Get token price and daily limit from environment or use defaults
+	tokenPrice := 100
+	if envPrice := os.Getenv("TOKEN_PRICE"); envPrice != "" {
+		if price, err := strconv.Atoi(envPrice); err == nil && price > 0 {
+			tokenPrice = price
+		}
+	}
+
+	dailyLimit := 10
+	if envLimit := os.Getenv("DAILY_PURCHASE_LIMIT"); envLimit != "" {
+		if limit, err := strconv.Atoi(envLimit); err == nil && limit > 0 {
+			dailyLimit = limit
+		}
+	}
+
+	// Display current status
+	fmt.Printf("Your Coins: %s\n", ui.Colorize(fmt.Sprintf("%d", sc.gameState.Coins), ui.ColorYellow))
+	fmt.Printf("Your Tokens: %s\n", ui.Colorize(fmt.Sprintf("%d", sc.gameState.GameTokens), ui.ColorCyan))
+	fmt.Printf("Purchased Today: %d/%d\n", sc.gameState.TokensPurchasedToday, dailyLimit)
+	fmt.Printf("Price: %d coins per token\n", tokenPrice)
+	
+	// Calculate time until reset
+	resetTimeStr := getResetTimeString()
+	resetHour := 0
+	resetMinute := 0
+	fmt.Sscanf(resetTimeStr, "%d:%d", &resetHour, &resetMinute)
+	
+	now := time.Now().UTC()
+	nextReset := time.Date(now.Year(), now.Month(), now.Day(), resetHour, resetMinute, 0, 0, time.UTC)
+	if now.After(nextReset) || now.Equal(nextReset) {
+		nextReset = nextReset.Add(24 * time.Hour)
+	}
+	
+	duration := nextReset.Sub(now)
+	hours := int(duration.Hours())
+	minutes := int(duration.Minutes()) % 60
+	
+	fmt.Printf("Resets at: %s UTC (in %dh %dm)\n", resetTimeStr, hours, minutes)
+	fmt.Println()
+
+	// Check if daily limit reached
+	remainingPurchases := dailyLimit - sc.gameState.TokensPurchasedToday
+	if remainingPurchases <= 0 {
+		fmt.Println(ui.Colorize("Daily purchase limit reached!", ui.ColorRed))
+		fmt.Printf("You can purchase more tokens after the daily reset at %s UTC.\n", resetTimeStr)
+		fmt.Println()
+		fmt.Println("Press Enter to continue...")
+		sc.scanner.Scan()
+		return nil
+	}
+
+	// Get quantity from user
+	fmt.Printf("How many tokens would you like to buy? (1-%d): ", remainingPurchases)
+	if !sc.scanner.Scan() {
+		return fmt.Errorf("failed to read input")
+	}
+
+	quantityStr := strings.TrimSpace(sc.scanner.Text())
+	quantity, err := strconv.Atoi(quantityStr)
+	if err != nil || quantity < 1 || quantity > remainingPurchases {
+		return fmt.Errorf("invalid quantity. Must be between 1 and %d", remainingPurchases)
+	}
+
+	// Calculate total cost
+	totalCost := quantity * tokenPrice
+
+	// Check if user has enough coins
+	if sc.gameState.Coins < totalCost {
+		return fmt.Errorf("not enough coins! You need %d coins but only have %d", totalCost, sc.gameState.Coins)
+	}
+
+	// Display purchase confirmation
+	fmt.Println()
+	fmt.Println(strings.Repeat("─", 60))
+	fmt.Println(ui.Colorize("PURCHASE CONFIRMATION", ui.Bold+ui.ColorBrightYellow))
+	fmt.Println(strings.Repeat("─", 60))
+	fmt.Println()
+	fmt.Printf("Tokens to buy: %d\n", quantity)
+	fmt.Printf("Total cost: %s\n", ui.Colorize(fmt.Sprintf("%d coins", totalCost), ui.ColorYellow))
+	fmt.Printf("You have: %s\n", ui.Colorize(fmt.Sprintf("%d coins", sc.gameState.Coins), ui.ColorYellow))
+	fmt.Printf("Purchased today: %d/%d (resets at %s UTC)\n", sc.gameState.TokensPurchasedToday, dailyLimit, resetTimeStr)
+	fmt.Println()
+
+	// Get confirmation
+	confirmed := ui.ConfirmationPrompt(sc.scanner, "Confirm purchase?", true)
+	if !confirmed {
+		fmt.Println()
+		fmt.Println(ui.Colorize("Purchase cancelled.", ui.ColorYellow))
+		time.Sleep(1 * time.Second)
+		return nil
+	}
+
+	// Process purchase
+	sc.gameState.Coins -= totalCost
+	sc.gameState.GameTokens += quantity
+	sc.gameState.TokensPurchasedToday += quantity
+
+	// Save game state
+	if err := storage.SaveGameState(sc.gameState); err != nil {
+		// Rollback on save failure
+		sc.gameState.Coins += totalCost
+		sc.gameState.GameTokens -= quantity
+		sc.gameState.TokensPurchasedToday -= quantity
+		return fmt.Errorf("failed to save game state: %w", err)
+	}
+
+	// Display success message
+	fmt.Println()
+	fmt.Println(ui.Colorize("═══════════════════════════════════════", ui.ColorGreen))
+	fmt.Println(ui.Colorize("  PURCHASE SUCCESSFUL!", ui.Bold+ui.ColorGreen))
+	fmt.Println(ui.Colorize("═══════════════════════════════════════", ui.ColorGreen))
+	fmt.Println()
+	fmt.Printf("Purchased %d token(s) for %d coins\n", quantity, totalCost)
+	fmt.Printf("New balance: %s | %s\n",
+		ui.Colorize(fmt.Sprintf("Tokens: %d", sc.gameState.GameTokens), ui.ColorCyan),
+		ui.Colorize(fmt.Sprintf("Coins: %d", sc.gameState.Coins), ui.ColorYellow))
+	fmt.Println()
+	fmt.Println("Press Enter to continue...")
+	sc.scanner.Scan()
 
 	return nil
 }

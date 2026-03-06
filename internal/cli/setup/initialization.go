@@ -144,6 +144,7 @@ func SaveInitialGameState(gameState *storage.GameState) error {
 
 	fmt.Println()
 	fmt.Printf("Starting coins: %d\n", gameState.Coins)
+	fmt.Printf("Starting tokens: %d\n", gameState.GameTokens)
 	fmt.Printf("Pokemon in collection: %d\n", len(gameState.Collection))
 	fmt.Printf("Shop items available: %d\n", len(gameState.ShopState.Inventory))
 	fmt.Println()

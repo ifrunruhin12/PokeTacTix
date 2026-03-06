@@ -213,12 +213,15 @@ func loadLegacySaveFile() (*GameState, error) {
 // CreateNewGameState creates a fresh game state for a new player
 func CreateNewGameState(playerName string) *GameState {
 	return &GameState{
-		PlayerName:    playerName,
-		Coins:         500, // Starting coins
-		Collection:    []PlayerCard{},
-		Deck:          []int{},
-		Stats:         PlayerStats{},
-		ShopState:     ShopState{
+		PlayerName:           playerName,
+		Coins:                500, // Starting coins
+		GameTokens:           5,   // Starting tokens
+		LastTokenReset:       time.Now(),
+		TokensPurchasedToday: 0,
+		Collection:           []PlayerCard{},
+		Deck:                 []int{},
+		Stats:                PlayerStats{},
+		ShopState: ShopState{
 			Inventory:           []ShopItem{},
 			LastRefresh:         time.Now(),
 			BattlesSinceRefresh: 0,

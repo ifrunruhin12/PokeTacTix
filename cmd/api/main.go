@@ -11,6 +11,7 @@ import (
 	"pokemon-cli/internal/pokemon"
 	"pokemon-cli/internal/shop"
 	"pokemon-cli/internal/stats"
+	"pokemon-cli/internal/tokens"
 	"pokemon-cli/pkg/config"
 	"pokemon-cli/pkg/logger"
 
@@ -74,6 +75,7 @@ func main() {
 	cardsService := cards.NewService(cardsRepo)
 	shopService := shop.NewService()
 	statsService := stats.NewService(statsRepo)
+	tokenService := tokens.NewService(database.GetDB())
 
 	// Initialize achievements in database
 	if cfg.Database.URL != "" {
@@ -88,9 +90,10 @@ func main() {
 	// Initialize handlers
 	authHandler := auth.NewHandler(authService, jwtService, authRepo, cardsService)
 	cardsHandler := cards.NewHandler(cardsService)
-	battleHandler := battle.NewHandler(database.GetDB(), statsService)
-	shopHandler := shop.NewHandler(shopService, shopRepo)
+	battleHandler := battle.NewHandler(database.GetDB(), statsService, tokenService)
+	shopHandler := shop.NewHandler(shopService, shopRepo, tokenService)
 	statsHandler := stats.NewHandler(statsService)
+	tokenHandler := tokens.NewHandler(tokenService)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -229,6 +232,7 @@ func main() {
 	battle.RegisterRoutes(app, battleHandler, authMiddleware)
 	shop.RegisterRoutes(app, shopHandler, authMiddleware)
 	stats.RegisterRoutes(app, statsHandler, authMiddleware)
+	tokens.RegisterRoutes(app, tokenHandler, authMiddleware)
 
 	// Start server
 	port := cfg.Server.Port

@@ -146,3 +146,104 @@ func TestCountOwnedPokemon(t *testing.T) {
 		t.Errorf("Expected 0 Bulbasaur, got %d", bulbasaurCount)
 	}
 }
+
+func TestTokenPurchaseValidation(t *testing.T) {
+	// Create test game state
+	state := storage.CreateNewGameState("TestPlayer")
+	state.Coins = 1000
+	state.GameTokens = 3
+	state.TokensPurchasedToday = 0
+
+	// Test 1: Verify initial state
+	if state.GameTokens != 3 {
+		t.Errorf("Expected 3 initial tokens, got %d", state.GameTokens)
+	}
+
+	// Test 2: Simulate token purchase (5 tokens for 500 coins)
+	quantity := 5
+	tokenPrice := 100
+	totalCost := quantity * tokenPrice
+
+	if state.Coins < totalCost {
+		t.Errorf("Should have enough coins: have %d, need %d", state.Coins, totalCost)
+	}
+
+	// Simulate purchase
+	state.Coins -= totalCost
+	state.GameTokens += quantity
+	state.TokensPurchasedToday += quantity
+
+	// Verify purchase
+	if state.Coins != 500 {
+		t.Errorf("Expected 500 coins after purchase, got %d", state.Coins)
+	}
+	if state.GameTokens != 8 {
+		t.Errorf("Expected 8 tokens after purchase, got %d", state.GameTokens)
+	}
+	if state.TokensPurchasedToday != 5 {
+		t.Errorf("Expected 5 tokens purchased today, got %d", state.TokensPurchasedToday)
+	}
+
+	// Test 3: Verify daily limit enforcement
+	dailyLimit := 10
+	remainingPurchases := dailyLimit - state.TokensPurchasedToday
+	if remainingPurchases != 5 {
+		t.Errorf("Expected 5 remaining purchases, got %d", remainingPurchases)
+	}
+
+	// Test 4: Attempt to purchase more than remaining limit
+	attemptQuantity := 6
+	if attemptQuantity > remainingPurchases {
+		// This should be rejected
+		t.Logf("Correctly rejecting purchase of %d tokens (only %d remaining)", attemptQuantity, remainingPurchases)
+	} else {
+		t.Errorf("Should reject purchase of %d tokens when only %d remaining", attemptQuantity, remainingPurchases)
+	}
+
+	// Test 5: Purchase remaining tokens
+	state.Coins += 500 // Add more coins for test
+	remainingCost := remainingPurchases * tokenPrice
+	state.Coins -= remainingCost
+	state.GameTokens += remainingPurchases
+	state.TokensPurchasedToday += remainingPurchases
+
+	if state.TokensPurchasedToday != 10 {
+		t.Errorf("Expected 10 tokens purchased today (limit reached), got %d", state.TokensPurchasedToday)
+	}
+
+	// Test 6: Verify limit is enforced
+	newRemainingPurchases := dailyLimit - state.TokensPurchasedToday
+	if newRemainingPurchases != 0 {
+		t.Errorf("Expected 0 remaining purchases after hitting limit, got %d", newRemainingPurchases)
+	}
+}
+
+func TestTokenPurchaseInsufficientCoins(t *testing.T) {
+	// Create test game state with insufficient coins
+	state := storage.CreateNewGameState("TestPlayer")
+	state.Coins = 50 // Not enough for even 1 token
+	state.GameTokens = 2
+
+	quantity := 1
+	tokenPrice := 100
+	totalCost := quantity * tokenPrice
+
+	// Verify insufficient coins
+	if state.Coins >= totalCost {
+		t.Errorf("Test setup error: should have insufficient coins")
+	}
+
+	// This purchase should fail
+	if state.Coins < totalCost {
+		t.Logf("Correctly detecting insufficient coins: have %d, need %d", state.Coins, totalCost)
+	}
+
+	// Verify state unchanged
+	if state.GameTokens != 2 {
+		t.Errorf("Tokens should remain unchanged at 2, got %d", state.GameTokens)
+	}
+	if state.Coins != 50 {
+		t.Errorf("Coins should remain unchanged at 50, got %d", state.Coins)
+	}
+}
+

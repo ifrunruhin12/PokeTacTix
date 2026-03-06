@@ -41,6 +41,20 @@ This directory contains SQL migration files for the PokeTacTix database schema.
 - Updates consistency check trigger to validate wins + losses + draws ≤ total_battles
 - Maintains backward compatibility with existing stats
 
+### 000008 - Add Noob Player Achievement
+- Adds "Noob Player" achievement for losing 5 consecutive battles
+- Updates achievements table with new achievement definition
+
+### 000009 - Add Consecutive Losses Column
+- Adds `consecutive_losses` column to `player_stats` table
+- Tracks consecutive losses for achievement tracking
+
+### 000010 - Add Game Token Fields
+- Adds `game_tokens` column to `users` table (default 5, must be >= 0)
+- Adds `last_token_reset` column to track 24-hour reset period
+- Adds `tokens_purchased_today` column to enforce daily purchase limits
+- Creates index on `last_token_reset` for efficient reset queries
+
 ## Running Migrations
 
 ### Using Docker Compose

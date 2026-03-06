@@ -132,3 +132,13 @@ func (r *Repository) GetUserCoins(ctx context.Context, userID int) (int, error) 
 	}
 	return coins, nil
 }
+
+// GetTokensPurchasedToday retrieves the number of tokens purchased today by the user
+func (r *Repository) GetTokensPurchasedToday(ctx context.Context, userID int) (int, error) {
+	var tokensPurchasedToday int
+	err := r.db.QueryRow(ctx, `SELECT tokens_purchased_today FROM users WHERE id = $1`, userID).Scan(&tokensPurchasedToday)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get tokens purchased today: %w", err)
+	}
+	return tokensPurchasedToday, nil
+}
