@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to PokeTacTix CLI will be documented in this file.
+All notable changes to PokeTacTix will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -99,4 +99,4 @@ If you were using a development version, your save file should be compatible. If
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/ifrunruhin12/poketactix/issues)
-- **Documentation**: [CLI_README.md](CLI_README.md)
+- **Documentation**: [README.md](README.md)
