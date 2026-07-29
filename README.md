@@ -24,7 +24,6 @@ PokeTactix is a strategic game where you battle, collect, and level up Pokémon 
 
 ### 🎮 **Play Anywhere**
 - 🌐 **Web** - Play in browser
-- 💻 **CLI** - Terminal battles
 - 📱 **Mobile** - Coming soon
 
 </td>
@@ -80,20 +79,7 @@ Buy rare Pokémon, build your dream team
 
 ### 🌐 Web Version
 
-Click the link and start playing `http://poketactix.netlify.app` 🎉
-
-### 💻 CLI Version
-
-**Download:** [Latest Release](https://github.com/IfrunRuhin12/PokeTacTix/releases)
-
-```bash
-# Linux/macOS
-chmod +x ./poketactix_*
-./poketactix_linux_amd64
-
-# Windows
-poketactix_windows_amd64.exe
-```
+Click the link and start playing [poketactix.netlify.app](https://poketactix.netlify.app/) 🎉
 
 ---
 

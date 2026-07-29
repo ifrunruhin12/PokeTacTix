@@ -75,7 +75,6 @@ tmp/
 .air.toml
 
 # Compiled binary
-pokemon-cli
 api
 
 # Migration temporary files
