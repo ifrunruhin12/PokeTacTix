@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"time"
 	"pokemon-cli/internal/auth"
 	"pokemon-cli/internal/battle"
 	"pokemon-cli/internal/cards"
@@ -57,6 +58,29 @@ func main() {
 		appLogger.Warn("Database URL not set, running without database")
 	}
 
+	// Initialize Redis cache
+	if cfg.Redis.URL != "" {
+		if err := database.InitRedis(&cfg.Redis); err != nil {
+			appLogger.Warn("Failed to initialize Redis client", "error", err)
+		} else {
+			defer database.CloseRedis()
+			appLogger.Info("Redis connection established")
+		}
+	}
+
+	// Initialize Pokemon domain components (Tiered fetch + Anti-repeat)
+	pokemonRepo := pokemon.NewPostgresRepository(database.GetDB())
+	var pokemonCache pokemon.Cache
+	if database.GetRedis() != nil {
+		pokemonCache = pokemon.NewRedisCache(database.GetRedis(), cfg.Redis.TTL)
+	}
+	pokeClient := pokemon.NewPokeAPIClient(os.Getenv("POKEAPI_BASE_URL"), 10*time.Second)
+	pokemonService := pokemon.NewService(pokemonCache, pokemonRepo, pokeClient)
+	pokemon.SetDefaultService(pokemonService)
+
+	historyManager := battle.NewHistoryManager(database.GetRedis(), database.GetDB(), 10)
+	enemySelector := battle.NewEnemySelector(pokemonService, pokemonRepo, historyManager)
+
 	// Initialize JWT service
 	jwtService, err := auth.NewJWTService(cfg.JWT.Secret, cfg.JWT.Expiration)
 	if err != nil {
@@ -91,6 +115,9 @@ func main() {
 	authHandler := auth.NewHandler(authService, jwtService, authRepo, cardsService)
 	cardsHandler := cards.NewHandler(cardsService)
 	battleHandler := battle.NewHandler(database.GetDB(), statsService, tokenService)
+	battleHandler.SetEnemySelector(enemySelector)
+	battleHandler.SetPokemonService(pokemonService)
+
 	shopHandler := shop.NewHandler(shopService, shopRepo, tokenService)
 	statsHandler := stats.NewHandler(statsService)
 	tokenHandler := tokens.NewHandler(tokenService)

@@ -19,11 +19,13 @@ import (
 
 // Handler handles battle-related HTTP requests
 type Handler struct {
-	sessions     map[string]*Session // Legacy in-memory sessions for backward compatibility
-	repo         *Repository         // Database repository for persistent storage
-	statsService StatsService        // Stats service for achievement checking
-	tokenService TokenService        // Token service for token management
-	mu           sync.RWMutex        // Mutex for thread-safe access to legacy sessions
+	sessions       map[string]*Session // Legacy in-memory sessions for backward compatibility
+	repo           *Repository         // Database repository for persistent storage
+	statsService   StatsService        // Stats service for achievement checking
+	tokenService   TokenService        // Token service for token management
+	enemySelector  EnemySelector       // Anti-repeat enemy selection service
+	pokemonService pokemon.PokemonService // Tiered pokemon fetch service
+	mu             sync.RWMutex        // Mutex for thread-safe access to legacy sessions
 }
 
 // StatsService defines the interface for stats operations
@@ -53,6 +55,16 @@ func NewHandler(db *pgxpool.Pool, statsService StatsService, tokenService TokenS
 		statsService: statsService,
 		tokenService: tokenService,
 	}
+}
+
+// SetEnemySelector configures the EnemySelector for the Handler
+func (h *Handler) SetEnemySelector(selector EnemySelector) {
+	h.enemySelector = selector
+}
+
+// SetPokemonService configures the PokemonService for the Handler
+func (h *Handler) SetPokemonService(ps pokemon.PokemonService) {
+	h.pokemonService = ps
 }
 
 // ConvertPlayerCardToPokemonCard converts a database PlayerCard to a pokemon.Card for battles
@@ -234,15 +246,14 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 		}
 	}
 
-	// Generate AI deck with random cards
+	// Generate AI deck using anti-repeat EnemySelector
 	var aiDeck []pokemon.Card
-	if req.Mode == "1v1" {
-		aiDeck = []pokemon.Card{pokemon.FetchRandomPokemonCard(false)}
-	} else {
-		// Generate 5 random cards for AI
-		for range 5 {
-			aiDeck = append(aiDeck, pokemon.FetchRandomPokemonCard(false))
-		}
+	aiCount := 1
+	if req.Mode != "1v1" {
+		aiCount = 5
+	}
+	for i := 0; i < aiCount; i++ {
+		aiDeck = append(aiDeck, h.generateAICard(c.Context(), userID))
 	}
 
 	// Start the battle
@@ -660,4 +671,34 @@ func (h *Handler) SelectRewardHandler(c *fiber.Ctx) error {
 		"message": fmt.Sprintf("Successfully added %s to your collection!", selectedPokemon.Name),
 		"card":    addedCard,
 	})
+}
+
+// generateAICard produces an enemy Pokemon Card using EnemySelector anti-repeat logic with fallbacks
+func (h *Handler) generateAICard(ctx context.Context, userID int) pokemon.Card {
+	if h.enemySelector != nil {
+		p, err := h.enemySelector.PickEnemy(ctx, SelectOptions{
+			PlayerID:      userID,
+			PokemonWindow: 5,
+			FamilyWindow:  3,
+		})
+		if err == nil && p != nil {
+			card := p.ToCard()
+			if len(card.Moves) == 0 {
+				card.Moves = []pokemon.Move{
+					{Name: "tackle", Power: 40, StaminaCost: 13, Type: "normal"},
+				}
+			}
+			return card
+		}
+	}
+
+	if h.pokemonService != nil {
+		card, err := h.pokemonService.GetRandomCard(ctx, false)
+		if err == nil {
+			return card
+		}
+	}
+
+	// Ultimate fallback to legacy random generator
+	return pokemon.FetchRandomPokemonCard(false)
 }

@@ -28,8 +28,8 @@ type RawMove struct {
 	} `json:"move"`
 }
 
-// Pokemon represents Pokemon data from the API
-type Pokemon struct {
+// RawPokeAPIPokemon represents Pokemon data from the API
+type RawPokeAPIPokemon struct {
 	Name    string     `json:"name"`
 	Stats   []Stat     `json:"stats"`
 	Sprites Sprites    `json:"sprites"`
