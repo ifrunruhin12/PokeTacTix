@@ -135,6 +135,14 @@ func TestProgressiveRelaxation(t *testing.T) {
 	assert.Equal(t, 2, chosen.ID)
 }
 
+func TestEmptyPoolWithoutFallbackServiceReturnsStandaloneError(t *testing.T) {
+	selector := NewEnemySelector(nil, &mockRepo{}, nil)
+
+	chosen, err := selector.PickEnemy(context.Background(), SelectOptions{})
+	assert.Nil(t, chosen)
+	assert.EqualError(t, err, "no candidate pool available and pokemon service is nil")
+}
+
 func TestAntiRepeatSequence(t *testing.T) {
 	ctx := context.Background()
 	history := newMockHistory()

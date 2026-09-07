@@ -88,32 +88,10 @@ func FetchPokemon(name string) (RawPokeAPIPokemon, []Move, error) {
 
 		p, err := svc.GetByName(ctx, name)
 		if err == nil && p != nil {
-			raw := RawPokeAPIPokemon{
-				Name: p.Name,
-				Stats: []Stat{
-					{BaseSt: p.BaseStats.HP, StName: struct {
-						Name string `json:"name"`
-					}{Name: "hp"}},
-					{BaseSt: p.BaseStats.Attack, StName: struct {
-						Name string `json:"name"`
-					}{Name: "attack"}},
-					{BaseSt: p.BaseStats.Defense, StName: struct {
-						Name string `json:"name"`
-					}{Name: "defense"}},
-					{BaseSt: p.BaseStats.Speed, StName: struct {
-						Name string `json:"name"`
-					}{Name: "speed"}},
-				},
-				Sprites: Sprites{FrontDflt: p.SpriteURL},
+			var raw RawPokeAPIPokemon
+			if len(p.RawJSON) > 0 && json.Unmarshal(p.RawJSON, &raw) == nil && raw.Name != "" && len(raw.Stats) > 0 {
+				return raw, GetMoves(raw.Moves), nil
 			}
-			for _, tName := range p.Types {
-				raw.Types = append(raw.Types, TypeInfo{
-					Type: struct {
-						Name string `json:"name"`
-					}{Name: tName},
-				})
-			}
-			return raw, nil, nil
 		}
 	}
 

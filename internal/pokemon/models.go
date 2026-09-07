@@ -38,12 +38,16 @@ type EvolutionChain struct {
 	FetchedAt        time.Time `json:"fetched_at"`
 }
 
+func cardHPFromBase(baseHP int) int {
+	if baseHP <= 0 {
+		baseHP = 50
+	}
+	return baseHP + baseHP/2
+}
+
 // ToCard converts a Pokemon domain entity into a battle Card
 func (p *Pokemon) ToCard() Card {
-	hp := p.BaseStats.HP
-	if hp <= 0 {
-		hp = 50
-	}
+	hp := cardHPFromBase(p.BaseStats.HP)
 	attack := p.BaseStats.Attack
 	if attack <= 0 {
 		attack = 40
@@ -58,6 +62,7 @@ func (p *Pokemon) ToCard() Card {
 	}
 
 	stamina := speed * 2
+	isLegendary, isMythical := IsLegendaryOrMythical(p.Name)
 
 	return Card{
 		CardID:      p.ID,
@@ -72,7 +77,7 @@ func (p *Pokemon) ToCard() Card {
 		Sprite:      p.SpriteURL,
 		Level:       1,
 		XP:          0,
-		IsLegendary: (hp + attack + defense + speed) >= 450,
-		IsMythical:  false,
+		IsLegendary: isLegendary,
+		IsMythical:  isMythical,
 	}
 }

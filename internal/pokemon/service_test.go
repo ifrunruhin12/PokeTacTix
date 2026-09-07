@@ -65,6 +65,30 @@ type mockRepo struct {
 	chains  map[int]*EvolutionChain
 }
 
+type mockPokeAPIClient struct {
+	rawPokemon          []byte
+	rawSpecies          []byte
+	rawEvolutionChain   []byte
+	pokemonCalls        int
+	speciesCalls        int
+	evolutionChainCalls int
+}
+
+func (m *mockPokeAPIClient) FetchPokemonRaw(context.Context, string) ([]byte, error) {
+	m.pokemonCalls++
+	return m.rawPokemon, nil
+}
+
+func (m *mockPokeAPIClient) FetchSpeciesRaw(context.Context, string) ([]byte, error) {
+	m.speciesCalls++
+	return m.rawSpecies, nil
+}
+
+func (m *mockPokeAPIClient) FetchEvolutionChainRaw(context.Context, int) ([]byte, error) {
+	m.evolutionChainCalls++
+	return m.rawEvolutionChain, nil
+}
+
 func newMockRepo() *mockRepo {
 	return &mockRepo{
 		pokemon: make(map[int]*Pokemon),
@@ -142,8 +166,9 @@ func TestNormalizePokemon(t *testing.T) {
 		"evolution_chain": {"url": "https://pokeapi.co/api/v2/evolution-chain/10/"}
 	}`)
 
-	p, err := normalizePokemon(rawPokemon, rawSpecies)
+	p, evolutionChainURL, err := normalizePokemon(rawPokemon, rawSpecies)
 	require.NoError(t, err)
+	assert.Equal(t, "https://pokeapi.co/api/v2/evolution-chain/10/", evolutionChainURL)
 	assert.Equal(t, 25, p.ID)
 	assert.Equal(t, "pikachu", p.Name)
 	assert.Equal(t, 1, p.Generation)
@@ -155,7 +180,7 @@ func TestNormalizePokemon(t *testing.T) {
 	card := p.ToCard()
 	assert.Equal(t, 25, card.CardID)
 	assert.Equal(t, "pikachu", card.Name)
-	assert.Equal(t, 35, card.HP)
+	assert.Equal(t, 52, card.HP)
 	assert.Equal(t, 180, card.Stamina) // speed 90 * 2
 }
 
@@ -188,6 +213,29 @@ func TestTieredFetchOrder(t *testing.T) {
 	cachedP, err := cache.GetPokemon(ctx, 4)
 	require.NoError(t, err)
 	assert.Equal(t, "charmander", cachedP.Name)
+}
+
+func TestGetByIDReusesSpeciesEvolutionChainURL(t *testing.T) {
+	client := &mockPokeAPIClient{
+		rawPokemon: []byte(`{"id":25,"name":"pikachu"}`),
+		rawSpecies: []byte(`{
+			"id": 25,
+			"evolution_chain": {"url": "https://pokeapi.co/api/v2/evolution-chain/10/"}
+		}`),
+		rawEvolutionChain: []byte(`{
+			"chain": {
+				"species": {"url": "https://pokeapi.co/api/v2/pokemon-species/25/"},
+				"evolves_to": []
+			}
+		}`),
+	}
+
+	p, err := NewService(nil, nil, client).GetByID(context.Background(), 25)
+	require.NoError(t, err)
+	assert.Equal(t, 10, p.EvolutionChainID)
+	assert.Equal(t, 1, client.pokemonCalls)
+	assert.Equal(t, 1, client.speciesCalls)
+	assert.Equal(t, 1, client.evolutionChainCalls)
 }
 
 func TestExtractMemberSpeciesIDs(t *testing.T) {

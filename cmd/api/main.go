@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"time"
+
 	"pokemon-cli/internal/auth"
 	"pokemon-cli/internal/battle"
 	"pokemon-cli/internal/cards"
@@ -74,7 +75,13 @@ func main() {
 	if database.GetRedis() != nil {
 		pokemonCache = pokemon.NewRedisCache(database.GetRedis(), cfg.Redis.TTL)
 	}
-	pokeClient := pokemon.NewPokeAPIClient(os.Getenv("POKEAPI_BASE_URL"), 10*time.Second)
+	pokeAPITimeout := 10 * time.Second
+	if configuredTimeout := os.Getenv("POKEAPI_TIMEOUT"); configuredTimeout != "" {
+		if parsedTimeout, err := time.ParseDuration(configuredTimeout); err == nil {
+			pokeAPITimeout = parsedTimeout
+		}
+	}
+	pokeClient := pokemon.NewPokeAPIClient(os.Getenv("POKEAPI_BASE_URL"), pokeAPITimeout)
 	pokemonService := pokemon.NewService(pokemonCache, pokemonRepo, pokeClient)
 	pokemon.SetDefaultService(pokemonService)
 

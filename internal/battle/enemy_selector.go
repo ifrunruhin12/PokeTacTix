@@ -67,6 +67,9 @@ func (s *enemySelector) PickEnemy(ctx context.Context, opts SelectOptions) (*pok
 	// Fallback if repository pool is empty or not pre-seeded
 	if err != nil || len(pool) == 0 {
 		if s.pokemonService == nil {
+			if err == nil {
+				return nil, fmt.Errorf("no candidate pool available and pokemon service is nil")
+			}
 			return nil, fmt.Errorf("no candidate pool available and pokemon service is nil: %w", err)
 		}
 

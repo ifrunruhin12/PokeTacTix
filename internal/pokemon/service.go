@@ -74,12 +74,12 @@ func (s *service) GetByID(ctx context.Context, id int) (*Pokemon, error) {
 			return nil, fmt.Errorf("failed to fetch raw species %d: %w", id, err)
 		}
 
-		p, err := normalizePokemon(rawPokemon, rawSpecies)
+		p, evolutionChainURL, err := normalizePokemon(rawPokemon, rawSpecies)
 		if err != nil {
 			return nil, fmt.Errorf("failed to normalize pokemon %d: %w", id, err)
 		}
 
-		evoChainID, err := s.EnsureEvolutionChain(ctx, p.SpeciesID, "")
+		evoChainID, err := s.EnsureEvolutionChain(ctx, p.SpeciesID, evolutionChainURL)
 		if err != nil {
 			// Non-fatal fallback for evolution chain if PokéAPI evolution-chain fails
 			evoChainID = p.SpeciesID
@@ -280,7 +280,7 @@ func (s *service) GetRandomCard(ctx context.Context, allowSpecial bool) (Card, e
 }
 
 // Internal helper to normalize raw PokéAPI responses into domain Pokemon struct
-func normalizePokemon(rawPokemon []byte, rawSpecies []byte) (*Pokemon, error) {
+func normalizePokemon(rawPokemon []byte, rawSpecies []byte) (*Pokemon, string, error) {
 	var pData struct {
 		ID    int    `json:"id"`
 		Name  string `json:"name"`
@@ -307,7 +307,7 @@ func normalizePokemon(rawPokemon []byte, rawSpecies []byte) (*Pokemon, error) {
 	}
 
 	if err := json.Unmarshal(rawPokemon, &pData); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal raw pokemon: %w", err)
+		return nil, "", fmt.Errorf("failed to unmarshal raw pokemon: %w", err)
 	}
 
 	var sData struct {
@@ -368,5 +368,5 @@ func normalizePokemon(rawPokemon []byte, rawSpecies []byte) (*Pokemon, error) {
 		RawJSON:    rawPokemon,
 		FetchedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
-	}, nil
+	}, sData.EvolutionChain.URL, nil
 }

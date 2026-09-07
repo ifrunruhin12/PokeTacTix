@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -37,37 +38,37 @@ func NewPokeAPIClient(baseURL string, timeout time.Duration) PokeAPIClient {
 }
 
 func (c *pokeAPIClient) FetchPokemonRaw(ctx context.Context, idOrName string) ([]byte, error) {
-	url := fmt.Sprintf("%s/pokemon/%s", c.baseURL, strings.ToLower(idOrName))
-	return c.get(ctx, url)
+	endpoint := fmt.Sprintf("%s/pokemon/%s", c.baseURL, url.PathEscape(strings.ToLower(idOrName)))
+	return c.get(ctx, endpoint)
 }
 
 func (c *pokeAPIClient) FetchSpeciesRaw(ctx context.Context, idOrName string) ([]byte, error) {
-	url := fmt.Sprintf("%s/pokemon-species/%s", c.baseURL, strings.ToLower(idOrName))
-	return c.get(ctx, url)
+	endpoint := fmt.Sprintf("%s/pokemon-species/%s", c.baseURL, url.PathEscape(strings.ToLower(idOrName)))
+	return c.get(ctx, endpoint)
 }
 
 func (c *pokeAPIClient) FetchEvolutionChainRaw(ctx context.Context, chainID int) ([]byte, error) {
-	url := fmt.Sprintf("%s/evolution-chain/%d", c.baseURL, chainID)
-	return c.get(ctx, url)
+	endpoint := fmt.Sprintf("%s/evolution-chain/%d", c.baseURL, chainID)
+	return c.get(ctx, endpoint)
 }
 
-func (c *pokeAPIClient) get(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func (c *pokeAPIClient) get(ctx context.Context, endpoint string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("http request failed for %s: %w", url, err)
+		return nil, fmt.Errorf("http request failed for %s: %w", endpoint, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("resource not found at %s", url)
+		return nil, fmt.Errorf("resource not found at %s", endpoint)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d from %s", resp.StatusCode, url)
+		return nil, fmt.Errorf("unexpected status code %d from %s", resp.StatusCode, endpoint)
 	}
 
 	var data json.RawMessage

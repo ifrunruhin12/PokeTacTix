@@ -96,9 +96,9 @@ func main() {
 					atomic.AddInt64(&errorCount, 1)
 					log.Printf("[Worker %d] ❌ Failed to fetch/seed ID %d: %v", workerID, id, err)
 				} else {
-					atomic.AddInt64(&successCount, 1)
-					if successCount%25 == 0 {
-						log.Printf("PROGRESS: %d/%d seeded (%s)", successCount, len(targetIDs), p.Name)
+					count := atomic.AddInt64(&successCount, 1)
+					if count%25 == 0 {
+						log.Printf("PROGRESS: %d/%d seeded (%s)", count, len(targetIDs), p.Name)
 					}
 				}
 				time.Sleep(50 * time.Millisecond) // Throttle to be polite to PokéAPI

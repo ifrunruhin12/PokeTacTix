@@ -224,7 +224,9 @@ func (r *postgresRepository) CandidatePool(ctx context.Context, filter PoolFilte
 			return nil, fmt.Errorf("failed to scan candidate pokemon row: %w", err)
 		}
 
-		_ = json.Unmarshal(baseStatsJSON, &p.BaseStats)
+		if err := json.Unmarshal(baseStatsJSON, &p.BaseStats); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal base_stats: %w", err)
+		}
 		p.Abilities = abilitiesJSON
 		p.RawJSON = rawJSON
 

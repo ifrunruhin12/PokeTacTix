@@ -41,7 +41,7 @@ services:
     container_name: poketactix-backend
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_URL: ${BACKEND_REDIS_URL:-redis://redis:6379/0}
       POKEMON_CACHE_TTL: ${POKEMON_CACHE_TTL:-720h}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION}
