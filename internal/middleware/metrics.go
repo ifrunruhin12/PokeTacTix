@@ -37,7 +37,7 @@ var (
 		},
 	)
 
-	// battleStartTotal counts battle start events by mode
+	// BattleStartTotal counts battle start events by mode
 	BattleStartTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "poketactix_battles_started_total",
@@ -46,7 +46,7 @@ var (
 		[]string{"mode"},
 	)
 
-	// battleResultTotal counts battle results
+	// BattleResultTotal counts battle results
 	BattleResultTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "poketactix_battle_results_total",
@@ -55,16 +55,16 @@ var (
 		[]string{"result"}, // win, loss, draw
 	)
 
-	// pokemonFetchTotal tracks where pokemon data came from
+	// PokemonFetchTotal tracks where pokemon data came from (attempt-based counter)
 	PokemonFetchTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "poketactix_pokemon_fetch_total",
-			Help: "Total number of pokemon fetches by source",
+			Help: "Total number of pokemon fetch attempts by source",
 		},
 		[]string{"source"}, // redis, postgres, pokeapi
 	)
 
-	// authTotal tracks auth events
+	// AuthTotal tracks auth events
 	AuthTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "poketactix_auth_total",
@@ -73,7 +73,7 @@ var (
 		[]string{"event"}, // login_success, login_failure, register
 	)
 
-	// activeUsers tracks registered users (set on startup)
+	// ActiveUsers tracks registered users (set on startup)
 	ActiveUsers = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "poketactix_active_users",
@@ -85,30 +85,31 @@ var (
 // PrometheusMiddleware records HTTP metrics for every request
 func PrometheusMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		// Skip OPTIONS preflight requests — they're CORS noise, not real traffic
+		if c.Method() == fiber.MethodOptions {
+			return c.Next()
+		}
+
 		start := time.Now()
 		httpActiveRequests.Inc()
+		defer httpActiveRequests.Dec() // deferred so panics don't leak the gauge
 
 		err := c.Next()
 
-		httpActiveRequests.Dec()
 		duration := time.Since(start).Seconds()
 		status := strconv.Itoa(c.Response().StatusCode())
+		method := c.Method()
 
-		// Normalize path to avoid high cardinality from IDs in URLs
-		path := normalizePath(c.Route().Path)
+		// c.Route().Path returns the registered template (e.g. /api/cards/:id),
+		// not the concrete URL, so no further normalization is needed.
+		path := c.Route().Path
+		if path == "" {
+			path = "unknown"
+		}
 
-		httpRequestsTotal.WithLabelValues(c.Method(), path, status).Inc()
-		httpRequestDuration.WithLabelValues(c.Method(), path).Observe(duration)
+		httpRequestsTotal.WithLabelValues(method, path, status).Inc()
+		httpRequestDuration.WithLabelValues(method, path).Observe(duration)
 
 		return err
 	}
-}
-
-// normalizePath replaces dynamic segments to reduce cardinality
-// e.g. /api/cards/123 -> /api/cards/:id
-func normalizePath(path string) string {
-	if path == "" {
-		return "unknown"
-	}
-	return path
 }

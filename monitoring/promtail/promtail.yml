@@ -36,3 +36,5 @@ scrape_configs:
             msg: msg
       - labels:
           level:
+          stream:
+          container:

@@ -111,9 +111,9 @@
       "title": "Latency Percentiles (p50 / p95 / p99)",
       "type": "timeseries",
       "targets": [
-        { "expr": "histogram_quantile(0.50, sum(rate(poketactix_http_request_duration_seconds_bucket[5m])) by (le, path))", "legendFormat": "p50 {{path}}" },
-        { "expr": "histogram_quantile(0.95, sum(rate(poketactix_http_request_duration_seconds_bucket[5m])) by (le, path))", "legendFormat": "p95 {{path}}" },
-        { "expr": "histogram_quantile(0.99, sum(rate(poketactix_http_request_duration_seconds_bucket[5m])) by (le, path))", "legendFormat": "p99 {{path}}" }
+        { "expr": "histogram_quantile(0.50, sum(rate(poketactix_http_request_duration_seconds_bucket[5m])) by (le, method, path))", "legendFormat": "p50 {{method}} {{path}}" },
+        { "expr": "histogram_quantile(0.95, sum(rate(poketactix_http_request_duration_seconds_bucket[5m])) by (le, method, path))", "legendFormat": "p95 {{method}} {{path}}" },
+        { "expr": "histogram_quantile(0.99, sum(rate(poketactix_http_request_duration_seconds_bucket[5m])) by (le, method, path))", "legendFormat": "p99 {{method}} {{path}}" }
       ]
     },
     {
@@ -191,7 +191,7 @@
       "title": "Cache Hit Rate (Redis + Postgres vs PokeAPI)",
       "type": "timeseries",
       "targets": [{
-        "expr": "sum(rate(poketactix_pokemon_fetch_total{source=~\"redis|postgres\"}[5m])) / sum(rate(poketactix_pokemon_fetch_total[5m]))",
+        "expr": "sum(rate(poketactix_pokemon_fetch_total{source=~\"^redis$|^postgres$\"}[5m])) / sum(rate(poketactix_pokemon_fetch_total[5m]))",
         "legendFormat": "cache hit rate"
       }]
     },
