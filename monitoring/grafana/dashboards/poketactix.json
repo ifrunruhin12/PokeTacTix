@@ -236,7 +236,7 @@
       },
       "title": "Error Logs",
       "type": "logs",
-      "targets": [{ "expr": "{container=\"poketactix-backend\"} |= \"level=ERROR\"", "legendFormat": "" }]
+      "targets": [{ "expr": "{container=\"poketactix-backend\", level=\"ERROR\"}", "legendFormat": "" }]
     }
   ],
   "refresh": "10s",
