@@ -68,9 +68,12 @@ func (s *enemySelector) PickEnemy(ctx context.Context, opts SelectOptions) (*pok
 	if err != nil || len(pool) == 0 {
 		if s.pokemonService == nil {
 			if err == nil {
-				return nil, fmt.Errorf("no candidate pool available and pokemon service is nil")
+	if err != nil || len(pool) == 0 {
+		if s.pokemonService == nil {
+			if err != nil {
+				return nil, fmt.Errorf("no candidate pool available and pokemon service is nil: %w", err)
 			}
-			return nil, fmt.Errorf("no candidate pool available and pokemon service is nil: %w", err)
+			return nil, fmt.Errorf("no candidate pool available and pokemon service is nil")
 		}
 
 		// Try picking a random card from PokemonService
