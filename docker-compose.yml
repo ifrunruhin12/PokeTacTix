@@ -19,6 +19,21 @@ services:
     networks:
       - poketactix-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: poketactix-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - poketactix-network
+
   backend:
     build:
       context: .
@@ -26,6 +41,8 @@ services:
     container_name: poketactix-backend
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${BACKEND_REDIS_URL:-redis://redis:6379/0}
+      POKEMON_CACHE_TTL: ${POKEMON_CACHE_TTL:-720h}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION}
       PORT: ${PORT}
@@ -56,6 +73,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     command: sh /app/scripts/start-backend.sh
     networks:
       - poketactix-network
@@ -78,6 +97,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   poketactix-network:

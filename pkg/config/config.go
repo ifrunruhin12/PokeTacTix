@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Server    ServerConfig
 	Database  DatabaseConfig
+	Redis     RedisConfig
 	JWT       JWTConfig
 	CORS      CORSConfig
 	RateLimit RateLimitConfig
@@ -26,6 +27,12 @@ type DatabaseConfig struct {
 	URL            string
 	MaxConnections int
 	IdleTimeout    time.Duration
+}
+
+// RedisConfig holds redis connection and cache configuration
+type RedisConfig struct {
+	URL string
+	TTL time.Duration
 }
 
 // JWTConfig holds JWT authentication configuration
@@ -57,6 +64,10 @@ func Load() *Config {
 			URL:            getEnv("DATABASE_URL", ""),
 			MaxConnections: getEnvAsInt("DB_MAX_CONNECTIONS", 20),
 			IdleTimeout:    getEnvAsDuration("DB_IDLE_TIMEOUT", 300*time.Second),
+		},
+		Redis: RedisConfig{
+			URL: getEnv("REDIS_URL", "redis://localhost:6379/0"),
+			TTL: getEnvAsDuration("POKEMON_CACHE_TTL", 720*time.Hour), // 30 days default
 		},
 		JWT: JWTConfig{
 			Secret:     getEnv("JWT_SECRET", "dev-secret-key-change-in-production"),

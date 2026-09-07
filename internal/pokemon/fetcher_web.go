@@ -1,15 +1,33 @@
 package pokemon
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
+var (
+	defaultService   PokemonService
+	defaultServiceMu sync.RWMutex
+)
 
+// SetDefaultService sets global default PokemonService for legacy call-sites
+func SetDefaultService(s PokemonService) {
+	defaultServiceMu.Lock()
+	defer defaultServiceMu.Unlock()
+	defaultService = s
+}
+
+func getDefaultService() PokemonService {
+	defaultServiceMu.RLock()
+	defer defaultServiceMu.RUnlock()
+	return defaultService
+}
 
 // GetMoves fetches move details from the API
 func GetMoves(rawMoves []RawMove) []Move {
@@ -62,8 +80,21 @@ func GetMoves(rawMoves []RawMove) []Move {
 	return gameMoves
 }
 
-// FetchPokemon fetches Pokemon data from the PokeAPI
-func FetchPokemon(name string) (Pokemon, []Move, error) {
+// FetchPokemon fetches Pokemon data from PokemonService (or legacy cold PokéAPI fallback)
+func FetchPokemon(name string) (RawPokeAPIPokemon, []Move, error) {
+	if svc := getDefaultService(); svc != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		p, err := svc.GetByName(ctx, name)
+		if err == nil && p != nil {
+			var raw RawPokeAPIPokemon
+			if len(p.RawJSON) > 0 && json.Unmarshal(p.RawJSON, &raw) == nil && raw.Name != "" && len(raw.Stats) > 0 {
+				return raw, GetMoves(raw.Moves), nil
+			}
+		}
+	}
+
 	url := "https://pokeapi.co/api/v2/pokemon/" + strings.ToLower(name)
 
 	// Create HTTP client with timeout to prevent hanging
@@ -73,29 +104,43 @@ func FetchPokemon(name string) (Pokemon, []Move, error) {
 
 	resp, err := client.Get(url)
 	if err != nil {
-		return Pokemon{}, nil, fmt.Errorf("failed to fetch pokemon data: %w", err)
+		return RawPokeAPIPokemon{}, nil, fmt.Errorf("failed to fetch pokemon data: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return Pokemon{}, nil, fmt.Errorf("Pokemon \"%s\" not found. Please check the name and try again", name)
+		return RawPokeAPIPokemon{}, nil, fmt.Errorf("Pokemon \"%s\" not found. Please check the name and try again", name)
 	}
 
 	defer resp.Body.Close()
 
-	var poke Pokemon
+	var poke RawPokeAPIPokemon
 
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&poke); err != nil {
-		return Pokemon{}, nil, fmt.Errorf("failed to decode pokemon data: %w", err)
+		return RawPokeAPIPokemon{}, nil, fmt.Errorf("failed to decode pokemon data: %w", err)
 	}
 
 	pokeMoves := GetMoves(poke.Moves)
 	return poke, pokeMoves, nil
 }
 
-// FetchRandomPokemonCard returns a random Card from PokeAPI (web version)
-func FetchRandomPokemonCard(_ bool) Card {
+// FetchRandomPokemonCard returns a random Card from PokemonService (or legacy cold path fallback)
+func FetchRandomPokemonCard(allowSpecial bool) Card {
+	if svc := getDefaultService(); svc != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		card, err := svc.GetRandomCard(ctx, allowSpecial)
+		if err == nil {
+			if len(card.Moves) == 0 {
+				card.Moves = []Move{
+					{Name: "tackle", Power: 40, StaminaCost: 13, Type: "normal"},
+				}
+			}
+			return card
+		}
+	}
 	mythicalOdds := 0.0001  // 0.01%
 	legendaryOdds := 0.0001 // 0.01%
 	maxRetries := 5

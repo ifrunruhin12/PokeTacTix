@@ -1,7 +1,7 @@
 package pokemon
 
 // BuildCardFromPokemon builds a Card from Pokemon API data
-func BuildCardFromPokemon(poke Pokemon, moves []Move) Card {
+func BuildCardFromPokemon(poke RawPokeAPIPokemon, moves []Move) Card {
 	var hp, defense, attack, speed int
 	for _, stat := range poke.Stats {
 		switch stat.StName.Name {
@@ -18,7 +18,7 @@ func BuildCardFromPokemon(poke Pokemon, moves []Move) Card {
 
 	stamina := speed * 2
 
-	hp = hp + int(float64(hp)*0.5) // 50% of HP is added to the card
+	hp = cardHPFromBase(hp)
 
 	types := make([]string, len(poke.Types))
 	for i, t := range poke.Types {
