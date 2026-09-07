@@ -19,11 +19,13 @@ import (
 	"pokemon-cli/pkg/logger"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	fiberlogger "github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/swagger"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -149,9 +151,13 @@ func main() {
 
 	// Middleware
 	app.Use(recover.New())
+	app.Use(middleware.PrometheusMiddleware())
 	app.Use(fiberlogger.New(fiberlogger.Config{
 		Format: "${time} | ${status} | ${latency} | ${method} ${path}\n",
 	}))
+
+	// Prometheus metrics endpoint
+	app.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
 
 	// Add security headers to all responses
 	app.Use(middleware.SecurityHeaders())

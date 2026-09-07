@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"pokemon-cli/internal/middleware"
+
 	"golang.org/x/sync/singleflight"
 )
 
@@ -47,6 +49,7 @@ func (s *service) GetByID(ctx context.Context, id int) (*Pokemon, error) {
 		if s.cache != nil {
 			if p, err := s.cache.GetPokemon(ctx, id); err == nil && p != nil {
 				slog.Debug("pokemon cache hit: Redis", "id", id, "name", p.Name)
+				middleware.PokemonFetchTotal.WithLabelValues("redis").Inc()
 				return p, nil
 			}
 		}
@@ -55,6 +58,7 @@ func (s *service) GetByID(ctx context.Context, id int) (*Pokemon, error) {
 		if s.repo != nil {
 			if p, err := s.repo.GetPokemon(ctx, id); err == nil && p != nil {
 				slog.Debug("pokemon cache hit: Postgres", "id", id, "name", p.Name)
+				middleware.PokemonFetchTotal.WithLabelValues("postgres").Inc()
 				if s.cache != nil {
 					_ = s.cache.SetPokemon(ctx, p) // backfill Redis
 				}
@@ -67,6 +71,7 @@ func (s *service) GetByID(ctx context.Context, id int) (*Pokemon, error) {
 			return nil, fmt.Errorf("pokeapi client is not configured for cold fetch of id %d", id)
 		}
 		slog.Info("pokemon cache miss: fetching from PokeAPI", "id", id)
+		middleware.PokemonFetchTotal.WithLabelValues("pokeapi").Inc()
 
 		rawPokemon, err := s.client.FetchPokemonRaw(ctx, strconv.Itoa(id))
 		if err != nil {

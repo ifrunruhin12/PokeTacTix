@@ -22,6 +22,8 @@ WORKDIR /root/
 
 # Copy the binary from builder
 COPY --from=builder /app/main .
+# Copy docs for swagger UI
+COPY --from=builder /app/docs ./docs
 
 # Expose port
 EXPOSE 3000

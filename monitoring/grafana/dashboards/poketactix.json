@@ -1,0 +1,251 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "HTTP Overview",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }, "unit": "reqps" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "Request Rate",
+      "type": "stat",
+      "targets": [{ "expr": "sum(rate(poketactix_http_requests_total[5m]))", "legendFormat": "req/s" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "Active Requests",
+      "type": "stat",
+      "targets": [{ "expr": "poketactix_http_active_requests", "legendFormat": "active" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 1 }] }, "unit": "s" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "P99 Latency",
+      "type": "stat",
+      "targets": [{ "expr": "histogram_quantile(0.99, sum(rate(poketactix_http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p99" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.01 }, { "color": "red", "value": 0.05 }] }, "unit": "percentunit" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 4,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "Error Rate",
+      "type": "stat",
+      "targets": [{ "expr": "sum(rate(poketactix_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(poketactix_http_requests_total[5m]))", "legendFormat": "error rate" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 5,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "Total Battles Started",
+      "type": "stat",
+      "targets": [{ "expr": "sum(poketactix_battles_started_total)", "legendFormat": "battles" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "id": 6,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "Active Users",
+      "type": "stat",
+      "targets": [{ "expr": "poketactix_active_users", "legendFormat": "users" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Request Traffic",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 10,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Request Rate by Endpoint",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by(path, method) (rate(poketactix_http_requests_total[5m]))", "legendFormat": "{{method}} {{path}}" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 11,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Latency Percentiles (p50 / p95 / p99)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(poketactix_http_request_duration_seconds_bucket[5m])) by (le, path))", "legendFormat": "p50 {{path}}" },
+        { "expr": "histogram_quantile(0.95, sum(rate(poketactix_http_request_duration_seconds_bucket[5m])) by (le, path))", "legendFormat": "p95 {{path}}" },
+        { "expr": "histogram_quantile(0.99, sum(rate(poketactix_http_request_duration_seconds_bucket[5m])) by (le, path))", "legendFormat": "p99 {{path}}" }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 12,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "HTTP Status Codes",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum by(status) (rate(poketactix_http_requests_total[5m]))", "legendFormat": "{{status}}" }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "title": "Game Metrics",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 23 },
+      "id": 20,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Battles Started by Mode",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by(mode) (rate(poketactix_battles_started_total[5m]))", "legendFormat": "{{mode}}" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 23 },
+      "id": 21,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Battle Results (win/loss/draw)",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by(result) (rate(poketactix_battle_results_total[5m]))", "legendFormat": "{{result}}" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 23 },
+      "id": 22,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Auth Events",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by(event) (rate(poketactix_auth_total[5m]))", "legendFormat": "{{event}}" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 },
+      "id": 103,
+      "title": "Pokemon Cache",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "id": 30,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Pokemon Fetch Source Rate",
+      "type": "timeseries",
+      "targets": [{ "expr": "sum by(source) (rate(poketactix_pokemon_fetch_total[5m]))", "legendFormat": "{{source}}" }]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "id": 31,
+      "options": { "tooltip": { "mode": "multi" } },
+      "title": "Cache Hit Rate (Redis + Postgres vs PokeAPI)",
+      "type": "timeseries",
+      "targets": [{
+        "expr": "sum(rate(poketactix_pokemon_fetch_total{source=~\"redis|postgres\"}[5m])) / sum(rate(poketactix_pokemon_fetch_total[5m]))",
+        "legendFormat": "cache hit rate"
+      }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
+      "id": 104,
+      "title": "Logs",
+      "type": "row"
+    },
+    {
+      "datasource": "Loki",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 41 },
+      "id": 40,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "title": "Backend Logs",
+      "type": "logs",
+      "targets": [{ "expr": "{container=\"poketactix-backend\"}", "legendFormat": "" }]
+    },
+    {
+      "datasource": "Loki",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 51 },
+      "id": 41,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "title": "Error Logs",
+      "type": "logs",
+      "targets": [{ "expr": "{container=\"poketactix-backend\"} |= \"level=ERROR\"", "legendFormat": "" }]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "tags": ["poketactix", "backend", "game"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "PokeTacTix Dashboard",
+  "uid": "poketactix-main",
+  "version": 1
+}
