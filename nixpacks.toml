@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["go"]
+nixPkgs = ["go_1_24"]
 
 [phases.install]
 cmds = [
