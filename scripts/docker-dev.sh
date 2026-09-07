@@ -50,7 +50,7 @@ echo ""
 echo -e "${YELLOW}⏳ Waiting for database to be ready...${NC}"
 max_attempts=30
 attempt=0
-until docker-compose exec -T postgres pg_isready -U pokemon > /dev/null 2>&1; do
+until docker-compose exec -T postgres pg_isready -U pokemon -d poketactix > /dev/null 2>&1; do
     attempt=$((attempt + 1))
     if [ $attempt -eq $max_attempts ]; then
         echo -e "${RED}❌ Database failed to start after ${max_attempts} attempts${NC}"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -45,6 +46,7 @@ func (s *service) GetByID(ctx context.Context, id int) (*Pokemon, error) {
 		// 1. Redis hot cache
 		if s.cache != nil {
 			if p, err := s.cache.GetPokemon(ctx, id); err == nil && p != nil {
+				slog.Debug("pokemon cache hit: Redis", "id", id, "name", p.Name)
 				return p, nil
 			}
 		}
@@ -52,6 +54,7 @@ func (s *service) GetByID(ctx context.Context, id int) (*Pokemon, error) {
 		// 2. PostgreSQL durable cache
 		if s.repo != nil {
 			if p, err := s.repo.GetPokemon(ctx, id); err == nil && p != nil {
+				slog.Debug("pokemon cache hit: Postgres", "id", id, "name", p.Name)
 				if s.cache != nil {
 					_ = s.cache.SetPokemon(ctx, p) // backfill Redis
 				}
@@ -63,6 +66,7 @@ func (s *service) GetByID(ctx context.Context, id int) (*Pokemon, error) {
 		if s.client == nil {
 			return nil, fmt.Errorf("pokeapi client is not configured for cold fetch of id %d", id)
 		}
+		slog.Info("pokemon cache miss: fetching from PokeAPI", "id", id)
 
 		rawPokemon, err := s.client.FetchPokemonRaw(ctx, strconv.Itoa(id))
 		if err != nil {
@@ -90,10 +94,12 @@ func (s *service) GetByID(ctx context.Context, id int) (*Pokemon, error) {
 			if err := s.repo.UpsertPokemon(ctx, p); err != nil {
 				return nil, fmt.Errorf("failed to save pokemon %d to db: %w", id, err)
 			}
+			slog.Info("pokemon saved to Postgres", "id", id, "name", p.Name)
 		}
 
 		if s.cache != nil {
 			_ = s.cache.SetPokemon(ctx, p)
+			slog.Debug("pokemon saved to Redis", "id", id, "name", p.Name)
 		}
 
 		return p, nil

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	fiberlogger "github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/swagger"
 	"github.com/joho/godotenv"
@@ -32,10 +34,7 @@ func main() {
 	cfg := config.Load()
 
 	// Initialize logger with slog
-	logLevel := logger.INFO
-	if cfg.Server.Env == "development" {
-		logLevel = logger.DEBUG
-	}
+	logLevel := logger.DEBUG
 
 	// Use text handler for development, JSON for production
 	var appLogger *logger.Logger
@@ -44,6 +43,9 @@ func main() {
 	} else {
 		appLogger = logger.New(logLevel)
 	}
+
+	// Set as the default slog logger so all packages use the same instance
+	slog.SetDefault(appLogger.GetSlog())
 
 	appLogger.Info("Starting PokeTacTix API", "env", cfg.Server.Env, "port", cfg.Server.Port)
 
@@ -147,6 +149,9 @@ func main() {
 
 	// Middleware
 	app.Use(recover.New())
+	app.Use(fiberlogger.New(fiberlogger.Config{
+		Format: "${time} | ${status} | ${latency} | ${method} ${path}\n",
+	}))
 
 	// Add security headers to all responses
 	app.Use(middleware.SecurityHeaders())

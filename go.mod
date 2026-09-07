@@ -1,6 +1,6 @@
 module pokemon-cli
 
-go 1.24.3
+go 1.27.0
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.9
