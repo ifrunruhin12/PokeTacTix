@@ -38,13 +38,13 @@ func NewPokeAPIClient(baseURL string, timeout time.Duration) PokeAPIClient {
 }
 
 func (c *pokeAPIClient) FetchPokemonRaw(ctx context.Context, idOrName string) ([]byte, error) {
-	endpoint := fmt.Sprintf("%s/pokemon/%s", c.baseURL, url.PathEscape(strings.ToLower(idOrName)))
-	return c.get(ctx, endpoint)
+	target := fmt.Sprintf("%s/pokemon/%s", c.baseURL, url.PathEscape(strings.ToLower(idOrName)))
+	return c.get(ctx, target)
 }
 
 func (c *pokeAPIClient) FetchSpeciesRaw(ctx context.Context, idOrName string) ([]byte, error) {
-	endpoint := fmt.Sprintf("%s/pokemon-species/%s", c.baseURL, url.PathEscape(strings.ToLower(idOrName)))
-	return c.get(ctx, endpoint)
+	target := fmt.Sprintf("%s/pokemon-species/%s", c.baseURL, url.PathEscape(strings.ToLower(idOrName)))
+	return c.get(ctx, target)
 }
 
 func (c *pokeAPIClient) FetchEvolutionChainRaw(ctx context.Context, chainID int) ([]byte, error) {
