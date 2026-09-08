@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"pokemon-cli/game/models"
 	"pokemon-cli/internal/database"
+	"pokemon-cli/internal/middleware"
 	"pokemon-cli/internal/pokemon"
 	"strings"
 	"sync"
@@ -288,6 +289,7 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 	}
 
 	// Return battle state with card visibility
+	middleware.BattleStartTotal.WithLabelValues(req.Mode).Inc()
 	response := BuildBattleResponse(battleState, []string{fmt.Sprintf("Battle started! Mode: %s", req.Mode)}, true)
 
 	return c.JSON(response)

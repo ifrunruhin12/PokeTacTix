@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"pokemon-cli/internal/database"
+	"pokemon-cli/internal/middleware"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -158,6 +159,7 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 		})
 	}
 
+	middleware.AuthTotal.WithLabelValues("register").Inc()
 	return c.Status(fiber.StatusCreated).JSON(AuthResponse{
 		Token: token,
 		User:  user,
@@ -193,6 +195,7 @@ func (h *Handler) Login(c *fiber.Ctx) error {
 	user, err := h.repository.GetByUsername(ctx, req.Username)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) || strings.Contains(err.Error(), "not found") {
+			middleware.AuthTotal.WithLabelValues("login_failure").Inc()
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": fiber.Map{
 					"code":    "INVALID_CREDENTIALS",
@@ -209,6 +212,7 @@ func (h *Handler) Login(c *fiber.Ctx) error {
 	}
 
 	if err := h.authService.ComparePassword(user.PasswordHash, req.Password); err != nil {
+		middleware.AuthTotal.WithLabelValues("login_failure").Inc()
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"error": fiber.Map{
 				"code":    "INVALID_CREDENTIALS",
@@ -227,6 +231,7 @@ func (h *Handler) Login(c *fiber.Ctx) error {
 		})
 	}
 
+	middleware.AuthTotal.WithLabelValues("login_success").Inc()
 	return c.JSON(AuthResponse{
 		Token: token,
 		User:  user,
