@@ -327,6 +327,7 @@ func (h *Handler) StartBattle(c *fiber.Ctx) error {
 
 	h.sessions[id] = &Session{State: state, Turn: turn}
 
+	middleware.BattleStartTotal.WithLabelValues(state.BattleMode).Inc()
 	return c.JSON(fiber.Map{
 		"session": id,
 		"state":   state,

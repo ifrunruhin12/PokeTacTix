@@ -28,9 +28,18 @@ type BattleState struct {
 	PendingPlayerMoveIdx int          `json:"pending_player_move_idx"`
 	PendingAIMove        string       `json:"pending_ai_move"`
 	PendingAIMoveIdx     int          `json:"pending_ai_move_idx"`
-	SacrificeCount       map[int]int  `json:"sacrifice_count"` // Track sacrifices per Pokemon
+	SacrificeCount       map[int]int  `json:"sacrifice_count"` // Track sacrifices per side and deck index
 	CreatedAt            time.Time    `json:"created_at"`
 	UpdatedAt            time.Time    `json:"updated_at"`
+}
+
+// Player keys retain their deck indexes; AI keys use negative indexes to avoid collisions.
+func playerSacrificeKey(deckIndex int) int {
+	return deckIndex
+}
+
+func aiSacrificeKey(deckIndex int) int {
+	return -deckIndex - 1
 }
 
 // BattleCard represents a Pokemon card in battle with current state

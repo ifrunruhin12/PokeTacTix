@@ -121,18 +121,18 @@ func main() {
 			appLogger.Info("Achievements initialized")
 		}
 
-		// Set active users gauge from DB count on startup
+		// Set registered users gauge from DB count on startup
 		if count, err := authRepo.CountUsers(ctx); err == nil {
-			middleware.ActiveUsers.Set(float64(count))
+			middleware.RegisteredUsers.Set(float64(count))
 		}
 
-		// Periodically refresh the active users gauge from DB so it stays accurate
+		// Periodically refresh the registered users gauge from DB so it stays accurate
 		go func() {
 			ticker := time.NewTicker(5 * time.Minute)
 			defer ticker.Stop()
 			for range ticker.C {
 				if count, err := authRepo.CountUsers(context.Background()); err == nil {
-					middleware.ActiveUsers.Set(float64(count))
+					middleware.RegisteredUsers.Set(float64(count))
 				}
 			}
 		}()

@@ -110,12 +110,13 @@ func ProcessMove(bs *BattleState, move string, moveIdx *int) ([]string, error) {
 
 	// Handle sacrifice (free action — does not consume the player's turn)
 	if move == "sacrifice" {
-		sacrificeCount := bs.SacrificeCount[bs.PlayerActiveIdx]
+		sacrificeKey := playerSacrificeKey(bs.PlayerActiveIdx)
+		sacrificeCount := bs.SacrificeCount[sacrificeKey]
 		result, err := applySacrifice(playerCard, sacrificeCount)
 		if err != nil {
 			return nil, err
 		}
-		bs.SacrificeCount[bs.PlayerActiveIdx] = sacrificeCount + 1
+		bs.SacrificeCount[sacrificeKey] = sacrificeCount + 1
 		logEntries = append(logEntries, fmt.Sprintf("Player sacrificed %d HP and gained %d stamina.", result.HPLost, result.StaminaGained))
 		return logEntries, nil
 	}
@@ -236,13 +237,14 @@ func processAIMove(bs *BattleState) []string {
 		}
 
 		if aiMove == "sacrifice" {
-			sacrificeCount := bs.SacrificeCount[bs.AIActiveIdx]
+			sacrificeKey := aiSacrificeKey(bs.AIActiveIdx)
+			sacrificeCount := bs.SacrificeCount[sacrificeKey]
 			result, err := applySacrifice(aiCard, sacrificeCount)
 			if err != nil {
 				// Can't sacrifice — break out and let AI choose another move
 				break
 			}
-			bs.SacrificeCount[bs.AIActiveIdx] = sacrificeCount + 1
+			bs.SacrificeCount[sacrificeKey] = sacrificeCount + 1
 			logEntries = append(logEntries, fmt.Sprintf("AI sacrificed %d HP and gained %d stamina.", result.HPLost, result.StaminaGained))
 			// Sync the working copy
 			aCard = ConvertFromBattleCard(*aiCard)

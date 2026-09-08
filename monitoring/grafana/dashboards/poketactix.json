@@ -81,9 +81,9 @@
       "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
       "id": 6,
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
-      "title": "Active Users",
+      "title": "Registered Users",
       "type": "stat",
-      "targets": [{ "expr": "poketactix_active_users", "legendFormat": "users" }]
+      "targets": [{ "expr": "poketactix_registered_users", "legendFormat": "users" }]
     },
     {
       "collapsed": false,

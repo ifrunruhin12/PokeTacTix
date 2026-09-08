@@ -73,10 +73,10 @@ var (
 		[]string{"event"}, // login_success, login_failure, register
 	)
 
-	// ActiveUsers tracks registered users (set on startup)
-	ActiveUsers = promauto.NewGauge(
+	// RegisteredUsers tracks registered users (set on startup)
+	RegisteredUsers = promauto.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "poketactix_active_users",
+			Name: "poketactix_registered_users",
 			Help: "Total registered users",
 		},
 	)
