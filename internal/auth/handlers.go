@@ -160,7 +160,6 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 	}
 
 	middleware.AuthTotal.WithLabelValues("register").Inc()
-	middleware.ActiveUsers.Inc()
 	return c.Status(fiber.StatusCreated).JSON(AuthResponse{
 		Token: token,
 		User:  user,
