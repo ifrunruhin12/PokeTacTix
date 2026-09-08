@@ -446,7 +446,12 @@ func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
 	// Process the move
 	logEntries, err := ProcessMove(battleState, req.Move, req.MoveIdx)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "INVALID_MOVE",
+				"message": err.Error(),
+			},
+		})
 	}
 
 	// Save updated battle state to database
