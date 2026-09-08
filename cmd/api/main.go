@@ -120,6 +120,11 @@ func main() {
 		} else {
 			appLogger.Info("Achievements initialized")
 		}
+
+		// Set active users gauge from DB count
+		if count, err := authRepo.CountUsers(ctx); err == nil {
+			middleware.ActiveUsers.Set(float64(count))
+		}
 	}
 
 	// Initialize handlers
