@@ -94,7 +94,7 @@ func HandleSacrificeAI(aiCard *pokemon.Card, state *models.GameState) {
 		state.SacrificeCount = make(map[int]int)
 	}
 	count := state.SacrificeCount[aiIdx]
-	maxStamina := int(float64(aiCard.HPMax) * 2.5)
+	maxStamina := aiCard.Speed * 2
 	if count >= 3 {
 		return
 	}

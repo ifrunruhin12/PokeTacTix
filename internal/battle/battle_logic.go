@@ -108,59 +108,15 @@ func ProcessMove(bs *BattleState, move string, moveIdx *int) ([]string, error) {
 		return nil, fmt.Errorf("invalid active Pokemon")
 	}
 
-	// Handle sacrifice (free action)
+	// Handle sacrifice (free action — does not consume the player's turn)
 	if move == "sacrifice" {
-		oldHP := playerCard.HP
-		oldStamina := playerCard.Stamina
-
-		// Convert to pokemon.Card for core logic
-		pCard := ConvertFromBattleCard(*playerCard)
-
-		// Use existing sacrifice logic
 		sacrificeCount := bs.SacrificeCount[bs.PlayerActiveIdx]
-		if sacrificeCount >= 3 {
-			return nil, fmt.Errorf("maximum sacrifices reached for this Pokemon")
+		result, err := applySacrifice(playerCard, sacrificeCount)
+		if err != nil {
+			return nil, err
 		}
-
-		var hpCost int
-		var staminaGain float64
-		switch sacrificeCount {
-		case 0:
-			hpCost = 10
-			staminaGain = 0.5
-		case 1:
-			hpCost = 15
-			staminaGain = 0.25
-		case 2:
-			hpCost = 20
-			staminaGain = 0.15
-		}
-
-		if pCard.HP <= hpCost {
-			return nil, fmt.Errorf("insufficient HP to sacrifice")
-		}
-
-		maxStamina := pCard.Speed * 2
-		if float64(pCard.Stamina) >= 0.5*float64(maxStamina) {
-			return nil, fmt.Errorf("stamina is already above 50%%")
-		}
-
-		pCard.HP -= hpCost
-		gain := int(float64(maxStamina) * staminaGain)
-		pCard.Stamina += gain
-		if pCard.Stamina > maxStamina {
-			pCard.Stamina = maxStamina
-		}
-
-		// Update battle card
-		playerCard.HP = pCard.HP
-		playerCard.Stamina = pCard.Stamina
 		bs.SacrificeCount[bs.PlayerActiveIdx] = sacrificeCount + 1
-
-		hpLost := oldHP - playerCard.HP
-		staminaGained := playerCard.Stamina - oldStamina
-		logEntries = append(logEntries, fmt.Sprintf("Player sacrificed %d HP and gained %d stamina.", hpLost, staminaGained))
-
+		logEntries = append(logEntries, fmt.Sprintf("Player sacrificed %d HP and gained %d stamina.", result.HPLost, result.StaminaGained))
 		return logEntries, nil
 	}
 
@@ -280,52 +236,16 @@ func processAIMove(bs *BattleState) []string {
 		}
 
 		if aiMove == "sacrifice" {
-			maxStamina := aCard.Speed * 2
-			if float64(aCard.Stamina) >= 0.5*float64(maxStamina) {
-				break
-			}
-
 			sacrificeCount := bs.SacrificeCount[bs.AIActiveIdx]
-			if sacrificeCount >= 3 {
+			result, err := applySacrifice(aiCard, sacrificeCount)
+			if err != nil {
+				// Can't sacrifice — break out and let AI choose another move
 				break
 			}
-
-			oldHP := aCard.HP
-			oldStamina := aCard.Stamina
-
-			var hpCost int
-			var staminaGain float64
-			switch sacrificeCount {
-			case 0:
-				hpCost = 10
-				staminaGain = 0.5
-			case 1:
-				hpCost = 15
-				staminaGain = 0.25
-			case 2:
-				hpCost = 20
-				staminaGain = 0.15
-			}
-
-			if aCard.HP <= hpCost {
-				break
-			}
-
-			aCard.HP -= hpCost
-			gain := int(float64(maxStamina) * staminaGain)
-			aCard.Stamina += gain
-			if aCard.Stamina > maxStamina {
-				aCard.Stamina = maxStamina
-			}
-
-			// Update battle card
-			aiCard.HP = aCard.HP
-			aiCard.Stamina = aCard.Stamina
 			bs.SacrificeCount[bs.AIActiveIdx] = sacrificeCount + 1
-
-			hpLost := oldHP - aCard.HP
-			staminaGained := aCard.Stamina - oldStamina
-			logEntries = append(logEntries, fmt.Sprintf("AI sacrificed %d HP and gained %d stamina.", hpLost, staminaGained))
+			logEntries = append(logEntries, fmt.Sprintf("AI sacrificed %d HP and gained %d stamina.", result.HPLost, result.StaminaGained))
+			// Sync the working copy
+			aCard = ConvertFromBattleCard(*aiCard)
 			continue
 		}
 

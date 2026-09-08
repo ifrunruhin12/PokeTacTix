@@ -43,24 +43,10 @@ func GetEnhancedAIMove(bs *BattleState, playerMove string) (string, int) {
 	canDefend := aCard.Stamina >= defendCost
 
 	sacrificeCount := bs.SacrificeCount[bs.AIActiveIdx]
-	canSacrifice := false
-	var hpCost int
-	switch sacrificeCount {
-	case 0:
-		hpCost = 10
-	case 1:
-		hpCost = 15
-	case 2:
-		hpCost = 20
-	default:
-		hpCost = 9999
-	}
-	if float64(aCard.Stamina) < 0.5*float64(maxStamina) && aCard.HP > hpCost && sacrificeCount < 3 {
-		canSacrifice = true
-	}
+	canSacrificeNow := canSacrifice(aiCard, sacrificeCount)
 
 	if !canAttack && !canDefend {
-		if canSacrifice {
+		if canSacrificeNow {
 			return "sacrifice", 0
 		}
 
