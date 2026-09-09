@@ -73,11 +73,11 @@ var (
 		[]string{"event"}, // login_success, login_failure, register
 	)
 
-	// ActiveUsers tracks registered users (set on startup)
-	ActiveUsers = promauto.NewGauge(
+	// RegisteredUsers tracks total registered users, refreshed periodically from DB
+	RegisteredUsers = promauto.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "poketactix_active_users",
-			Help: "Total registered users",
+			Name: "poketactix_registered_users",
+			Help: "Total registered users in the database",
 		},
 	)
 )
@@ -91,17 +91,15 @@ func PrometheusMiddleware() fiber.Handler {
 		}
 
 		start := time.Now()
+		method := c.Method() // capture before c.Next() to avoid race
 		httpActiveRequests.Inc()
-		defer httpActiveRequests.Dec() // deferred so panics don't leak the gauge
+		defer httpActiveRequests.Dec()
 
 		err := c.Next()
 
 		duration := time.Since(start).Seconds()
 		status := strconv.Itoa(c.Response().StatusCode())
-		method := c.Method()
 
-		// c.Route().Path returns the registered template (e.g. /api/cards/:id),
-		// not the concrete URL, so no further normalization is needed.
 		path := c.Route().Path
 		if path == "" {
 			path = "unknown"

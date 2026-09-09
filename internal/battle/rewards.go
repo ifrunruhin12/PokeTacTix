@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"pokemon-cli/internal/database"
+	"pokemon-cli/internal/middleware"
 	"strings"
 	"time"
 
@@ -326,6 +327,7 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 	case "draw":
 		result = "draw"
 	}
+	middleware.BattleResultTotal.WithLabelValues(result).Inc()
 
 	_, err = tx.Exec(ctx, `
 		INSERT INTO battle_history (user_id, mode, result, coins_earned, duration)

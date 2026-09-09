@@ -231,3 +231,10 @@ func (r *Repository) EmailExists(ctx context.Context, email string) (bool, error
 
 	return exists, nil
 }
+
+// CountUsers returns the total number of registered users
+func (r *Repository) CountUsers(ctx context.Context) (int64, error) {
+	var count int64
+	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM users`).Scan(&count)
+	return count, err
+}

@@ -120,6 +120,27 @@ func main() {
 		} else {
 			appLogger.Info("Achievements initialized")
 		}
+
+		// Set registered users gauge from DB count on startup
+		if count, err := authRepo.CountUsers(ctx); err == nil {
+			middleware.RegisteredUsers.Set(float64(count))
+		}
+
+		// Periodically refresh the registered users gauge from DB so it stays accurate
+		go func() {
+			ticker := time.NewTicker(5 * time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				count, err := authRepo.CountUsers(ctx)
+				cancel()
+				if err != nil {
+					appLogger.Warn("Failed to refresh registered users gauge", "error", err)
+					continue
+				}
+				middleware.RegisteredUsers.Set(float64(count))
+			}
+		}()
 	}
 
 	// Initialize handlers

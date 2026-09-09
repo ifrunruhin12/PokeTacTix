@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"pokemon-cli/game/models"
 	"pokemon-cli/internal/database"
+	"pokemon-cli/internal/middleware"
 	"pokemon-cli/internal/pokemon"
 	"strings"
 	"sync"
@@ -288,6 +289,7 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 	}
 
 	// Return battle state with card visibility
+	middleware.BattleStartTotal.WithLabelValues(req.Mode).Inc()
 	response := BuildBattleResponse(battleState, []string{fmt.Sprintf("Battle started! Mode: %s", req.Mode)}, true)
 
 	return c.JSON(response)
@@ -325,6 +327,7 @@ func (h *Handler) StartBattle(c *fiber.Ctx) error {
 
 	h.sessions[id] = &Session{State: state, Turn: turn}
 
+	middleware.BattleStartTotal.WithLabelValues(state.BattleMode).Inc()
 	return c.JSON(fiber.Map{
 		"session": id,
 		"state":   state,
@@ -444,7 +447,12 @@ func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
 	// Process the move
 	logEntries, err := ProcessMove(battleState, req.Move, req.MoveIdx)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "INVALID_MOVE",
+				"message": err.Error(),
+			},
+		})
 	}
 
 	// Save updated battle state to database

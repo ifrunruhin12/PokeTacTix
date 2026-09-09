@@ -42,25 +42,11 @@ func GetEnhancedAIMove(bs *BattleState, playerMove string) (string, int) {
 	defendCost := core.GetDefendCost(aCard.HPMax)
 	canDefend := aCard.Stamina >= defendCost
 
-	sacrificeCount := bs.SacrificeCount[bs.AIActiveIdx]
-	canSacrifice := false
-	var hpCost int
-	switch sacrificeCount {
-	case 0:
-		hpCost = 10
-	case 1:
-		hpCost = 15
-	case 2:
-		hpCost = 20
-	default:
-		hpCost = 9999
-	}
-	if float64(aCard.Stamina) < 0.5*float64(maxStamina) && aCard.HP > hpCost && sacrificeCount < 3 {
-		canSacrifice = true
-	}
+	sacrificeCount := bs.SacrificeCount[aiSacrificeKey(bs.AIActiveIdx)]
+	canSacrificeNow := canSacrifice(aiCard, sacrificeCount)
 
 	if !canAttack && !canDefend {
-		if canSacrifice {
+		if canSacrificeNow {
 			return "sacrifice", 0
 		}
 
@@ -230,47 +216,3 @@ func getTypeEffectiveness(moveType string, defenderTypes []string) float64 {
 	return multiplier
 }
 
-// ShouldAISwitch determines if AI should switch Pokemon in 5v5
-func ShouldAISwitch(bs *BattleState) (bool, int) {
-	if bs.Mode != "5v5" {
-		return false, -1
-	}
-
-	aiCard := bs.GetActiveAICard()
-	if aiCard == nil || aiCard.HP <= 0 {
-		// Must switch if knocked out
-		for i, card := range bs.AIDeck {
-			if card.HP > 0 && i != bs.AIActiveIdx {
-				return true, i
-			}
-		}
-		return false, -1
-	}
-
-	// Check if current Pokemon is in bad shape
-	hpPercent := float64(aiCard.HP) / float64(aiCard.HPMax)
-	staminaPercent := float64(aiCard.Stamina) / float64(aiCard.StaminaMax)
-
-	// Switch if HP < 30% or stamina < 30%
-	if hpPercent < 0.3 || staminaPercent < 0.3 {
-		// Find best alternative
-		bestIdx := -1
-		bestScore := hpPercent + staminaPercent
-
-		for i, card := range bs.AIDeck {
-			if card.HP > 0 && i != bs.AIActiveIdx {
-				cardScore := float64(card.HP)/float64(card.HPMax) + float64(card.Stamina)/float64(card.StaminaMax)
-				if cardScore > bestScore {
-					bestIdx = i
-					bestScore = cardScore
-				}
-			}
-		}
-
-		if bestIdx != -1 {
-			return true, bestIdx
-		}
-	}
-
-	return false, -1
-}

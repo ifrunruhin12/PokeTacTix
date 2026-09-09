@@ -115,6 +115,14 @@ services:
     networks:
       - poketactix-network
 
+  loki-init:
+    image: busybox:1.36
+    container_name: poketactix-loki-init
+    user: root
+    volumes:
+      - loki_data:/loki
+    command: ["chown", "-R", "10001:10001", "/loki"]
+
   loki:
     image: grafana/loki:latest
     container_name: poketactix-loki
@@ -122,8 +130,11 @@ services:
       - "3100:3100"
     volumes:
       - ./monitoring/loki/loki.yml:/etc/loki/local-config.yaml
-      - loki_data:/tmp/loki
+      - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
+    depends_on:
+      loki-init:
+        condition: service_completed_successfully
     networks:
       - poketactix-network
 
