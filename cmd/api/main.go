@@ -25,7 +25,6 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/swagger"
 	"github.com/joho/godotenv"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -177,8 +176,8 @@ func main() {
 		Format: "${time} | ${status} | ${latency} | ${method} ${path}\n",
 	}))
 
-	// Prometheus metrics endpoint
-	app.Get("/metrics", adaptor.HTTPHandler(promhttp.Handler()))
+	// Prometheus metrics endpoint — served from our custom registry
+	app.Get("/metrics", adaptor.HTTPHandler(middleware.MetricsHandler()))
 
 	// Add security headers to all responses
 	app.Use(middleware.SecurityHeaders())

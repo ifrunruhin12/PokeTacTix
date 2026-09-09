@@ -299,7 +299,11 @@ const BattleArena = ({
                 onSurrender={handleSurrender}
                 disabled={!isPlayerTurn || loading}
                 currentStamina={playerActive?.stamina || 0}
+                maxStamina={playerActive?.stamina_max || 0}
+                currentHp={playerActive?.hp || 0}
                 maxHp={playerActive?.hp_max || 0}
+                sacrificeCount={battleState?.player_sacrifice_count || 0}
+                playerSacrificeCost={battleState?.player_sacrifice_cost ?? null}
               />
               
               {/* Turn status message */}

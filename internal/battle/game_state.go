@@ -76,7 +76,7 @@ func ConvertToBattleCard(card pokemon.Card, fallbackID int) BattleCard {
 	if cardID == 0 {
 		cardID = fallbackID
 	}
-	
+
 	return BattleCard{
 		CardID:       cardID,
 		Name:         card.Name,
@@ -221,6 +221,16 @@ func BuildBattleResponse(bs *BattleState, logEntries []string, hideAICards bool)
 		"log":               logEntries,
 		"created_at":        bs.CreatedAt,
 		"updated_at":        bs.UpdatedAt,
+		// Sacrifice count for active player Pokemon so the frontend
+		// can show the correct HP cost and enable/disable the button
+		"player_sacrifice_count": bs.SacrificeCount[playerSacrificeKey(bs.PlayerActiveIdx)],
+	}
+
+	// Next sacrifice HP cost for the active player Pokemon, so the frontend
+	// doesn't have to duplicate the escalating cost table. Omitted once the
+	// 3-sacrifice cap is reached (sacrificeCost returns an error).
+	if hpCost, _, err := sacrificeCost(bs.SacrificeCount[playerSacrificeKey(bs.PlayerActiveIdx)]); err == nil {
+		response["player_sacrifice_cost"] = hpCost
 	}
 
 	// Always show full player deck

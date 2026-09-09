@@ -124,7 +124,9 @@ export default function Battle() {
       battle_over: data.battle_over || data.BattleOver || false,
       winner: data.winner || (data.BattleOver ? (data.PlayerSurrendered ? 'ai' : 'player') : null),
       log: data.log || [],
-      rewards: Object.keys(rewards).length > 0 ? rewards : undefined
+      rewards: Object.keys(rewards).length > 0 ? rewards : undefined,
+      player_sacrifice_count: data.player_sacrifice_count || 0,
+      player_sacrifice_cost: data.player_sacrifice_cost ?? null,
     };
     
     console.log('Transformed state:', transformed);
