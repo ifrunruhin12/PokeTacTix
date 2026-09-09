@@ -17,27 +17,27 @@ const BattleControls = ({
   maxStamina = 0,
   currentHp = 0,
   maxHp = 0,
+  sacrificeCount = 0,
   className = ''
 }) => {
   // Defend costs stamina (half of max HP + 1, matches backend GetDefendCost)
   const defendCost = Math.floor((maxHp + 1) / 2);
   const canDefend = currentStamina >= defendCost;
 
-  // Sacrifice costs HP (escalating: 10 / 15 / 20) and requires stamina < 50% of max.
-  // The frontend doesn't know which sacrifice number this is, so we use the minimum
-  // cost (10) as a conservative HP check. The backend enforces exact costs and limits.
-  const sacrificeMinHpCost = 10;
+  // Sacrifice HP cost matches backend escalating table: 10 / 15 / 20
+  // After 3 sacrifices the button is permanently disabled for this Pokemon
+  const sacrificeHpCosts = [10, 15, 20];
+  const sacrificeHpCost = sacrificeCount < 3 ? sacrificeHpCosts[sacrificeCount] : null;
   const halfMaxStamina = Math.floor(maxStamina / 2);
-  const canSacrifice = currentHp > sacrificeMinHpCost && currentStamina < halfMaxStamina;
+  const canSacrifice = sacrificeCount < 3
+    && currentHp > (sacrificeHpCost ?? 9999)
+    && currentStamina < halfMaxStamina;
 
   const getSacrificeTooltip = () => {
-    if (currentHp <= sacrificeMinHpCost) {
-      return `Not enough HP to sacrifice (need more than ${sacrificeMinHpCost} HP)`;
-    }
-    if (currentStamina >= halfMaxStamina) {
-      return `Stamina too high to sacrifice (must be below ${halfMaxStamina})`;
-    }
-    return `Sacrifice HP to restore stamina`;
+    if (sacrificeCount >= 3) return 'Maximum sacrifices reached for this Pokémon (3 per battle)';
+    if (currentHp <= sacrificeHpCost) return `Not enough HP (need more than ${sacrificeHpCost} HP)`;
+    if (currentStamina >= halfMaxStamina) return `Stamina too high (must be below ${halfMaxStamina})`;
+    return `Sacrifice ${sacrificeHpCost} HP to restore stamina (use ${sacrificeCount + 1}/3)`;
   };
 
   const buttons = [
@@ -129,6 +129,7 @@ BattleControls.propTypes = {
   maxStamina: PropTypes.number,
   currentHp: PropTypes.number,
   maxHp: PropTypes.number,
+  sacrificeCount: PropTypes.number,
   className: PropTypes.string
 };
 

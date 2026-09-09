@@ -221,6 +221,9 @@ func BuildBattleResponse(bs *BattleState, logEntries []string, hideAICards bool)
 		"log":               logEntries,
 		"created_at":        bs.CreatedAt,
 		"updated_at":        bs.UpdatedAt,
+		// Sacrifice count for active player Pokemon so the frontend
+		// can show the correct HP cost and enable/disable the button
+		"player_sacrifice_count": bs.SacrificeCount[playerSacrificeKey(bs.PlayerActiveIdx)],
 	}
 
 	// Always show full player deck

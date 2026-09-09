@@ -302,6 +302,7 @@ const BattleArena = ({
                 maxStamina={playerActive?.stamina_max || 0}
                 currentHp={playerActive?.hp || 0}
                 maxHp={playerActive?.hp_max || 0}
+                sacrificeCount={battleState?.player_sacrifice_count || 0}
               />
               
               {/* Turn status message */}
