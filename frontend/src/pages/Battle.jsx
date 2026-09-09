@@ -126,6 +126,7 @@ export default function Battle() {
       log: data.log || [],
       rewards: Object.keys(rewards).length > 0 ? rewards : undefined,
       player_sacrifice_count: data.player_sacrifice_count || 0,
+      player_sacrifice_cost: data.player_sacrifice_cost ?? null,
     };
     
     console.log('Transformed state:', transformed);

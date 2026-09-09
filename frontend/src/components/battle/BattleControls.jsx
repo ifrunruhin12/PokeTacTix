@@ -18,23 +18,25 @@ const BattleControls = ({
   currentHp = 0,
   maxHp = 0,
   sacrificeCount = 0,
+  playerSacrificeCost = null,
   className = ''
 }) => {
   // Defend costs stamina (half of max HP + 1, matches backend GetDefendCost)
   const defendCost = Math.floor((maxHp + 1) / 2);
   const canDefend = currentStamina >= defendCost;
 
-  // Sacrifice HP cost matches backend escalating table: 10 / 15 / 20
-  // After 3 sacrifices the button is permanently disabled for this Pokemon
-  const sacrificeHpCosts = [10, 15, 20];
-  const sacrificeHpCost = sacrificeCount < 3 ? sacrificeHpCosts[sacrificeCount] : null;
+  // Next sacrifice HP cost comes from the backend (player_sacrifice_cost),
+  // which is the single source of truth for the escalating 10/15/20 table.
+  // It is null once the 3-sacrifice cap is reached.
+  const sacrificeHpCost = playerSacrificeCost ?? null;
   const halfMaxStamina = Math.floor(maxStamina / 2);
-  const canSacrifice = sacrificeCount < 3
-    && currentHp > (sacrificeHpCost ?? 9999)
+  const canSacrifice = sacrificeHpCost !== null
+    && currentHp > sacrificeHpCost
     && currentStamina < halfMaxStamina;
 
   const getSacrificeTooltip = () => {
     if (sacrificeCount >= 3) return 'Maximum sacrifices reached for this Pokémon (3 per battle)';
+    if (sacrificeHpCost === null) return 'Sacrifice unavailable';
     if (currentHp <= sacrificeHpCost) return `Not enough HP (need more than ${sacrificeHpCost} HP)`;
     if (currentStamina >= halfMaxStamina) return `Stamina too high (must be below ${halfMaxStamina})`;
     return `Sacrifice ${sacrificeHpCost} HP to restore stamina (use ${sacrificeCount + 1}/3)`;
@@ -130,6 +132,7 @@ BattleControls.propTypes = {
   currentHp: PropTypes.number,
   maxHp: PropTypes.number,
   sacrificeCount: PropTypes.number,
+  playerSacrificeCost: PropTypes.number,
   className: PropTypes.string
 };
 

@@ -12,12 +12,9 @@ import (
 )
 
 // Registry is the dedicated Prometheus registry for PokeTacTix metrics.
-// Using a custom registry (instead of the default global one) prevents
-// duplicate-collection errors when promauto vars are initialized.
+// Using a custom registry (instead of the default global one) keeps our
+// metrics isolated; they are registered via the new* helpers below.
 var Registry = prometheus.NewRegistry()
-
-// factory wraps Registry so we can define metrics in var blocks cleanly.
-var factory = prometheus.WrapRegistererWith(prometheus.Labels{}, Registry)
 
 func newCounterVec(opts prometheus.CounterOpts, labels []string) *prometheus.CounterVec {
 	c := prometheus.NewCounterVec(opts, labels)
@@ -42,9 +39,6 @@ func init() {
 	Registry.MustRegister(collectors.NewGoCollector())
 	Registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 }
-
-// Ensure factory is used to suppress unused import warning
-var _ = factory
 
 var (
 	// httpRequestsTotal counts all HTTP requests by method, path, and status code
@@ -145,13 +139,11 @@ func PrometheusMiddleware() fiber.Handler {
 		status := strconv.Itoa(c.Response().StatusCode())
 
 		// Use the registered route template (e.g. /api/cards/:id).
-		// Fall back to the raw request path if route is unmatched.
+		// Never label with the raw request path: it is attacker-controlled
+		// and causes unbounded time-series cardinality.
 		path := c.Route().Path
 		if path == "" {
-			path = c.Path()
-		}
-		if path == "" {
-			path = "unknown"
+			path = "unmatched"
 		}
 
 		httpRequestsTotal.WithLabelValues(method, path, status).Inc()
