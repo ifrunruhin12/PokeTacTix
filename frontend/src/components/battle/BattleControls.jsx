@@ -14,16 +14,31 @@ const BattleControls = ({
   onSurrender,
   disabled = false,
   currentStamina = 0,
+  maxStamina = 0,
+  currentHp = 0,
   maxHp = 0,
   className = ''
 }) => {
-  // Calculate costs
+  // Defend costs stamina (half of max HP + 1, matches backend GetDefendCost)
   const defendCost = Math.floor((maxHp + 1) / 2);
-  const sacrificeCost = Math.floor(maxHp / 4);
-
-  // Check if actions are available
   const canDefend = currentStamina >= defendCost;
-  const canSacrifice = currentStamina >= sacrificeCost;
+
+  // Sacrifice costs HP (escalating: 10 / 15 / 20) and requires stamina < 50% of max.
+  // The frontend doesn't know which sacrifice number this is, so we use the minimum
+  // cost (10) as a conservative HP check. The backend enforces exact costs and limits.
+  const sacrificeMinHpCost = 10;
+  const halfMaxStamina = Math.floor(maxStamina / 2);
+  const canSacrifice = currentHp > sacrificeMinHpCost && currentStamina < halfMaxStamina;
+
+  const getSacrificeTooltip = () => {
+    if (currentHp <= sacrificeMinHpCost) {
+      return `Not enough HP to sacrifice (need more than ${sacrificeMinHpCost} HP)`;
+    }
+    if (currentStamina >= halfMaxStamina) {
+      return `Stamina too high to sacrifice (must be below ${halfMaxStamina})`;
+    }
+    return `Sacrifice HP to restore stamina`;
+  };
 
   const buttons = [
     {
@@ -40,7 +55,7 @@ const BattleControls = ({
       onClick: onDefend,
       color: 'from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600',
       disabled: disabled || !canDefend,
-      tooltip: canDefend ? `Reduce damage (Cost: ${defendCost})` : `Not enough stamina (Need: ${defendCost})`
+      tooltip: canDefend ? `Reduce damage (Cost: ${defendCost} stamina)` : `Not enough stamina (Need: ${defendCost})`
     },
     {
       label: 'Pass',
@@ -56,7 +71,7 @@ const BattleControls = ({
       onClick: onSacrifice,
       color: 'from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600',
       disabled: disabled || !canSacrifice,
-      tooltip: canSacrifice ? `Boost next attack (Cost: ${sacrificeCost})` : `Not enough stamina (Need: ${sacrificeCost})`
+      tooltip: getSacrificeTooltip()
     },
     {
       label: 'Surrender',
@@ -111,6 +126,8 @@ BattleControls.propTypes = {
   onSurrender: PropTypes.func.isRequired,
   disabled: PropTypes.bool,
   currentStamina: PropTypes.number,
+  maxStamina: PropTypes.number,
+  currentHp: PropTypes.number,
   maxHp: PropTypes.number,
   className: PropTypes.string
 };
