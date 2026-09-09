@@ -131,9 +131,14 @@ func main() {
 			ticker := time.NewTicker(5 * time.Minute)
 			defer ticker.Stop()
 			for range ticker.C {
-				if count, err := authRepo.CountUsers(context.Background()); err == nil {
-					middleware.RegisteredUsers.Set(float64(count))
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				count, err := authRepo.CountUsers(ctx)
+				cancel()
+				if err != nil {
+					appLogger.Warn("Failed to refresh registered users gauge", "error", err)
+					continue
 				}
+				middleware.RegisteredUsers.Set(float64(count))
 			}
 		}()
 	}
