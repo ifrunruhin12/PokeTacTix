@@ -24,6 +24,12 @@ type PokemonXPGain struct {
 	NewDefense  int    `json:"new_defense,omitempty"`
 	OldSpeed    int    `json:"old_speed,omitempty"`
 	NewSpeed    int    `json:"new_speed,omitempty"`
+
+	// Evolution info (set when leveling up triggered an evolution)
+	Evolved     bool   `json:"evolved"`
+	EvolvedFrom string `json:"evolved_from,omitempty"`
+	EvolvedInto string `json:"evolved_into,omitempty"`
+	NewSprite   string `json:"new_sprite,omitempty"`
 }
 
 // CalculateXPForBattle calculates XP for all Pokemon that participated in battle
@@ -32,7 +38,7 @@ func CalculateXPForBattle(bs *BattleState) map[int]int {
 
 	// Determine base XP based on mode and result
 	var baseXP int
-	
+
 	switch bs.Winner {
 	case "player":
 		// Win XP

@@ -60,17 +60,18 @@ export default function Battle() {
       
       const pokemon_details = xpGains.map(gain => ({
         card_id: gain.card_id,
-        name: gain.pokemon_name,
+        name: gain.evolved ? gain.evolved_into : gain.pokemon_name,
         level: gain.new_level,
         xp_gained: gain.xp_gained,
         leveled_up: gain.leveled_up,
-        sprite: null // Will be filled from deck if needed
+        evolved: gain.evolved || false,
+        sprite: gain.new_sprite || null // Sprites of evolved forms
       }));
       
       const level_ups = xpGains
         .filter(gain => gain.leveled_up)
         .map(gain => ({
-          name: gain.pokemon_name,
+          name: gain.evolved ? gain.evolved_into : gain.pokemon_name,
           old_level: gain.old_level,
           new_level: gain.new_level,
           stat_increases: {
@@ -81,9 +82,19 @@ export default function Battle() {
           }
         }));
       
+      const evolutions = xpGains
+        .filter(gain => gain.evolved)
+        .map(gain => ({
+          from: gain.evolved_from,
+          into: gain.evolved_into,
+          level: gain.new_level,
+          sprite: gain.new_sprite || null
+        }));
+      
       return {
         pokemon_details,
-        level_ups: level_ups.length > 0 ? level_ups : undefined
+        level_ups: level_ups.length > 0 ? level_ups : undefined,
+        evolutions: evolutions.length > 0 ? evolutions : undefined
       };
     };
     
@@ -102,6 +113,9 @@ export default function Battle() {
         rewards.pokemon_details = xpData.pokemon_details;
         if (xpData.level_ups) {
           rewards.level_ups = xpData.level_ups;
+        }
+        if (xpData.evolutions) {
+          rewards.evolutions = xpData.evolutions;
         }
       }
     }
@@ -165,8 +179,18 @@ export default function Battle() {
       setBattleMode(mode);
       setShowEntryAnimation(true);
     } catch (err) {
+      // Timeout: the server may still complete the request in the background
+      // (consuming a token and creating the battle), so tell the user honestly.
+      // Checked first because the message contains the word "token".
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        setError('Battle start timed out. The battle may still have been created — refresh the page before trying again to avoid losing a token.');
+        console.error('Battle start timed out:', err);
+        fetchTokenBalance();
+        return;
+      }
+
       const errorMessage = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to start battle';
-      
+
       // Check if it's an insufficient tokens error
       if (errorMessage.includes('token') || errorMessage.includes('INSUFFICIENT_TOKENS')) {
         setError('insufficient_tokens');
@@ -174,7 +198,7 @@ export default function Battle() {
         setError(errorMessage);
       }
       console.error('Error starting battle:', err);
-      
+
       // Refresh token balance after error
       fetchTokenBalance();
     } finally {

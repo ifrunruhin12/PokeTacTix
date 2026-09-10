@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"pokemon-cli/internal/database"
 	"pokemon-cli/internal/middleware"
+	"pokemon-cli/internal/pokemon"
 	"strings"
 	"time"
 
@@ -127,8 +129,8 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 
 	// Update user coins
 	_, err = tx.Exec(ctx, `
-		UPDATE users 
-		SET coins = coins + $1 
+		UPDATE users
+		SET coins = coins + $1
 		WHERE id = $2
 	`, rewards.CoinsEarned, userID)
 	if err != nil {
@@ -215,7 +217,7 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 	return nil
 }
 
-func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleState, rewards *ComprehensiveRewards, statsService StatsService, repo *Repository) error {
+func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleState, rewards *ComprehensiveRewards, statsService StatsService, repo *Repository, pokemonService pokemon.PokemonService) error {
 	// Start a transaction for consistency
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -224,8 +226,8 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 	defer tx.Rollback(ctx)
 
 	_, err = tx.Exec(ctx, `
-		UPDATE users 
-		SET coins = coins + $1 
+		UPDATE users
+		SET coins = coins + $1
 		WHERE id = $2
 	`, rewards.CoinsEarned, userID)
 	if err != nil {
@@ -279,8 +281,48 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 			newXP = 0
 		}
 
-		// Calculate new stats
-		newStats := calculateStatsForLevel(newLevel, baseHP, baseAttack, baseDefense, baseSpeed)
+		// Evolution: leveling up may push the Pokemon past its evolution
+		// threshold. Resolve pokemon_id BEFORE entering the transaction to
+		// avoid holding a DB connection during a potential PokeAPI fetch.
+		// On any failure, log once and continue — evolution must never block
+		// reward payout.
+		var evolvedInto *pokemon.Pokemon
+		if pokemonService != nil && newLevel > oldLevel {
+			// Read pokemon_id outside the transaction (non-blocking)
+			var pokemonID *int
+			if err := db.QueryRow(ctx, `
+				SELECT pokemon_id FROM player_cards WHERE id = $1 AND user_id = $2
+			`, cardID, userID).Scan(&pokemonID); err != nil {
+				slog.Warn("evolution skipped: could not read pokemon_id", "card_id", cardID, "error", err)
+			} else if pokemonID == nil {
+				// Legacy card: resolve by name (may call PokeAPI) before transaction
+				p, err := pokemonService.GetByName(ctx, pokemonName)
+				if err != nil {
+					slog.Warn("evolution skipped: unknown pokemon", "card_id", cardID, "name", pokemonName)
+				} else {
+					// Backfill pokemon_id outside the transaction
+					_, _ = db.Exec(ctx, `UPDATE player_cards SET pokemon_id = $1 WHERE id = $2`, p.ID, cardID)
+					id := p.ID
+					pokemonID = &id
+				}
+			}
+
+			if pokemonID != nil {
+				target, err := applyEvolution(ctx, tx, pokemonService, cardID, userID, *pokemonID, newLevel, pokemonName)
+				if err != nil {
+					slog.Warn("evolution check failed", "card_id", cardID, "error", err)
+				} else {
+					evolvedInto = target
+				}
+			}
+		}
+
+		// Calculate new stats (from the evolved base stats when evolution happened)
+		statBaseHP, statBaseAttack, statBaseDefense, statBaseSpeed := baseHP, baseAttack, baseDefense, baseSpeed
+		if evolvedInto != nil {
+			statBaseHP, statBaseAttack, statBaseDefense, statBaseSpeed = evolvedBaseStats(evolvedInto)
+		}
+		newStats := calculateStatsForLevel(newLevel, statBaseHP, statBaseAttack, statBaseDefense, statBaseSpeed)
 
 		// Update database
 		updateQuery := `
@@ -314,6 +356,13 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 			xpGain.NewDefense = newStats.Defense
 			xpGain.OldSpeed = oldStats.Speed
 			xpGain.NewSpeed = newStats.Speed
+		}
+
+		if evolvedInto != nil {
+			xpGain.Evolved = true
+			xpGain.EvolvedFrom = pokemonName
+			xpGain.EvolvedInto = evolvedInto.Name
+			xpGain.NewSprite = evolvedInto.SpriteURL
 		}
 
 		rewards.XPGains = append(rewards.XPGains, xpGain)
