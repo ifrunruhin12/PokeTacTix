@@ -218,6 +218,39 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 }
 
 func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleState, rewards *ComprehensiveRewards, statsService StatsService, repo *Repository, pokemonService pokemon.PokemonService) error {
+	// Resolve pokemon_id for all cards that may level up BEFORE opening the
+	// transaction. GetByName can trigger a PokeAPI fetch which takes seconds;
+	// doing it inside db.Begin would hold a pool connection the whole time and
+	// risk pool exhaustion under concurrent load.
+	xpMap := CalculateXPForBattle(bs)
+	pokemonIDs := make(map[int]int) // cardID -> pokemonID (0 = unresolvable)
+	if pokemonService != nil {
+		for cardID := range xpMap {
+			var pokemonID *int
+			err := db.QueryRow(ctx, `
+				SELECT pokemon_id FROM player_cards WHERE id = $1 AND user_id = $2
+			`, cardID, userID).Scan(&pokemonID)
+			if err != nil {
+				slog.Warn("evolution pre-fetch: could not read pokemon_id", "card_id", cardID, "error", err)
+				continue
+			}
+			if pokemonID == nil {
+				// Legacy card: resolve by name — may call PokeAPI, must be outside tx
+				var pokemonName string
+				if err := db.QueryRow(ctx, `SELECT pokemon_name FROM player_cards WHERE id = $1`, cardID).Scan(&pokemonName); err == nil {
+					p, err := pokemonService.GetByName(ctx, pokemonName)
+					if err == nil {
+						// Backfill for future battles
+						_, _ = db.Exec(ctx, `UPDATE player_cards SET pokemon_id = $1 WHERE id = $2`, p.ID, cardID)
+						pokemonIDs[cardID] = p.ID
+					}
+				}
+			} else {
+				pokemonIDs[cardID] = *pokemonID
+			}
+		}
+	}
+
 	// Start a transaction for consistency
 	tx, err := db.Begin(ctx)
 	if err != nil {
@@ -233,8 +266,6 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 	if err != nil {
 		return fmt.Errorf("failed to update coins: %w", err)
 	}
-
-	xpMap := CalculateXPForBattle(bs)
 
 	// Apply XP and handle level-ups within the transaction
 	for cardID, xpGained := range xpMap {
@@ -281,34 +312,12 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 			newXP = 0
 		}
 
-		// Evolution: leveling up may push the Pokemon past its evolution
-		// threshold. Resolve pokemon_id BEFORE entering the transaction to
-		// avoid holding a DB connection during a potential PokeAPI fetch.
-		// On any failure, log once and continue — evolution must never block
-		// reward payout.
+		// Evolution: use the pre-resolved pokemonID (resolved before db.Begin
+		// to avoid holding a pool connection during PokeAPI fetches).
 		var evolvedInto *pokemon.Pokemon
 		if pokemonService != nil && newLevel > oldLevel {
-			// Read pokemon_id outside the transaction (non-blocking)
-			var pokemonID *int
-			if err := db.QueryRow(ctx, `
-				SELECT pokemon_id FROM player_cards WHERE id = $1 AND user_id = $2
-			`, cardID, userID).Scan(&pokemonID); err != nil {
-				slog.Warn("evolution skipped: could not read pokemon_id", "card_id", cardID, "error", err)
-			} else if pokemonID == nil {
-				// Legacy card: resolve by name (may call PokeAPI) before transaction
-				p, err := pokemonService.GetByName(ctx, pokemonName)
-				if err != nil {
-					slog.Warn("evolution skipped: unknown pokemon", "card_id", cardID, "name", pokemonName)
-				} else {
-					// Backfill pokemon_id outside the transaction
-					_, _ = db.Exec(ctx, `UPDATE player_cards SET pokemon_id = $1 WHERE id = $2`, p.ID, cardID)
-					id := p.ID
-					pokemonID = &id
-				}
-			}
-
-			if pokemonID != nil {
-				target, err := applyEvolution(ctx, tx, pokemonService, cardID, userID, *pokemonID, newLevel, pokemonName)
+			if pid, ok := pokemonIDs[cardID]; ok && pid != 0 {
+				target, err := applyEvolution(ctx, tx, pokemonService, cardID, userID, pid, newLevel, pokemonName)
 				if err != nil {
 					slog.Warn("evolution check failed", "card_id", cardID, "error", err)
 				} else {
