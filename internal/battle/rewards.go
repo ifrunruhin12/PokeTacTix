@@ -157,7 +157,7 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 
 		// Check for level ups (max level 50)
 		for newLevel < 50 {
-			xpRequired := 100 * newLevel
+			xpRequired := 100 // flat cost per level — keeps evolution reachable
 			if newXP >= xpRequired {
 				newXP -= xpRequired
 				newLevel++
@@ -266,7 +266,7 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 
 		// Process level ups
 		for newLevel < 50 {
-			xpRequired := 100 * newLevel
+			xpRequired := 100 // flat cost per level — keeps evolution reachable
 			if newXP >= xpRequired {
 				newXP -= xpRequired
 				newLevel++
