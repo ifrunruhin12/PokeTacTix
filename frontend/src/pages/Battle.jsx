@@ -14,6 +14,7 @@ export default function Battle() {
   const [showEntryAnimation, setShowEntryAnimation] = useState(false);
   const [tokenData, setTokenData] = useState(null);
   const [loadingTokens, setLoadingTokens] = useState(true);
+  const [battleStartUncertain, setBattleStartUncertain] = useState(false);
 
   // Transform backend response to frontend format
   const transformBattleState = (response) => {
@@ -170,6 +171,8 @@ export default function Battle() {
 
   // Start a new battle
   const handleStartBattle = async (mode) => {
+    if (battleStartUncertain) return;
+
     setLoading(true);
     setError(null);
     try {
@@ -183,7 +186,8 @@ export default function Battle() {
       // (consuming a token and creating the battle), so tell the user honestly.
       // Checked first because the message contains the word "token".
       if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-        setError('Battle start timed out. The battle may still have been created — refresh the page before trying again to avoid losing a token.');
+        setBattleStartUncertain(true);
+        setError('Battle start timed out. The battle may still have been created. Reload before trying again to avoid losing a token.');
         console.error('Battle start timed out:', err);
         fetchTokenBalance();
         return;
@@ -341,6 +345,7 @@ export default function Battle() {
     const tokens = tokenData?.game_tokens || 0;
     const hasNoTokens = tokens === 0;
     const hasLowTokens = tokens > 0 && tokens <= 2;
+    const battleStartDisabled = hasNoTokens || battleStartUncertain;
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
@@ -417,60 +422,68 @@ export default function Battle() {
             {/* Other Errors */}
             {error && error !== 'insufficient_tokens' && (
               <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded-lg mb-6">
-                {error}
+                <p>{error}</p>
+                {battleStartUncertain && (
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="mt-3 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                  >
+                    Reload battle status
+                  </button>
+                )}
               </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* 1v1 Battle */}
               <motion.button
-                whileHover={!hasNoTokens ? { scale: 1.05, y: -5 } : {}}
-                whileTap={!hasNoTokens ? { scale: 0.95 } : {}}
-                onClick={() => !hasNoTokens && handleStartBattle('1v1')}
-                disabled={hasNoTokens}
+                whileHover={!battleStartDisabled ? { scale: 1.05, y: -5 } : {}}
+                whileTap={!battleStartDisabled ? { scale: 0.95 } : {}}
+                onClick={() => !battleStartDisabled && handleStartBattle('1v1')}
+                disabled={battleStartDisabled}
                 className={`rounded-xl p-6 shadow-lg transition-all ${
-                  hasNoTokens
+                  battleStartDisabled
                     ? 'bg-gray-700 text-gray-500 cursor-not-allowed opacity-50'
                     : 'bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white'
                 }`}
               >
                 <div className="text-5xl mb-4">⚔️</div>
                 <h2 className="text-2xl font-bold mb-2">1v1 Battle</h2>
-                <p className={`text-sm mb-4 ${hasNoTokens ? 'text-gray-500' : 'text-blue-100'}`}>
+                <p className={`text-sm mb-4 ${battleStartDisabled ? 'text-gray-500' : 'text-blue-100'}`}>
                   Quick battle with one Pokemon
                 </p>
-                <div className={`font-semibold ${hasNoTokens ? 'text-gray-500' : 'text-yellow-300'}`}>
+                <div className={`font-semibold ${battleStartDisabled ? 'text-gray-500' : 'text-yellow-300'}`}>
                   💰 Win: 50 coins | Loss: 10 coins
                 </div>
-                <div className={`text-sm mt-2 ${hasNoTokens ? 'text-gray-500' : 'text-blue-200'}`}>
+                <div className={`text-sm mt-2 ${battleStartDisabled ? 'text-gray-500' : 'text-blue-200'}`}>
                   🎫 Costs {tokenData?.token_cost_1v1 || 1} token{(tokenData?.token_cost_1v1 || 1) !== 1 ? 's' : ''}
                 </div>
               </motion.button>
 
               {/* 5v5 Battle */}
               <motion.button
-                whileHover={!hasNoTokens ? { scale: 1.05, y: -5 } : {}}
-                whileTap={!hasNoTokens ? { scale: 0.95 } : {}}
-                onClick={() => !hasNoTokens && handleStartBattle('5v5')}
-                disabled={hasNoTokens}
+                whileHover={!battleStartDisabled ? { scale: 1.05, y: -5 } : {}}
+                whileTap={!battleStartDisabled ? { scale: 0.95 } : {}}
+                onClick={() => !battleStartDisabled && handleStartBattle('5v5')}
+                disabled={battleStartDisabled}
                 className={`rounded-xl p-6 shadow-lg transition-all ${
-                  hasNoTokens
+                  battleStartDisabled
                     ? 'bg-gray-700 text-gray-500 cursor-not-allowed opacity-50'
                     : 'bg-gradient-to-br from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white'
                 }`}
               >
                 <div className="text-5xl mb-4">🏆</div>
                 <h2 className="text-2xl font-bold mb-2">5v5 Battle</h2>
-                <p className={`text-sm mb-4 ${hasNoTokens ? 'text-gray-500' : 'text-purple-100'}`}>
+                <p className={`text-sm mb-4 ${battleStartDisabled ? 'text-gray-500' : 'text-purple-100'}`}>
                   Epic battle with your full team
                 </p>
-                <div className={`font-semibold ${hasNoTokens ? 'text-gray-500' : 'text-yellow-300'}`}>
+                <div className={`font-semibold ${battleStartDisabled ? 'text-gray-500' : 'text-yellow-300'}`}>
                   💰 Win: 150 coins | Loss: 25 coins
                 </div>
-                <div className={`text-xs mt-2 ${hasNoTokens ? 'text-gray-500' : 'text-green-300'}`}>
+                <div className={`text-xs mt-2 ${battleStartDisabled ? 'text-gray-500' : 'text-green-300'}`}>
                   + Choose 1 opponent Pokemon on victory!
                 </div>
-                <div className={`text-sm mt-1 ${hasNoTokens ? 'text-gray-500' : 'text-purple-200'}`}>
+                <div className={`text-sm mt-1 ${battleStartDisabled ? 'text-gray-500' : 'text-purple-200'}`}>
                   🎫 Costs {tokenData?.token_cost_5v5 || 2} token{(tokenData?.token_cost_5v5 || 2) !== 1 ? 's' : ''}
                 </div>
               </motion.button>
