@@ -218,13 +218,16 @@ func ApplyRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleS
 }
 
 func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *BattleState, rewards *ComprehensiveRewards, statsService StatsService, repo *Repository, pokemonService pokemon.PokemonService) error {
-	// Resolve pokemon_id for all cards that may level up BEFORE opening the
-	// transaction. GetByName can trigger a PokeAPI fetch which takes seconds;
-	// doing it inside db.Begin would hold a pool connection the whole time and
-	// risk pool exhaustion under concurrent load.
+	// Resolve pokemon_id AND pre-fetch evolution targets for all cards that may
+	// level up BEFORE opening the transaction. GetEvolutionForLevel can trigger
+	// PokeAPI fetches (loadEvolutionChain cold refresh + GetByID for the target);
+	// doing this inside db.Begin holds a pool connection during multi-second
+	// network calls and risks pool exhaustion under concurrent load.
 	xpMap := CalculateXPForBattle(bs)
-	pokemonIDs := make(map[int]int) // cardID -> pokemonID (0 = unresolvable)
+	pokemonIDs := make(map[int]int)             // cardID -> pokemonID (0 = unresolvable)
+
 	if pokemonService != nil {
+		// First pass: resolve all pokemon_id values (may call PokeAPI for legacy cards)
 		for cardID := range xpMap {
 			var pokemonID *int
 			err := db.QueryRow(ctx, `
@@ -247,6 +250,30 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 				}
 			} else {
 				pokemonIDs[cardID] = *pokemonID
+			}
+		}
+
+		// Second pass: pre-fetch evolution targets for cards that are likely to level up.
+		// We optimistically check all participating cards — GetEvolutionForLevel returns
+		// nil quickly if no evolution applies (cache hit), and only does network I/O
+		// the first time a chain is encountered.
+		for cardID, pid := range pokemonIDs {
+			if pid == 0 {
+				continue
+			}
+			// We don't know the new level yet, so fetch the current level to estimate.
+			// Worst case: we fetch a target that ends up not needed (e.g. card doesn't
+			// level up). That's a cheap no-op since the result is cached.
+			var currentLevel int
+			if err := db.QueryRow(ctx, `SELECT level FROM player_cards WHERE id = $1`, cardID).Scan(&currentLevel); err != nil {
+				continue
+			}
+			// Check at current level + 1 as the minimum possible new level.
+			// applyEvolution will re-check at the actual new level inside the tx,
+			// but by then the chain and target are already in Redis/Postgres cache
+			// so no PokeAPI call will happen.
+			if _, err := pokemonService.GetEvolutionForLevel(ctx, pid, currentLevel+1); err != nil {
+				slog.Warn("evolution pre-fetch failed", "card_id", cardID, "error", err)
 			}
 		}
 	}
