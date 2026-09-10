@@ -321,20 +321,18 @@ const BattleResult = ({
                       transition={{ delay: 0.7 + index * 0.15 }}
                       className="bg-black/30 rounded-lg p-4 flex items-center justify-center gap-4"
                     >
-                      {evo.sprite && (
-                        failedSprites.has(evo.sprite) ? (
-                          <div className="w-20 h-20 flex items-center justify-center text-5xl">🎴</div>
-                        ) : (
-                          <motion.img
-                            src={evo.sprite}
-                            alt={evo.into}
-                            className="w-20 h-20 object-contain"
-                            initial={{ scale: 0, rotate: -180 }}
-                            animate={{ scale: 1, rotate: 0 }}
-                            transition={{ delay: 0.8 + index * 0.15, type: 'spring', stiffness: 200 }}
-                            onError={() => handleSpriteError(evo.sprite)}
-                          />
-                        )
+                      {!evo.sprite || failedSprites.has(evo.sprite) ? (
+                        <div className="w-20 h-20 flex items-center justify-center text-5xl">🎴</div>
+                      ) : (
+                        <motion.img
+                          src={evo.sprite}
+                          alt={evo.into}
+                          className="w-20 h-20 object-contain"
+                          initial={{ scale: 0, rotate: -180 }}
+                          animate={{ scale: 1, rotate: 0 }}
+                          transition={{ delay: 0.8 + index * 0.15, type: 'spring', stiffness: 200 }}
+                          onError={() => handleSpriteError(evo.sprite)}
+                        />
                       )}
                       <div className="text-center">
                         <div className="text-lg text-gray-300 line-through">

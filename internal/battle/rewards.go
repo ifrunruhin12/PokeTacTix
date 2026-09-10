@@ -265,10 +265,9 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 			}
 		}
 
-		// Second pass: resolve evolution targets for cards that are likely to level up.
-		// We optimistically check all participating cards — GetEvolutionForLevel returns
-		// nil quickly if no evolution applies (cache hit), and only does network I/O
-		// the first time a chain is encountered.
+		// Second pass: resolve evolution targets only for cards whose payout can
+		// apply evolution: cards that level up, plus level-50 cards that may have
+		// a pending evolution from before this feature shipped.
 		for cardID, pid := range pokemonIDs {
 			if pid == 0 {
 				continue
@@ -289,6 +288,9 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 			}
 			if projected > 50 {
 				projected = 50
+			}
+			if projected <= currentLevel && projected != 50 {
+				continue
 			}
 			targets, err := resolveEvolutionTargets(ctx, pokemonService, pid, projected)
 			evolutionResolutions[cardID] = evolutionResolution{targets: targets, err: err}

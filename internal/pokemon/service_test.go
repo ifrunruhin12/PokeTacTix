@@ -93,11 +93,15 @@ func (c *blockingEvolutionClient) FetchSpeciesRaw(context.Context, string) ([]by
 	return nil, errors.New("unexpected species fetch")
 }
 
-func (c *blockingEvolutionClient) FetchEvolutionChainRaw(context.Context, int) ([]byte, error) {
+func (c *blockingEvolutionClient) FetchEvolutionChainRaw(ctx context.Context, _ int) ([]byte, error) {
 	c.calls.Add(1)
 	c.once.Do(func() { close(c.started) })
-	<-c.release
-	return c.rawChain, nil
+	select {
+	case <-c.release:
+		return c.rawChain, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 func (m *mockPokeAPIClient) FetchPokemonRaw(context.Context, string) ([]byte, error) {
@@ -345,4 +349,54 @@ func TestLoadEvolutionChainCoalescesColdRefresh(t *testing.T) {
 		assert.Len(t, chain.Links, 1)
 	}
 	assert.Equal(t, int32(1), client.calls.Load())
+}
+
+func TestLoadEvolutionChainLeaderCancellationDoesNotAbortSharedRefresh(t *testing.T) {
+	client := &blockingEvolutionClient{
+		rawChain: []byte(`{
+			"chain": {
+				"species": {"url": "https://pokeapi.co/api/v2/pokemon-species/4/"},
+				"evolves_to": [{
+					"species": {"url": "https://pokeapi.co/api/v2/pokemon-species/5/"},
+					"evolution_details": [{"min_level": 16, "trigger": {"name": "level-up"}}],
+					"evolves_to": []
+				}]
+			}
+		}`),
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	svc := NewService(nil, nil, client).(*service)
+
+	leaderCtx, cancelLeader := context.WithCancel(context.Background())
+	leaderResult := make(chan *EvolutionChain, 1)
+	go func() {
+		leaderResult <- svc.loadEvolutionChain(leaderCtx, 2)
+	}()
+	<-client.started
+
+	waiterStarted := make(chan struct{})
+	waiterResult := make(chan *EvolutionChain, 1)
+	go func() {
+		close(waiterStarted)
+		waiterResult <- svc.loadEvolutionChain(context.Background(), 2)
+	}()
+	<-waiterStarted
+	// Give the second caller time to join the in-flight singleflight request.
+	time.Sleep(50 * time.Millisecond)
+	cancelLeader()
+
+	assert.Nil(t, <-leaderResult)
+	select {
+	case <-waiterResult:
+		t.Fatal("live waiter returned before the shared refresh completed")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(client.release)
+	chain := <-waiterResult
+	require.NotNil(t, chain)
+	assert.Len(t, chain.Links, 1)
+	assert.Equal(t, int32(1), client.calls.Load())
+	assert.False(t, svc.shouldSkipColdRefresh(2))
 }

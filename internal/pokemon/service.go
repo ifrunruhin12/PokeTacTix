@@ -53,6 +53,10 @@ func NewService(cache Cache, repo Repository, client PokeAPIClient) PokemonServi
 // retries for that chain.
 const chainBackoffWindow = 5 * time.Minute
 
+// evolutionChainRefreshTimeout bounds shared cold refreshes independently of
+// any individual caller. The PokéAPI client uses the same default timeout.
+const evolutionChainRefreshTimeout = 10 * time.Second
+
 func (s *service) shouldSkipColdRefresh(chainID int) bool {
 	s.chainRefreshBackoffMu.Lock()
 	defer s.chainRefreshBackoffMu.Unlock()
@@ -332,12 +336,15 @@ func (s *service) loadEvolutionChain(ctx context.Context, chainID int) *Evolutio
 	// PokéAPI while it is slow or unavailable.
 	if s.client != nil {
 		key := fmt.Sprintf("evochain_refresh:%d", chainID)
-		value, _, _ := s.sf.Do(key, func() (any, error) {
+		result := s.sf.DoChan(key, func() (any, error) {
+			refreshCtx, cancel := context.WithTimeout(context.Background(), evolutionChainRefreshTimeout)
+			defer cancel()
+
 			if s.shouldSkipColdRefresh(chainID) {
 				return nil, nil
 			}
 
-			rawChain, err := s.client.FetchEvolutionChainRaw(ctx, chainID)
+			rawChain, err := s.client.FetchEvolutionChainRaw(refreshCtx, chainID)
 			if err != nil {
 				s.noteRefreshOutcome(chainID, true)
 				return nil, nil
@@ -355,16 +362,22 @@ func (s *service) loadEvolutionChain(ctx context.Context, chainID int) *Evolutio
 				FetchedAt:        time.Now(),
 			}
 			if s.repo != nil {
-				_ = s.repo.UpsertEvolutionChain(ctx, ec)
+				_ = s.repo.UpsertEvolutionChain(refreshCtx, ec)
 			}
 			if s.cache != nil {
-				_ = s.cache.SetEvolutionChain(ctx, ec)
+				_ = s.cache.SetEvolutionChain(refreshCtx, ec)
 			}
 			s.noteRefreshOutcome(chainID, false)
 			return ec, nil
 		})
-		if refreshed, ok := value.(*EvolutionChain); ok && refreshed != nil {
-			return refreshed
+
+		select {
+		case shared := <-result:
+			if refreshed, ok := shared.Val.(*EvolutionChain); ok && refreshed != nil {
+				return refreshed
+			}
+		case <-ctx.Done():
+			return stale
 		}
 	}
 
