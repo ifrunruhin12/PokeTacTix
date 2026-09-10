@@ -2,6 +2,9 @@ package pokemon
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -72,6 +75,29 @@ type mockPokeAPIClient struct {
 	pokemonCalls        int
 	speciesCalls        int
 	evolutionChainCalls int
+}
+
+type blockingEvolutionClient struct {
+	rawChain []byte
+	started  chan struct{}
+	release  chan struct{}
+	once     sync.Once
+	calls    atomic.Int32
+}
+
+func (c *blockingEvolutionClient) FetchPokemonRaw(context.Context, string) ([]byte, error) {
+	return nil, errors.New("unexpected pokemon fetch")
+}
+
+func (c *blockingEvolutionClient) FetchSpeciesRaw(context.Context, string) ([]byte, error) {
+	return nil, errors.New("unexpected species fetch")
+}
+
+func (c *blockingEvolutionClient) FetchEvolutionChainRaw(context.Context, int) ([]byte, error) {
+	c.calls.Add(1)
+	c.once.Do(func() { close(c.started) })
+	<-c.release
+	return c.rawChain, nil
 }
 
 func (m *mockPokeAPIClient) FetchPokemonRaw(context.Context, string) ([]byte, error) {
@@ -274,4 +300,49 @@ func TestExtractMemberSpeciesIDs(t *testing.T) {
 	ids, err := ExtractMemberSpeciesIDs(rawChain)
 	require.NoError(t, err)
 	assert.Equal(t, []int{1, 2, 3}, ids)
+}
+
+func TestLoadEvolutionChainCoalescesColdRefresh(t *testing.T) {
+	client := &blockingEvolutionClient{
+		rawChain: []byte(`{
+			"chain": {
+				"species": {"url": "https://pokeapi.co/api/v2/pokemon-species/4/"},
+				"evolves_to": [{
+					"species": {"url": "https://pokeapi.co/api/v2/pokemon-species/5/"},
+					"evolution_details": [{"min_level": 16, "trigger": {"name": "level-up"}}],
+					"evolves_to": []
+				}]
+			}
+		}`),
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	svc := NewService(nil, nil, client).(*service)
+
+	const callers = 12
+	start := make(chan struct{})
+	results := make(chan *EvolutionChain, callers)
+	var ready sync.WaitGroup
+	ready.Add(callers)
+	for range callers {
+		go func() {
+			ready.Done()
+			<-start
+			results <- svc.loadEvolutionChain(context.Background(), 2)
+		}()
+	}
+	ready.Wait()
+	close(start)
+	<-client.started
+	// Keep the first fetch in flight long enough for the other callers to join
+	// the singleflight request.
+	time.Sleep(50 * time.Millisecond)
+	close(client.release)
+
+	for range callers {
+		chain := <-results
+		require.NotNil(t, chain)
+		assert.Len(t, chain.Links, 1)
+	}
+	assert.Equal(t, int32(1), client.calls.Load())
 }

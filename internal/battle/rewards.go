@@ -230,6 +230,11 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 	// network calls and risks pool exhaustion under concurrent load.
 	xpMap := CalculateXPForBattle(bs)
 	pokemonIDs := make(map[int]int) // cardID -> pokemonID (0 = unresolvable)
+	type evolutionResolution struct {
+		targets []*pokemon.Pokemon
+		err     error
+	}
+	evolutionResolutions := make(map[int]evolutionResolution)
 
 	if pokemonService != nil {
 		// First pass: resolve all pokemon_id values (may call PokeAPI for legacy cards)
@@ -260,7 +265,7 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 			}
 		}
 
-		// Second pass: pre-fetch evolution targets for cards that are likely to level up.
+		// Second pass: resolve evolution targets for cards that are likely to level up.
 		// We optimistically check all participating cards — GetEvolutionForLevel returns
 		// nil quickly if no evolution applies (cache hit), and only does network I/O
 		// the first time a chain is encountered.
@@ -285,10 +290,9 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 			if projected > 50 {
 				projected = 50
 			}
-			// applyEvolution re-checks at the actual new level inside the tx, but by
-			// then the chain and target are already in Redis/Postgres cache so no
-			// PokeAPI call will happen.
-			if _, err := pokemonService.GetEvolutionForLevel(ctx, pid, projected); err != nil {
+			targets, err := resolveEvolutionTargets(ctx, pokemonService, pid, projected)
+			evolutionResolutions[cardID] = evolutionResolution{targets: targets, err: err}
+			if err != nil {
 				slog.Warn("evolution pre-fetch failed", "card_id", cardID, "error", err)
 			}
 		}
@@ -364,18 +368,19 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 		// shipped (the check is cache-cheap once warmed).
 		var evolvedInto *pokemon.Pokemon
 		if pokemonService != nil && (newLevel > oldLevel || newLevel == 50) {
-			if pid, ok := pokemonIDs[cardID]; ok && pid != 0 {
-				target, err := applyEvolution(ctx, tx, pokemonService, cardID, userID, pid, newLevel, pokemonName)
+			if resolution, ok := evolutionResolutions[cardID]; ok && resolution.err == nil {
+				target, err := applyEvolution(ctx, tx, cardID, userID, resolution.targets)
 				if err != nil {
-					slog.Warn("evolution check failed", "card_id", cardID, "error", err)
-				} else {
-					evolvedInto = target
-					if target != nil {
-						evolvedEvents = append(evolvedEvents, evolutionEvent{
-							userID: userID, cardID: cardID,
-							from: pokemonName, into: target.Name, level: newLevel,
-						})
-					}
+					return fmt.Errorf("failed to apply evolution for card %d: %w", cardID, err)
+				}
+				evolvedInto = target
+				from := pokemonName
+				for _, appliedTarget := range resolution.targets {
+					evolvedEvents = append(evolvedEvents, evolutionEvent{
+						userID: userID, cardID: cardID,
+						from: from, into: appliedTarget.Name, level: newLevel,
+					})
+					from = appliedTarget.Name
 				}
 			}
 		}

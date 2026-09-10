@@ -7,8 +7,12 @@ import (
 
 	"pokemon-cli/internal/pokemon"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+type evolutionExecutor interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
 
 // evolutionEvent records a completed evolution so the caller can emit the
 // metric and log entry only after the transaction commits — otherwise a later
@@ -28,51 +32,81 @@ func evolvedBaseStats(target *pokemon.Pokemon) (hp, attack, defense, speed int) 
 	return target.CardBaseStats()
 }
 
-// applyEvolution checks whether the player card should evolve at newLevel and,
-// if so, rewrites the card row (name, pokemon_id, sprite, types, base stats) in
-// the rewards transaction. The card keeps its current moves and level/XP.
-// pokemonID must be non-zero; callers are responsible for resolving it before
-// entering the transaction (to avoid holding a DB connection during a PokeAPI
-// fetch). Returns the target Pokemon, or nil when no evolution applies.
-// Metric incrementing and logging are the caller's job, post-commit.
+// resolveEvolutionTargets resolves every level-eligible link before the rewards
+// transaction starts. Each lookup uses the newly evolved target ID so a large
+// level jump can traverse multiple stages in one payout.
+func resolveEvolutionTargets(
+	ctx context.Context,
+	pokemonSvc pokemon.PokemonService,
+	pokemonID, newLevel int,
+) ([]*pokemon.Pokemon, error) {
+	seen := map[int]struct{}{pokemonID: {}}
+	var targets []*pokemon.Pokemon
+
+	for {
+		target, err := pokemonSvc.GetEvolutionForLevel(ctx, pokemonID, newLevel)
+		if err != nil {
+			return nil, err
+		}
+		if target == nil {
+			return targets, nil
+		}
+		if target.ID <= 0 {
+			return nil, fmt.Errorf("evolution target has invalid pokemon ID %d", target.ID)
+		}
+		if _, ok := seen[target.ID]; ok {
+			return nil, fmt.Errorf("evolution chain contains a cycle at pokemon ID %d", target.ID)
+		}
+
+		seen[target.ID] = struct{}{}
+		targets = append(targets, target)
+		pokemonID = target.ID
+	}
+}
+
+// applyEvolution applies targets that were successfully resolved before the
+// rewards transaction began. The card keeps its current moves and level/XP.
+// Returns the final target Pokemon, or nil when no evolution applies. Metric
+// incrementing and logging are the caller's job, post-commit.
 func applyEvolution(
 	ctx context.Context,
-	tx pgx.Tx,
-	pokemonSvc pokemon.PokemonService,
-	cardID, userID, pokemonID, newLevel int,
-	currentPokemonName string,
+	tx evolutionExecutor,
+	cardID, userID int,
+	targets []*pokemon.Pokemon,
 ) (*pokemon.Pokemon, error) {
-	target, err := pokemonSvc.GetEvolutionForLevel(ctx, pokemonID, newLevel)
-	if err != nil {
-		return nil, err
-	}
-	if target == nil {
+	if len(targets) == 0 {
 		return nil, nil
 	}
 
-	// Derive base stats the same way new cards are built from pokemon data.
-	baseHP, baseAttack, baseDefense, baseSpeed := evolvedBaseStats(target)
+	for _, target := range targets {
+		if target == nil {
+			return nil, fmt.Errorf("resolved evolution target is nil")
+		}
 
-	typesJSON, err := json.Marshal(target.Types)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal evolved types: %w", err)
+		// Derive base stats the same way new cards are built from pokemon data.
+		baseHP, baseAttack, baseDefense, baseSpeed := evolvedBaseStats(target)
+
+		typesJSON, err := json.Marshal(target.Types)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal evolved types: %w", err)
+		}
+
+		// Moves intentionally carry over: this game's evolution is a species change
+		// with new base stats, not a move-set reset.
+		_, err = tx.Exec(ctx, `
+			UPDATE player_cards
+			SET pokemon_name = $1, pokemon_id = $2, sprite = $3, types = $4,
+			    base_hp = $5, base_attack = $6, base_defense = $7, base_speed = $8
+			WHERE id = $9 AND user_id = $10
+		`,
+			target.Name, target.ID, target.SpriteURL, typesJSON,
+			baseHP, baseAttack, baseDefense, baseSpeed,
+			cardID, userID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to evolve card %d into %s: %w", cardID, target.Name, err)
+		}
 	}
 
-	// Moves intentionally carry over: this game's evolution is a species change
-	// with new base stats, not a move-set reset.
-	_, err = tx.Exec(ctx, `
-		UPDATE player_cards
-		SET pokemon_name = $1, pokemon_id = $2, sprite = $3, types = $4,
-		    base_hp = $5, base_attack = $6, base_defense = $7, base_speed = $8
-		WHERE id = $9 AND user_id = $10
-	`,
-		target.Name, target.ID, target.SpriteURL, typesJSON,
-		baseHP, baseAttack, baseDefense, baseSpeed,
-		cardID, userID,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to evolve card %d into %s: %w", cardID, target.Name, err)
-	}
-
-	return target, nil
+	return targets[len(targets)-1], nil
 }

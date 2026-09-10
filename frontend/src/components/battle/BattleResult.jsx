@@ -3,16 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import PokemonCard from './PokemonCard';
 
-// Replaces a broken/unreachable sprite <img> with the 🎴 placeholder so users
-// see the same fallback a null sprite gets, instead of the browser's
-// broken-image icon.
-const spriteFallback = (sizeClass) => (e) => {
-  const placeholder = document.createElement('div');
-  placeholder.className = sizeClass;
-  placeholder.textContent = '🎴';
-  e.currentTarget.replaceWith(placeholder);
-};
-
 /**
  * BattleResult Component
  * Displays victory/defeat/draw message with rewards
@@ -31,6 +21,7 @@ const BattleResult = ({
 }) => {
   const [selectedReward, setSelectedReward] = useState(null);
   const [rewardClaimed, setRewardClaimed] = useState(false);
+  const [failedSprites, setFailedSprites] = useState(() => new Set());
   const { 
     coins_earned = 0, 
     xp_gained = {}, 
@@ -76,6 +67,15 @@ const BattleResult = ({
 
   const style = getResultStyle();
   const showRewardSelection = result === 'victory' && aiPokemon && aiPokemon.length > 0 && !rewardClaimed;
+
+  const handleSpriteError = (sprite) => {
+    setFailedSprites((previous) => {
+      if (previous.has(sprite)) return previous;
+      const next = new Set(previous);
+      next.add(sprite);
+      return next;
+    });
+  };
 
   // Handle reward selection
   const handleRewardSelect = async (index) => {
@@ -225,15 +225,15 @@ const BattleResult = ({
                       className="bg-gray-800 rounded-lg p-4 flex items-center justify-between"
                     >
                       <div className="flex items-center gap-3">
-                        {pokemon.sprite ? (
+                        {pokemon.sprite && !failedSprites.has(pokemon.sprite) ? (
                           <img
                             src={pokemon.sprite}
                             alt={pokemon.name}
                             className="w-10 h-10 object-contain"
-                            onError={spriteFallback('w-10 h-10 flex items-center justify-center text-2xl')}
+                            onError={() => handleSpriteError(pokemon.sprite)}
                           />
                         ) : (
-                          <div className="text-2xl">🎴</div>
+                          <div className="w-10 h-10 flex items-center justify-center text-2xl">🎴</div>
                         )}
                         <div>
                           <div className="text-white font-semibold">{pokemon.name}</div>
@@ -322,15 +322,19 @@ const BattleResult = ({
                       className="bg-black/30 rounded-lg p-4 flex items-center justify-center gap-4"
                     >
                       {evo.sprite && (
-                        <motion.img
-                          src={evo.sprite}
-                          alt={evo.into}
-                          className="w-20 h-20 object-contain"
-                          initial={{ scale: 0, rotate: -180 }}
-                          animate={{ scale: 1, rotate: 0 }}
-                          transition={{ delay: 0.8 + index * 0.15, type: 'spring', stiffness: 200 }}
-                          onError={spriteFallback('w-20 h-20 flex items-center justify-center text-5xl')}
-                        />
+                        failedSprites.has(evo.sprite) ? (
+                          <div className="w-20 h-20 flex items-center justify-center text-5xl">🎴</div>
+                        ) : (
+                          <motion.img
+                            src={evo.sprite}
+                            alt={evo.into}
+                            className="w-20 h-20 object-contain"
+                            initial={{ scale: 0, rotate: -180 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ delay: 0.8 + index * 0.15, type: 'spring', stiffness: 200 }}
+                            onError={() => handleSpriteError(evo.sprite)}
+                          />
+                        )
                       )}
                       <div className="text-center">
                         <div className="text-lg text-gray-300 line-through">

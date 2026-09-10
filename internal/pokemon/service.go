@@ -330,26 +330,42 @@ func (s *service) loadEvolutionChain(ctx context.Context, chainID int) *Evolutio
 	// On failure, fall back to the stale chain (no evolution, but no error).
 	// A short in-process backoff prevents repeated lookups from hammering
 	// PokéAPI while it is slow or unavailable.
-	if s.client != nil && !s.shouldSkipColdRefresh(chainID) {
-		if rawChain, err := s.client.FetchEvolutionChainRaw(ctx, chainID); err == nil {
-			if links, memberIDs, err := ExtractEvolutionLinks(rawChain); err == nil {
-				ec := &EvolutionChain{
-					ID:               chainID,
-					MemberSpeciesIDs: memberIDs,
-					Links:            links,
-					FetchedAt:        time.Now(),
-				}
-				if s.repo != nil {
-					_ = s.repo.UpsertEvolutionChain(ctx, ec)
-				}
-				if s.cache != nil {
-					_ = s.cache.SetEvolutionChain(ctx, ec)
-				}
-				s.noteRefreshOutcome(chainID, false)
-				return ec
+	if s.client != nil {
+		key := fmt.Sprintf("evochain_refresh:%d", chainID)
+		value, _, _ := s.sf.Do(key, func() (any, error) {
+			if s.shouldSkipColdRefresh(chainID) {
+				return nil, nil
 			}
+
+			rawChain, err := s.client.FetchEvolutionChainRaw(ctx, chainID)
+			if err != nil {
+				s.noteRefreshOutcome(chainID, true)
+				return nil, nil
+			}
+			links, memberIDs, err := ExtractEvolutionLinks(rawChain)
+			if err != nil {
+				s.noteRefreshOutcome(chainID, true)
+				return nil, nil
+			}
+
+			ec := &EvolutionChain{
+				ID:               chainID,
+				MemberSpeciesIDs: memberIDs,
+				Links:            links,
+				FetchedAt:        time.Now(),
+			}
+			if s.repo != nil {
+				_ = s.repo.UpsertEvolutionChain(ctx, ec)
+			}
+			if s.cache != nil {
+				_ = s.cache.SetEvolutionChain(ctx, ec)
+			}
+			s.noteRefreshOutcome(chainID, false)
+			return ec, nil
+		})
+		if refreshed, ok := value.(*EvolutionChain); ok && refreshed != nil {
+			return refreshed
 		}
-		s.noteRefreshOutcome(chainID, true)
 	}
 
 	return stale
