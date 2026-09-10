@@ -112,6 +112,21 @@ func (m *mockRepo) GetPokemonByName(ctx context.Context, name string) (*Pokemon,
 	return nil, ErrPokemonNotFound
 }
 
+func (m *mockRepo) GetPokemonBySpeciesID(ctx context.Context, speciesID int) (*Pokemon, error) {
+	var fallback *Pokemon
+	for _, p := range m.pokemon {
+		if p.SpeciesID == speciesID {
+			if fallback == nil || p.ID < fallback.ID {
+				fallback = p
+			}
+		}
+	}
+	if fallback != nil {
+		return fallback, nil
+	}
+	return nil, ErrPokemonNotFound
+}
+
 func (m *mockRepo) UpsertPokemon(ctx context.Context, p *Pokemon) error {
 	m.pokemon[p.ID] = p
 	return nil

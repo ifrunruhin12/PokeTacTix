@@ -529,6 +529,35 @@ func (h *Handler) GetBattleStateEnhanced(c *fiber.Ctx) error {
 	return c.JSON(response)
 }
 
+// GetActiveBattleHandler handles GET /api/battle/active — returns the user's
+// most recent unfinished battle (if any) so a timed-out battle start can be
+// resumed instead of double-spending a token on a new one. 404 when the user
+// has no active battle.
+func (h *Handler) GetActiveBattleHandler(c *fiber.Ctx) error {
+	userID, ok := c.Locals("user_id").(int)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+
+	states, err := h.repo.GetUserBattleSessions(c.Context(), userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load battle sessions"})
+	}
+
+	// GetUserBattleSessions is ordered by updated_at DESC; take the newest
+	// battle that hasn't finished yet.
+	for _, state := range states {
+		if state == nil || state.BattleOver {
+			continue
+		}
+		hideAICards := state.Mode != "5v5" || state.Winner != "player"
+		response := BuildBattleResponse(state, []string{}, hideAICards)
+		return c.JSON(response)
+	}
+
+	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No active battle"})
+}
+
 // SwitchPokemonHandler handles POST /api/battle/switch
 func (h *Handler) SwitchPokemonHandler(c *fiber.Ctx) error {
 	// Get user ID from context

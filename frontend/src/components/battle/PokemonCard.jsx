@@ -1,6 +1,10 @@
 import { motion } from 'framer-motion';
 import PropTypes from 'prop-types';
 
+// Flat XP cost per level. Must match the backend's xpPerLevel constant
+// (internal/battle/rewards.go), which levels cards at this fixed cost.
+const XP_PER_LEVEL = 100;
+
 /**
  * PokemonCard Component
  * Displays a Pokemon card with stats, level, XP, and animations
@@ -217,12 +221,12 @@ const PokemonCard = ({
                     <motion.div
                       className="h-full bg-purple-500"
                       initial={{ width: 0 }}
-                      animate={{ width: `${(pokemon.xp / (100 * pokemon.level)) * 100}%` }}
+                      animate={{ width: `${Math.min((pokemon.xp / XP_PER_LEVEL) * 100, 100)}%` }}
                       transition={{ duration: 0.5 }}
                     />
                   </div>
                   <span className="text-xs text-gray-400">
-                    {pokemon.xp}/{100 * pokemon.level} XP
+                    {pokemon.xp}/{XP_PER_LEVEL} XP
                   </span>
                 </div>
               )}

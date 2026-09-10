@@ -3,6 +3,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import PokemonCard from './PokemonCard';
 
+// Replaces a broken/unreachable sprite <img> with the 🎴 placeholder so users
+// see the same fallback a null sprite gets, instead of the browser's
+// broken-image icon.
+const spriteFallback = (sizeClass) => (e) => {
+  const placeholder = document.createElement('div');
+  placeholder.className = sizeClass;
+  placeholder.textContent = '🎴';
+  e.currentTarget.replaceWith(placeholder);
+};
+
 /**
  * BattleResult Component
  * Displays victory/defeat/draw message with rewards
@@ -216,7 +226,12 @@ const BattleResult = ({
                     >
                       <div className="flex items-center gap-3">
                         {pokemon.sprite ? (
-                          <img src={pokemon.sprite} alt={pokemon.name} className="w-10 h-10 object-contain" />
+                          <img
+                            src={pokemon.sprite}
+                            alt={pokemon.name}
+                            className="w-10 h-10 object-contain"
+                            onError={spriteFallback('w-10 h-10 flex items-center justify-center text-2xl')}
+                          />
                         ) : (
                           <div className="text-2xl">🎴</div>
                         )}
@@ -314,6 +329,7 @@ const BattleResult = ({
                           initial={{ scale: 0, rotate: -180 }}
                           animate={{ scale: 1, rotate: 0 }}
                           transition={{ delay: 0.8 + index * 0.15, type: 'spring', stiffness: 200 }}
+                          onError={spriteFallback('w-20 h-20 flex items-center justify-center text-5xl')}
                         />
                       )}
                       <div className="text-center">

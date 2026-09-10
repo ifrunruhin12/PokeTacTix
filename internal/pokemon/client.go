@@ -212,15 +212,27 @@ func ExtractEvolutionLinks(chainJSON []byte) ([]EvolutionLink, []int, error) {
 			fromID, hasFrom := speciesID(n)
 			if hasFrom {
 				link := EvolutionLink{FromSpeciesID: fromID, ToSpeciesID: toID}
-				for _, d := range child.EvolutionDetails {
-					if d.Trigger.Name != "" {
-						link.Trigger = d.Trigger.Name
-					}
-					if d.MinLevel != nil {
-						link.MinLevel = *d.MinLevel
-					}
+				// Pick a single detail entry — prefer a level-up trigger, else the
+				// first — so trigger and min_level always come from the same entry.
+				// Merging fields across entries can invent a level requirement for
+				// a level-up edge that doesn't have one.
+				var chosen *evolutionDetail
+				for i := range child.EvolutionDetails {
+					d := &child.EvolutionDetails[i]
 					if d.Trigger.Name == "level-up" {
-						break // prefer the level-up detail when present
+						chosen = d
+						break
+					}
+					if chosen == nil {
+						chosen = d
+					}
+				}
+				if chosen != nil {
+					if chosen.Trigger.Name != "" {
+						link.Trigger = chosen.Trigger.Name
+					}
+					if chosen.MinLevel != nil {
+						link.MinLevel = *chosen.MinLevel
 					}
 				}
 				links = append(links, link)

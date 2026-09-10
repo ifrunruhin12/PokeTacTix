@@ -51,9 +51,17 @@ api.interceptors.response.use(
                           error.response.data?.message || 
                           'An error occurred';
       
-      return Promise.reject(new Error(errorMessage));
+      // Preserve status/code on the rewritten error so callers can branch on
+      // them (the original axios error fields are otherwise lost here).
+      const rewritten = new Error(errorMessage);
+      rewritten.status = error.response.status;
+      return Promise.reject(rewritten);
     } else if (error.request) {
-      return Promise.reject(new Error('No response from server'));
+      // Timeouts and unreachable servers both land here; keep the axios
+      // error code (e.g. 'ECONNABORTED') for the same reason.
+      const rewritten = new Error('No response from server');
+      rewritten.code = error.code;
+      return Promise.reject(rewritten);
     } else {
       return Promise.reject(error);
     }

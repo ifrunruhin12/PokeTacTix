@@ -3,11 +3,13 @@ package pokemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"pokemon-cli/internal/middleware"
@@ -30,13 +32,50 @@ type service struct {
 	repo   Repository
 	client PokeAPIClient
 	sf     singleflight.Group
+
+	// chainRefreshBackoff remembers when a cold evolution-chain refresh last
+	// failed, so repeated lookups back off instead of hammering PokéAPI on the
+	// player-facing battle path.
+	chainRefreshBackoff   map[int]time.Time
+	chainRefreshBackoffMu sync.Mutex
 }
 
 func NewService(cache Cache, repo Repository, client PokeAPIClient) PokemonService {
 	return &service{
-		cache:  cache,
-		repo:   repo,
-		client: client,
+		cache:               cache,
+		repo:                repo,
+		client:              client,
+		chainRefreshBackoff: make(map[int]time.Time),
+	}
+}
+
+// chainBackoffWindow is how long a failed cold evolution-chain fetch suppresses
+// retries for that chain.
+const chainBackoffWindow = 5 * time.Minute
+
+func (s *service) shouldSkipColdRefresh(chainID int) bool {
+	s.chainRefreshBackoffMu.Lock()
+	defer s.chainRefreshBackoffMu.Unlock()
+	if s.chainRefreshBackoff == nil {
+		return false
+	}
+	failedAt, ok := s.chainRefreshBackoff[chainID]
+	return ok && time.Since(failedAt) < chainBackoffWindow
+}
+
+func (s *service) noteRefreshOutcome(chainID int, failed bool) {
+	s.chainRefreshBackoffMu.Lock()
+	defer s.chainRefreshBackoffMu.Unlock()
+	if s.chainRefreshBackoff == nil {
+		if !failed {
+			return
+		}
+		s.chainRefreshBackoff = make(map[int]time.Time)
+	}
+	if failed {
+		s.chainRefreshBackoff[chainID] = time.Now()
+	} else {
+		delete(s.chainRefreshBackoff, chainID)
 	}
 }
 
@@ -237,19 +276,11 @@ func (s *service) EnsureEvolutionChain(ctx context.Context, speciesID int, optio
 			}
 		}
 
-		// Fallback evolution chain record
-		ec := &EvolutionChain{
-			ID:               chainID,
-			MemberSpeciesIDs: []int{speciesID},
-			FetchedAt:        time.Now(),
-		}
-		if s.repo != nil {
-			_ = s.repo.UpsertEvolutionChain(ctx, ec)
-		}
-		if s.cache != nil {
-			_ = s.cache.SetEvolutionChain(ctx, ec)
-		}
-
+		// Cold fetch failed (or client unset). Deliberately do NOT persist a
+		// degraded {single member, no links} fallback record: it is indistinguishable
+		// from a genuinely single-species chain once stored, which would permanently
+		// disable evolution for that family. Leaving nothing cached lets the next
+		// evolution check retry the cold fetch (rate-limited by chainRefreshBackoff).
 		return chainID, nil
 	})
 
@@ -297,7 +328,9 @@ func (s *service) loadEvolutionChain(ctx context.Context, chainID int) *Evolutio
 
 	// Cold refresh is the only path that can recover missing links.
 	// On failure, fall back to the stale chain (no evolution, but no error).
-	if s.client != nil {
+	// A short in-process backoff prevents repeated lookups from hammering
+	// PokéAPI while it is slow or unavailable.
+	if s.client != nil && !s.shouldSkipColdRefresh(chainID) {
 		if rawChain, err := s.client.FetchEvolutionChainRaw(ctx, chainID); err == nil {
 			if links, memberIDs, err := ExtractEvolutionLinks(rawChain); err == nil {
 				ec := &EvolutionChain{
@@ -312,9 +345,11 @@ func (s *service) loadEvolutionChain(ctx context.Context, chainID int) *Evolutio
 				if s.cache != nil {
 					_ = s.cache.SetEvolutionChain(ctx, ec)
 				}
+				s.noteRefreshOutcome(chainID, false)
 				return ec
 			}
 		}
+		s.noteRefreshOutcome(chainID, true)
 	}
 
 	return stale
@@ -339,8 +374,16 @@ func (s *service) GetEvolutionForLevel(ctx context.Context, pokemonID int, level
 		return nil, nil
 	}
 
-	// Pokemon IDs and species IDs align for the base forms this game stores.
-	target, err := s.GetByID(ctx, link.ToSpeciesID)
+	// Resolve the target via species_id so the two PokéAPI ID spaces (pokemon
+	// vs species) are never conflated. Falls back to GetByID only when no row
+	// for that species is stored yet (preserves the cold warm-up path).
+	var target *Pokemon
+	if s.repo != nil {
+		target, err = s.repo.GetPokemonBySpeciesID(ctx, link.ToSpeciesID)
+	}
+	if s.repo == nil || errors.Is(err, ErrPokemonNotFound) {
+		target, err = s.GetByID(ctx, link.ToSpeciesID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to load evolution target %d: %w", link.ToSpeciesID, err)
 	}

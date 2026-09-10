@@ -23,6 +23,10 @@ type PoolFilter struct {
 type Repository interface {
 	GetPokemon(ctx context.Context, id int) (*Pokemon, error)
 	GetPokemonByName(ctx context.Context, name string) (*Pokemon, error)
+	// GetPokemonBySpeciesID resolves a pokemon row from a PokéAPI species ID.
+	// Pokemon IDs and species IDs are separate ID spaces; this is the only
+	// correct way to resolve an evolution target (link.ToSpeciesID).
+	GetPokemonBySpeciesID(ctx context.Context, speciesID int) (*Pokemon, error)
 	UpsertPokemon(ctx context.Context, p *Pokemon) error
 	GetEvolutionChain(ctx context.Context, id int) (*EvolutionChain, error)
 	UpsertEvolutionChain(ctx context.Context, ec *EvolutionChain) error
@@ -92,6 +96,41 @@ func (r *postgresRepository) GetPokemonByName(ctx context.Context, name string) 
 			return nil, ErrPokemonNotFound
 		}
 		return nil, fmt.Errorf("error querying pokemon by name %s: %w", name, err)
+	}
+
+	if err := json.Unmarshal(baseStatsJSON, &p.BaseStats); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal base_stats: %w", err)
+	}
+	p.Abilities = abilitiesJSON
+	p.RawJSON = rawJSON
+
+	return &p, nil
+}
+
+func (r *postgresRepository) GetPokemonBySpeciesID(ctx context.Context, speciesID int) (*Pokemon, error) {
+	query := `
+		SELECT id, name, species_id, evolution_chain_id, generation, types,
+		       base_stats, abilities, COALESCE(sprite_url, ''), raw_json, fetched_at, updated_at
+		FROM pokemon
+		WHERE species_id = $1
+		ORDER BY id ASC
+		LIMIT 1
+	`
+	row := r.db.QueryRow(ctx, query, speciesID)
+
+	var p Pokemon
+	var baseStatsJSON, abilitiesJSON, rawJSON []byte
+
+	err := row.Scan(
+		&p.ID, &p.Name, &p.SpeciesID, &p.EvolutionChainID, &p.Generation,
+		&p.Types, &baseStatsJSON, &abilitiesJSON, &p.SpriteURL, &rawJSON,
+		&p.FetchedAt, &p.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrPokemonNotFound
+		}
+		return nil, fmt.Errorf("error querying pokemon by species id %d: %w", speciesID, err)
 	}
 
 	if err := json.Unmarshal(baseStatsJSON, &p.BaseStats); err != nil {

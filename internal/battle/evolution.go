@@ -4,13 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 
-	"pokemon-cli/internal/middleware"
 	"pokemon-cli/internal/pokemon"
 
 	"github.com/jackc/pgx/v5"
 )
+
+// evolutionEvent records a completed evolution so the caller can emit the
+// metric and log entry only after the transaction commits — otherwise a later
+// statement failure would roll the evolution back while the counter and log
+// permanently record it.
+type evolutionEvent struct {
+	userID     int
+	cardID     int
+	from, into string
+	level      int
+}
 
 // evolvedBaseStats returns the base stat values to store on player_cards after
 // evolution. Delegates to the same helpers that pokemon.Pokemon.ToCard() uses so
@@ -25,6 +34,7 @@ func evolvedBaseStats(target *pokemon.Pokemon) (hp, attack, defense, speed int) 
 // pokemonID must be non-zero; callers are responsible for resolving it before
 // entering the transaction (to avoid holding a DB connection during a PokeAPI
 // fetch). Returns the target Pokemon, or nil when no evolution applies.
+// Metric incrementing and logging are the caller's job, post-commit.
 func applyEvolution(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -63,12 +73,6 @@ func applyEvolution(
 	if err != nil {
 		return nil, fmt.Errorf("failed to evolve card %d into %s: %w", cardID, target.Name, err)
 	}
-
-	middleware.EvolutionTotal.WithLabelValues().Inc()
-	slog.Info("pokemon evolved",
-		"user_id", userID, "card_id", cardID,
-		"from", currentPokemonName, "into", target.Name, "level", newLevel,
-	)
 
 	return target, nil
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BattleArena, BattleEntryAnimation } from '../components/battle';
-import { startBattle, submitMove, switchPokemon, selectReward } from '../services/battle.service';
+import { startBattle, submitMove, switchPokemon, selectReward, getActiveBattle } from '../services/battle.service';
 import tokenService from '../services/token.service';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -59,20 +59,28 @@ export default function Battle() {
     const transformXPGains = (xpGains) => {
       if (!xpGains || xpGains.length === 0) return null;
       
+      // Display name prefers the evolved form's name when an evolution occurred.
+      const displayName = (gain) => gain.evolved ? gain.evolved_into : gain.pokemon_name;
+      // Join sprites by card_id so non-evolved Pokemon keep their deck sprite
+      // instead of rendering the placeholder next to real evolved sprites.
+      const spriteByCardId = Object.fromEntries(
+        (data.player_deck || []).map(c => [c.card_id, c.sprite]).filter(([, sprite]) => !!sprite)
+      );
+      
       const pokemon_details = xpGains.map(gain => ({
         card_id: gain.card_id,
-        name: gain.evolved ? gain.evolved_into : gain.pokemon_name,
+        name: displayName(gain),
         level: gain.new_level,
         xp_gained: gain.xp_gained,
         leveled_up: gain.leveled_up,
         evolved: gain.evolved || false,
-        sprite: gain.new_sprite || null // Sprites of evolved forms
+        sprite: gain.new_sprite || spriteByCardId[gain.card_id] || null
       }));
       
       const level_ups = xpGains
         .filter(gain => gain.leveled_up)
         .map(gain => ({
-          name: gain.evolved ? gain.evolved_into : gain.pokemon_name,
+          name: displayName(gain),
           old_level: gain.old_level,
           new_level: gain.new_level,
           stat_increases: {
@@ -182,18 +190,29 @@ export default function Battle() {
       setBattleMode(mode);
       setShowEntryAnimation(true);
     } catch (err) {
-      // Timeout: the server may still complete the request in the background
-      // (consuming a token and creating the battle), so tell the user honestly.
+      // Timeout / server-unreachable: the server may still complete the request
+      // in the background (consuming a token and creating the battle), so tell
+      // the user honestly. NOTE: api.js's response interceptor rewrites any
+      // error without a response (including timeouts) into a plain
+      // 'No response from server' Error, so err.code is unavailable here —
+      // match on the interceptor's message too.
       // Checked first because the message contains the word "token".
-      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+      if (err.code === 'ECONNABORTED'
+        || err.message?.includes('timeout')
+        || err.message === 'No response from server') {
         setBattleStartUncertain(true);
         setError('Battle start timed out. The battle may still have been created. Reload before trying again to avoid losing a token.');
         console.error('Battle start timed out:', err);
-        fetchTokenBalance();
+        // Token deduction is committed after the battle is saved, so an
+        // immediate refresh would likely return the pre-deduction balance
+        // and undermine the warning above. Refresh after a delay.
+        setTimeout(fetchTokenBalance, 5000);
         return;
       }
 
-      const errorMessage = err.response?.data?.error?.message || err.response?.data?.error || 'Failed to start battle';
+      // The api.js interceptor already extracts the server's error message
+      // into err.message (err.response is no longer available here).
+      const errorMessage = err.message || 'Failed to start battle';
 
       // Check if it's an insufficient tokens error
       if (errorMessage.includes('token') || errorMessage.includes('INSUFFICIENT_TOKENS')) {
@@ -205,6 +224,30 @@ export default function Battle() {
 
       // Refresh token balance after error
       fetchTokenBalance();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Resolve the uncertain battle-start state: if the timed-out request did
+  // create a battle, resume it instead of letting the user start (and pay for)
+  // a second one.
+  const handleResolveUncertainBattle = async () => {
+    setLoading(true);
+    try {
+      const active = await getActiveBattle();
+      if (active) {
+        setBattleState(transformBattleState(active));
+        setBattleMode(active.mode || null);
+      } else {
+        fetchTokenBalance();
+      }
+      setBattleStartUncertain(false);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to resolve battle status:', err);
+      // Can't determine the state — fall back to a full reload.
+      window.location.reload();
     } finally {
       setLoading(false);
     }
@@ -425,7 +468,7 @@ export default function Battle() {
                 <p>{error}</p>
                 {battleStartUncertain && (
                   <button
-                    onClick={() => window.location.reload()}
+                    onClick={handleResolveUncertainBattle}
                     className="mt-3 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
                   >
                     Reload battle status

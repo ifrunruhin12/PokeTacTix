@@ -18,6 +18,7 @@ func RegisterRoutes(app *fiber.App, handler *Handler, authMiddleware func(*fiber
 	battleAuth.Post("/start", handler.StartBattleEnhanced)
 	battleAuth.Post("/move", handler.MakeMoveEnhanced)
 	battleAuth.Get("/state", handler.GetBattleStateEnhanced)
+	battleAuth.Get("/active", handler.GetActiveBattleHandler)
 	battleAuth.Post("/switch", handler.SwitchPokemonHandler)
 	battleAuth.Post("/select-reward", handler.SelectRewardHandler)
 

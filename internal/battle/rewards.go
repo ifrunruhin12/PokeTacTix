@@ -14,6 +14,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// xpPerLevel is the flat XP cost per level. Must match the frontend's XP
+// progress rendering (frontend/src/components/battle/PokemonCard.jsx), which
+// divides the card's XP by the same value.
+const xpPerLevel = 100
+
 type ComprehensiveRewards struct {
 	CoinsEarned               int                              `json:"coins_earned"`
 	XPGains                   []PokemonXPGain                  `json:"xp_gains"`
@@ -224,7 +229,7 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 	// doing this inside db.Begin holds a pool connection during multi-second
 	// network calls and risks pool exhaustion under concurrent load.
 	xpMap := CalculateXPForBattle(bs)
-	pokemonIDs := make(map[int]int)             // cardID -> pokemonID (0 = unresolvable)
+	pokemonIDs := make(map[int]int) // cardID -> pokemonID (0 = unresolvable)
 
 	if pokemonService != nil {
 		// First pass: resolve all pokemon_id values (may call PokeAPI for legacy cards)
@@ -238,13 +243,15 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 				continue
 			}
 			if pokemonID == nil {
-				// Legacy card: resolve by name — may call PokeAPI, must be outside tx
+				// Legacy card: resolve by name — may call PokeAPI, must be outside tx.
+				// Every player_cards access keeps the user_id ownership guard so a
+				// future refactor can't silently expose another user's card.
 				var pokemonName string
-				if err := db.QueryRow(ctx, `SELECT pokemon_name FROM player_cards WHERE id = $1`, cardID).Scan(&pokemonName); err == nil {
+				if err := db.QueryRow(ctx, `SELECT pokemon_name FROM player_cards WHERE id = $1 AND user_id = $2`, cardID, userID).Scan(&pokemonName); err == nil {
 					p, err := pokemonService.GetByName(ctx, pokemonName)
 					if err == nil {
 						// Backfill for future battles
-						_, _ = db.Exec(ctx, `UPDATE player_cards SET pokemon_id = $1 WHERE id = $2`, p.ID, cardID)
+						_, _ = db.Exec(ctx, `UPDATE player_cards SET pokemon_id = $1 WHERE id = $2 AND user_id = $3`, p.ID, cardID, userID)
 						pokemonIDs[cardID] = p.ID
 					}
 				}
@@ -261,24 +268,35 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 			if pid == 0 {
 				continue
 			}
-			// We don't know the new level yet, so fetch the current level to estimate.
-			// Worst case: we fetch a target that ends up not needed (e.g. card doesn't
-			// level up). That's a cheap no-op since the result is cached.
-			var currentLevel int
-			if err := db.QueryRow(ctx, `SELECT level FROM player_cards WHERE id = $1`, cardID).Scan(&currentLevel); err != nil {
+			// Project the card's final level with the same flat-cost loop used
+			// inside the tx below, so the warm-up covers the actual evolution
+			// target. Multi-level jumps (e.g. XP banked under the old 100×level
+			// curve) would otherwise miss the real target and force the cold
+			// PokeAPI path while the transaction holds a pool connection.
+			var currentLevel, currentXP int
+			if err := db.QueryRow(ctx, `SELECT level, xp FROM player_cards WHERE id = $1 AND user_id = $2`, cardID, userID).Scan(&currentLevel, &currentXP); err != nil {
 				continue
 			}
-			// Check at current level + 1 as the minimum possible new level.
-			// applyEvolution will re-check at the actual new level inside the tx,
-			// but by then the chain and target are already in Redis/Postgres cache
-			// so no PokeAPI call will happen.
-			if _, err := pokemonService.GetEvolutionForLevel(ctx, pid, currentLevel+1); err != nil {
+			projected, xpLeft := currentLevel, currentXP+xpMap[cardID]
+			for projected < 50 && xpLeft >= xpPerLevel {
+				xpLeft -= xpPerLevel
+				projected++
+			}
+			if projected > 50 {
+				projected = 50
+			}
+			// applyEvolution re-checks at the actual new level inside the tx, but by
+			// then the chain and target are already in Redis/Postgres cache so no
+			// PokeAPI call will happen.
+			if _, err := pokemonService.GetEvolutionForLevel(ctx, pid, projected); err != nil {
 				slog.Warn("evolution pre-fetch failed", "card_id", cardID, "error", err)
 			}
 		}
 	}
 
 	// Start a transaction for consistency
+	// evolutionEvents are emitted (metric + log) only after a successful Commit.
+	evolvedEvents := make([]evolutionEvent, 0, len(xpMap))
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
@@ -324,7 +342,7 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 
 		// Process level ups
 		for newLevel < 50 {
-			xpRequired := 100 // flat cost per level — keeps evolution reachable
+			xpRequired := xpPerLevel
 			if newXP >= xpRequired {
 				newXP -= xpRequired
 				newLevel++
@@ -340,15 +358,24 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 		}
 
 		// Evolution: use the pre-resolved pokemonID (resolved before db.Begin
-		// to avoid holding a pool connection during PokeAPI fetches).
+		// to avoid holding a pool connection during PokeAPI fetches). Also check
+		// cards already at the level cap: they can never gain another level, but
+		// may still have a pending level-up evolution from before this feature
+		// shipped (the check is cache-cheap once warmed).
 		var evolvedInto *pokemon.Pokemon
-		if pokemonService != nil && newLevel > oldLevel {
+		if pokemonService != nil && (newLevel > oldLevel || newLevel == 50) {
 			if pid, ok := pokemonIDs[cardID]; ok && pid != 0 {
 				target, err := applyEvolution(ctx, tx, pokemonService, cardID, userID, pid, newLevel, pokemonName)
 				if err != nil {
 					slog.Warn("evolution check failed", "card_id", cardID, "error", err)
 				} else {
 					evolvedInto = target
+					if target != nil {
+						evolvedEvents = append(evolvedEvents, evolutionEvent{
+							userID: userID, cardID: cardID,
+							from: pokemonName, into: target.Name, level: newLevel,
+						})
+					}
 				}
 			}
 		}
@@ -449,6 +476,16 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 	// Commit transaction
 	if err = tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Evolution metrics/logs are emitted only now that the rewards transaction
+	// has committed — a rollback must not leave the counter inflated.
+	for _, ev := range evolvedEvents {
+		middleware.EvolutionTotal.Inc()
+		slog.Info("pokemon evolved",
+			"user_id", ev.userID, "card_id", ev.cardID,
+			"from", ev.from, "into", ev.into, "level", ev.level,
+		)
 	}
 
 	if statsService != nil {

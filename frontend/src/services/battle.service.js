@@ -5,6 +5,9 @@ import api from './api';
  * Handles all battle-related API calls
  */
 
+// api.js default is 10s; AI team building can legitimately exceed that.
+export const BATTLE_START_TIMEOUT_MS = 30000;
+
 /**
  * Start a new battle
  * @param {string} mode - Battle mode ('1v1' or '5v5')
@@ -13,7 +16,7 @@ import api from './api';
 export const startBattle = async (mode = '5v5') => {
   // Battle start builds the AI team server-side; 5v5 can legitimately take
   // longer than the global 10s axios timeout, so give it extra headroom.
-  const response = await api.post('/api/battle/start', { mode }, { timeout: 30000 });
+  const response = await api.post('/api/battle/start', { mode }, { timeout: BATTLE_START_TIMEOUT_MS });
   return response.data;
 };
 
@@ -50,6 +53,22 @@ export const getBattleState = async (battleId) => {
 };
 
 /**
+ * Get the user's most recent unfinished battle, if any
+ * @returns {Promise<Object|null>} Active battle state, or null when none exists
+ */
+export const getActiveBattle = async () => {
+  try {
+    const response = await api.get('/api/battle/active');
+    return response.data;
+  } catch (err) {
+    if (err.status === 404) {
+      return null; // no active battle — safe to start a new one
+    }
+    throw err;
+  }
+};
+
+/**
  * Switch active Pokemon
  * @param {string} battleId - Battle session ID
  * @param {number} newIdx - Index of Pokemon to switch to
@@ -81,6 +100,7 @@ export default {
   startBattle,
   submitMove,
   getBattleState,
+  getActiveBattle,
   switchPokemon,
   selectReward
 };
