@@ -22,6 +22,12 @@ func newCounterVec(opts prometheus.CounterOpts, labels []string) *prometheus.Cou
 	return c
 }
 
+func newCounter(opts prometheus.CounterOpts) prometheus.Counter {
+	c := prometheus.NewCounter(opts)
+	Registry.MustRegister(c)
+	return c
+}
+
 func newHistogramVec(opts prometheus.HistogramOpts, labels []string) *prometheus.HistogramVec {
 	h := prometheus.NewHistogramVec(opts, labels)
 	Registry.MustRegister(h)
@@ -102,6 +108,15 @@ var (
 			Help: "Total authentication events",
 		},
 		[]string{"event"}, // login_success, login_failure, register
+	)
+
+	// EvolutionTotal counts Pokemon evolutions triggered by leveling up.
+	// Plain counter (not a vec) so it is exposed at 0 on fresh deployments.
+	EvolutionTotal = newCounter(
+		prometheus.CounterOpts{
+			Name: "poketactix_evolutions_total",
+			Help: "Total number of Pokemon evolutions",
+		},
 	)
 
 	// RegisteredUsers tracks total registered users, refreshed periodically from DB

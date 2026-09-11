@@ -23,6 +23,10 @@ type PoolFilter struct {
 type Repository interface {
 	GetPokemon(ctx context.Context, id int) (*Pokemon, error)
 	GetPokemonByName(ctx context.Context, name string) (*Pokemon, error)
+	// GetPokemonBySpeciesID resolves a pokemon row from a PokéAPI species ID.
+	// Pokemon IDs and species IDs are separate ID spaces; this is the only
+	// correct way to resolve an evolution target (link.ToSpeciesID).
+	GetPokemonBySpeciesID(ctx context.Context, speciesID int) (*Pokemon, error)
 	UpsertPokemon(ctx context.Context, p *Pokemon) error
 	GetEvolutionChain(ctx context.Context, id int) (*EvolutionChain, error)
 	UpsertEvolutionChain(ctx context.Context, ec *EvolutionChain) error
@@ -103,6 +107,41 @@ func (r *postgresRepository) GetPokemonByName(ctx context.Context, name string) 
 	return &p, nil
 }
 
+func (r *postgresRepository) GetPokemonBySpeciesID(ctx context.Context, speciesID int) (*Pokemon, error) {
+	query := `
+		SELECT id, name, species_id, evolution_chain_id, generation, types,
+		       base_stats, abilities, COALESCE(sprite_url, ''), raw_json, fetched_at, updated_at
+		FROM pokemon
+		WHERE species_id = $1
+		ORDER BY id ASC
+		LIMIT 1
+	`
+	row := r.db.QueryRow(ctx, query, speciesID)
+
+	var p Pokemon
+	var baseStatsJSON, abilitiesJSON, rawJSON []byte
+
+	err := row.Scan(
+		&p.ID, &p.Name, &p.SpeciesID, &p.EvolutionChainID, &p.Generation,
+		&p.Types, &baseStatsJSON, &abilitiesJSON, &p.SpriteURL, &rawJSON,
+		&p.FetchedAt, &p.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrPokemonNotFound
+		}
+		return nil, fmt.Errorf("error querying pokemon by species id %d: %w", speciesID, err)
+	}
+
+	if err := json.Unmarshal(baseStatsJSON, &p.BaseStats); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal base_stats: %w", err)
+	}
+	p.Abilities = abilitiesJSON
+	p.RawJSON = rawJSON
+
+	return &p, nil
+}
+
 func (r *postgresRepository) UpsertPokemon(ctx context.Context, p *Pokemon) error {
 	baseStatsJSON, err := json.Marshal(p.BaseStats)
 	if err != nil {
@@ -157,16 +196,26 @@ func (r *postgresRepository) UpsertPokemon(ctx context.Context, p *Pokemon) erro
 }
 
 func (r *postgresRepository) GetEvolutionChain(ctx context.Context, id int) (*EvolutionChain, error) {
-	query := `SELECT id, member_species_ids, fetched_at FROM evolution_chain WHERE id = $1`
+	query := `
+		SELECT id, member_species_ids, COALESCE(links, '[]'::jsonb), fetched_at
+		FROM evolution_chain
+		WHERE id = $1
+	`
 	row := r.db.QueryRow(ctx, query, id)
 
 	var ec EvolutionChain
-	err := row.Scan(&ec.ID, &ec.MemberSpeciesIDs, &ec.FetchedAt)
+	var linksJSON []byte
+	err := row.Scan(&ec.ID, &ec.MemberSpeciesIDs, &linksJSON, &ec.FetchedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrEvolutionChainNotFound
 		}
 		return nil, fmt.Errorf("failed to query evolution chain %d: %w", id, err)
+	}
+	if len(linksJSON) > 0 {
+		if err := json.Unmarshal(linksJSON, &ec.Links); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal evolution chain links %d: %w", id, err)
+		}
 	}
 	return &ec, nil
 }
@@ -177,14 +226,23 @@ func (r *postgresRepository) UpsertEvolutionChain(ctx context.Context, ec *Evolu
 		ec.FetchedAt = now
 	}
 
+	linksJSON, err := json.Marshal(ec.Links)
+	if err != nil {
+		return fmt.Errorf("failed to marshal evolution chain links: %w", err)
+	}
+	if ec.Links == nil {
+		linksJSON = []byte("[]") // avoid storing jsonb null
+	}
+
 	query := `
-		INSERT INTO evolution_chain (id, member_species_ids, fetched_at)
-		VALUES ($1, $2, $3)
+		INSERT INTO evolution_chain (id, member_species_ids, links, fetched_at)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (id) DO UPDATE SET
 			member_species_ids = EXCLUDED.member_species_ids,
+			links = EXCLUDED.links,
 			fetched_at = EXCLUDED.fetched_at
 	`
-	_, err := r.db.Exec(ctx, query, ec.ID, ec.MemberSpeciesIDs, ec.FetchedAt)
+	_, err = r.db.Exec(ctx, query, ec.ID, ec.MemberSpeciesIDs, linksJSON, ec.FetchedAt)
 	if err != nil {
 		return fmt.Errorf("failed to upsert evolution chain %d: %w", ec.ID, err)
 	}
@@ -192,9 +250,13 @@ func (r *postgresRepository) UpsertEvolutionChain(ctx context.Context, ec *Evolu
 }
 
 func (r *postgresRepository) CandidatePool(ctx context.Context, filter PoolFilter) ([]*Pokemon, error) {
+	// Deliberately omits abilities and raw_json: the enemy selector only needs
+	// identity, stats and evolution-chain info. Selecting the multi-KB raw
+	// payloads for every row made each pick a full multi-MB table scan, which
+	// slowed 5v5 battle starts (5 sequential picks) past client timeouts.
 	query := `
 		SELECT id, name, species_id, evolution_chain_id, generation, types,
-		       base_stats, abilities, COALESCE(sprite_url, ''), raw_json, fetched_at, updated_at
+		       base_stats, COALESCE(sprite_url, ''), fetched_at, updated_at
 		FROM pokemon
 	`
 	var args []any
@@ -214,11 +276,11 @@ func (r *postgresRepository) CandidatePool(ctx context.Context, filter PoolFilte
 	var result []*Pokemon
 	for rows.Next() {
 		var p Pokemon
-		var baseStatsJSON, abilitiesJSON, rawJSON []byte
+		var baseStatsJSON []byte
 
 		if err := rows.Scan(
 			&p.ID, &p.Name, &p.SpeciesID, &p.EvolutionChainID, &p.Generation,
-			&p.Types, &baseStatsJSON, &abilitiesJSON, &p.SpriteURL, &rawJSON,
+			&p.Types, &baseStatsJSON, &p.SpriteURL,
 			&p.FetchedAt, &p.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan candidate pokemon row: %w", err)
@@ -227,8 +289,6 @@ func (r *postgresRepository) CandidatePool(ctx context.Context, filter PoolFilte
 		if err := json.Unmarshal(baseStatsJSON, &p.BaseStats); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal base_stats: %w", err)
 		}
-		p.Abilities = abilitiesJSON
-		p.RawJSON = rawJSON
 
 		result = append(result, &p)
 	}

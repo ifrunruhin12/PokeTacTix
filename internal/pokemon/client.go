@@ -160,3 +160,87 @@ func ExtractMemberSpeciesIDs(chainJSON []byte) ([]int, error) {
 
 	return memberIDs, nil
 }
+
+// evolutionChainNode mirrors one node of the PokéAPI evolution chain tree.
+type evolutionChainNode struct {
+	Species struct {
+		URL string `json:"url"`
+	} `json:"species"`
+	EvolutionDetails []evolutionDetail    `json:"evolution_details"`
+	EvolvesTo        []evolutionChainNode `json:"evolves_to"`
+}
+
+// evolutionDetail holds the trigger conditions for a single evolution edge.
+type evolutionDetail struct {
+	MinLevel *int `json:"min_level"`
+	Trigger  struct {
+		Name string `json:"name"`
+	} `json:"trigger"`
+}
+
+// ExtractEvolutionLinks walks the evolution chain tree and returns every edge
+// with its trigger details. Each evolves_to entry may carry multiple
+// evolution_details; we keep the first one that has a level-up trigger, or the
+// first detail overall so the edge is not lost.
+func ExtractEvolutionLinks(chainJSON []byte) ([]EvolutionLink, []int, error) {
+	var payload struct {
+		Chain evolutionChainNode `json:"chain"`
+	}
+	if err := json.Unmarshal(chainJSON, &payload); err != nil {
+		return nil, nil, fmt.Errorf("failed to unmarshal evolution chain payload: %w", err)
+	}
+
+	var links []EvolutionLink
+	var memberIDs []int
+
+	speciesID := func(n evolutionChainNode) (int, bool) {
+		id, err := parseEvolutionChainIDFromURL(n.Species.URL)
+		return id, err == nil
+	}
+
+	var walk func(n evolutionChainNode)
+	walk = func(n evolutionChainNode) {
+		if fromID, ok := speciesID(n); ok {
+			memberIDs = append(memberIDs, fromID)
+		}
+		for _, child := range n.EvolvesTo {
+			toID, ok := speciesID(child)
+			if !ok {
+				continue
+			}
+
+			fromID, hasFrom := speciesID(n)
+			if hasFrom {
+				link := EvolutionLink{FromSpeciesID: fromID, ToSpeciesID: toID}
+				// Pick a single detail entry — prefer a level-up trigger, else the
+				// first — so trigger and min_level always come from the same entry.
+				// Merging fields across entries can invent a level requirement for
+				// a level-up edge that doesn't have one.
+				var chosen *evolutionDetail
+				for i := range child.EvolutionDetails {
+					d := &child.EvolutionDetails[i]
+					if d.Trigger.Name == "level-up" {
+						chosen = d
+						break
+					}
+					if chosen == nil {
+						chosen = d
+					}
+				}
+				if chosen != nil {
+					if chosen.Trigger.Name != "" {
+						link.Trigger = chosen.Trigger.Name
+					}
+					if chosen.MinLevel != nil {
+						link.MinLevel = *chosen.MinLevel
+					}
+				}
+				links = append(links, link)
+			}
+			walk(child)
+		}
+	}
+	walk(payload.Chain)
+
+	return links, memberIDs, nil
+}

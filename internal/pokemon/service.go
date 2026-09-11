@@ -3,11 +3,13 @@ package pokemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"pokemon-cli/internal/middleware"
@@ -20,6 +22,9 @@ type PokemonService interface {
 	GetByName(ctx context.Context, name string) (*Pokemon, error)
 	EnsureEvolutionChain(ctx context.Context, speciesID int, optionalChainURL string) (int, error)
 	GetRandomCard(ctx context.Context, allowSpecial bool) (Card, error)
+	// GetEvolutionForLevel returns the Pokemon the given pokemon (by pokemon ID)
+	// evolves into at the given level, or nil if no level-up evolution applies.
+	GetEvolutionForLevel(ctx context.Context, pokemonID int, level int) (*Pokemon, error)
 }
 
 type service struct {
@@ -27,13 +32,54 @@ type service struct {
 	repo   Repository
 	client PokeAPIClient
 	sf     singleflight.Group
+
+	// chainRefreshBackoff remembers when a cold evolution-chain refresh last
+	// failed, so repeated lookups back off instead of hammering PokéAPI on the
+	// player-facing battle path.
+	chainRefreshBackoff   map[int]time.Time
+	chainRefreshBackoffMu sync.Mutex
 }
 
 func NewService(cache Cache, repo Repository, client PokeAPIClient) PokemonService {
 	return &service{
-		cache:  cache,
-		repo:   repo,
-		client: client,
+		cache:               cache,
+		repo:                repo,
+		client:              client,
+		chainRefreshBackoff: make(map[int]time.Time),
+	}
+}
+
+// chainBackoffWindow is how long a failed cold evolution-chain fetch suppresses
+// retries for that chain.
+const chainBackoffWindow = 5 * time.Minute
+
+// evolutionChainRefreshTimeout bounds shared cold refreshes independently of
+// any individual caller. The PokéAPI client uses the same default timeout.
+const evolutionChainRefreshTimeout = 10 * time.Second
+
+func (s *service) shouldSkipColdRefresh(chainID int) bool {
+	s.chainRefreshBackoffMu.Lock()
+	defer s.chainRefreshBackoffMu.Unlock()
+	if s.chainRefreshBackoff == nil {
+		return false
+	}
+	failedAt, ok := s.chainRefreshBackoff[chainID]
+	return ok && time.Since(failedAt) < chainBackoffWindow
+}
+
+func (s *service) noteRefreshOutcome(chainID int, failed bool) {
+	s.chainRefreshBackoffMu.Lock()
+	defer s.chainRefreshBackoffMu.Unlock()
+	if s.chainRefreshBackoff == nil {
+		if !failed {
+			return
+		}
+		s.chainRefreshBackoff = make(map[int]time.Time)
+	}
+	if failed {
+		s.chainRefreshBackoff[chainID] = time.Now()
+	} else {
+		delete(s.chainRefreshBackoff, chainID)
 	}
 }
 
@@ -215,11 +261,12 @@ func (s *service) EnsureEvolutionChain(ctx context.Context, speciesID int, optio
 		if s.client != nil {
 			rawChain, err := s.client.FetchEvolutionChainRaw(ctx, chainID)
 			if err == nil {
-				memberIDs, err := ExtractMemberSpeciesIDs(rawChain)
+				links, memberIDs, err := ExtractEvolutionLinks(rawChain)
 				if err == nil {
 					ec := &EvolutionChain{
 						ID:               chainID,
 						MemberSpeciesIDs: memberIDs,
+						Links:            links,
 						FetchedAt:        time.Now(),
 					}
 					if s.repo != nil {
@@ -233,19 +280,11 @@ func (s *service) EnsureEvolutionChain(ctx context.Context, speciesID int, optio
 			}
 		}
 
-		// Fallback evolution chain record
-		ec := &EvolutionChain{
-			ID:               chainID,
-			MemberSpeciesIDs: []int{speciesID},
-			FetchedAt:        time.Now(),
-		}
-		if s.repo != nil {
-			_ = s.repo.UpsertEvolutionChain(ctx, ec)
-		}
-		if s.cache != nil {
-			_ = s.cache.SetEvolutionChain(ctx, ec)
-		}
-
+		// Cold fetch failed (or client unset). Deliberately do NOT persist a
+		// degraded {single member, no links} fallback record: it is indistinguishable
+		// from a genuinely single-species chain once stored, which would permanently
+		// disable evolution for that family. Leaving nothing cached lets the next
+		// evolution check retry the cold fetch (rate-limited by chainRefreshBackoff).
 		return chainID, nil
 	})
 
@@ -253,6 +292,131 @@ func (s *service) EnsureEvolutionChain(ctx context.Context, speciesID int, optio
 		return speciesID, err
 	}
 	return v.(int), nil
+}
+
+// loadEvolutionChain returns the evolution chain by ID from cache, then
+// PostgreSQL, then a cold PokéAPI fetch. Chains stored before the links column
+// existed may have members but no links; those are refreshed once from PokéAPI
+// so evolution data self-heals over time.
+func (s *service) loadEvolutionChain(ctx context.Context, chainID int) *EvolutionChain {
+	if chainID <= 0 {
+		return nil
+	}
+
+	usable := func(ec *EvolutionChain) bool {
+		return ec != nil && (len(ec.Links) > 0 || len(ec.MemberSpeciesIDs) <= 1)
+	}
+
+	var stale *EvolutionChain // multi-member chain cached before links existed
+
+	if s.cache != nil {
+		if ec, err := s.cache.GetEvolutionChain(ctx, chainID); err == nil {
+			if usable(ec) {
+				return ec
+			}
+			stale = ec
+		}
+	}
+
+	if s.repo != nil {
+		if ec, err := s.repo.GetEvolutionChain(ctx, chainID); err == nil {
+			if usable(ec) {
+				if s.cache != nil {
+					_ = s.cache.SetEvolutionChain(ctx, ec)
+				}
+				return ec
+			}
+			stale = ec
+		}
+	}
+
+	// Cold refresh is the only path that can recover missing links.
+	// On failure, fall back to the stale chain (no evolution, but no error).
+	// A short in-process backoff prevents repeated lookups from hammering
+	// PokéAPI while it is slow or unavailable.
+	if s.client != nil {
+		key := fmt.Sprintf("evochain_refresh:%d", chainID)
+		result := s.sf.DoChan(key, func() (any, error) {
+			refreshCtx, cancel := context.WithTimeout(context.Background(), evolutionChainRefreshTimeout)
+			defer cancel()
+
+			if s.shouldSkipColdRefresh(chainID) {
+				return nil, nil
+			}
+
+			rawChain, err := s.client.FetchEvolutionChainRaw(refreshCtx, chainID)
+			if err != nil {
+				s.noteRefreshOutcome(chainID, true)
+				return nil, nil
+			}
+			links, memberIDs, err := ExtractEvolutionLinks(rawChain)
+			if err != nil {
+				s.noteRefreshOutcome(chainID, true)
+				return nil, nil
+			}
+
+			ec := &EvolutionChain{
+				ID:               chainID,
+				MemberSpeciesIDs: memberIDs,
+				Links:            links,
+				FetchedAt:        time.Now(),
+			}
+			if s.repo != nil {
+				_ = s.repo.UpsertEvolutionChain(refreshCtx, ec)
+			}
+			if s.cache != nil {
+				_ = s.cache.SetEvolutionChain(refreshCtx, ec)
+			}
+			s.noteRefreshOutcome(chainID, false)
+			return ec, nil
+		})
+
+		select {
+		case shared := <-result:
+			if refreshed, ok := shared.Val.(*EvolutionChain); ok && refreshed != nil {
+				return refreshed
+			}
+		case <-ctx.Done():
+			return stale
+		}
+	}
+
+	return stale
+}
+
+// GetEvolutionForLevel returns the target Pokemon if the given pokemon has a
+// level-up evolution whose minimum level has been reached. Branching chains
+// (e.g. Eevee) resolve deterministically to the first qualifying link.
+func (s *service) GetEvolutionForLevel(ctx context.Context, pokemonID int, level int) (*Pokemon, error) {
+	p, err := s.GetByID(ctx, pokemonID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load pokemon %d for evolution check: %w", pokemonID, err)
+	}
+
+	chain := s.loadEvolutionChain(ctx, p.EvolutionChainID)
+	if chain == nil {
+		return nil, nil
+	}
+
+	link := PickEvolutionLink(chain.Links, p.SpeciesID, level)
+	if link == nil {
+		return nil, nil
+	}
+
+	// Resolve the target via species_id so the two PokéAPI ID spaces (pokemon
+	// vs species) are never conflated. Falls back to GetByID only when no row
+	// for that species is stored yet (preserves the cold warm-up path).
+	var target *Pokemon
+	if s.repo != nil {
+		target, err = s.repo.GetPokemonBySpeciesID(ctx, link.ToSpeciesID)
+	}
+	if s.repo == nil || errors.Is(err, ErrPokemonNotFound) {
+		target, err = s.GetByID(ctx, link.ToSpeciesID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to load evolution target %d: %w", link.ToSpeciesID, err)
+	}
+	return target, nil
 }
 
 func (s *service) GetRandomCard(ctx context.Context, allowSpecial bool) (Card, error) {

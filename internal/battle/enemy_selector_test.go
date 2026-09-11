@@ -68,6 +68,19 @@ func (m *mockRepo) GetPokemonByName(ctx context.Context, name string) (*pokemon.
 	return nil, pokemon.ErrPokemonNotFound
 }
 
+func (m *mockRepo) GetPokemonBySpeciesID(ctx context.Context, speciesID int) (*pokemon.Pokemon, error) {
+	var match *pokemon.Pokemon
+	for _, p := range m.pool {
+		if p.SpeciesID == speciesID && (match == nil || p.ID < match.ID) {
+			match = p
+		}
+	}
+	if match != nil {
+		return match, nil
+	}
+	return nil, pokemon.ErrPokemonNotFound
+}
+
 func (m *mockRepo) UpsertPokemon(ctx context.Context, p *pokemon.Pokemon) error {
 	m.pool = append(m.pool, p)
 	return nil
