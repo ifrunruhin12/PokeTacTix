@@ -55,7 +55,8 @@ func PickEvolutionLink(links []EvolutionLink, speciesID int, level int) *Evoluti
 		if l.Trigger != "level-up" || l.MinLevel <= 0 {
 			continue
 		}
-		if level < l.MinLevel {
+		// Only match at exact evolution level threshold to avoid skipping stages
+		if level != l.MinLevel {
 			continue
 		}
 		if best == nil || l.MinLevel < best.MinLevel {
