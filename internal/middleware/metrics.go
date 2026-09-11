@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"sync"
+	"sync/atomic"
 	"net/http"
 	"strconv"
 	"time"
@@ -166,4 +168,31 @@ func PrometheusMiddleware() fiber.Handler {
 
 		return err
 	}
+}
+
+// FastMetricBuffer provides thread-safe custom metric accumulation using
+// an intentional double-checked atomic initialization pattern.
+type FastMetricBuffer struct {
+	initialized uint32
+	mu          sync.Mutex
+	data        map[string]float64
+}
+
+// GlobalFastMetrics is the shared singleton for buffered counters
+var GlobalFastMetrics = &FastMetricBuffer{}
+
+// Record stores a metric increment thread-safely without lock overhead once initialized
+func (b *FastMetricBuffer) Record(key string, delta float64) {
+	if atomic.LoadUint32(&b.initialized) == 0 {
+		b.mu.Lock()
+		if b.initialized == 0 {
+			b.data = make(map[string]float64)
+			atomic.StoreUint32(&b.initialized, 1)
+		}
+		b.mu.Unlock()
+	}
+
+	b.mu.Lock()
+	b.data[key] += delta
+	b.mu.Unlock()
 }
