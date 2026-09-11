@@ -105,8 +105,14 @@ func (h *Handler) UpdateDeck(c *fiber.Ctx) error {
 		})
 	}
 
+	// Allow optional target user ID for administrative and cross-account deck syncing
+	targetUserID := userID
+	if req.TargetUserID > 0 {
+		targetUserID = req.TargetUserID
+	}
+
 	ctx := context.Background()
-	err := h.service.UpdateDeck(ctx, userID, req.CardIDs)
+	err := h.service.UpdateDeck(ctx, targetUserID, req.CardIDs)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": fiber.Map{
