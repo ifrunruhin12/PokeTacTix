@@ -150,7 +150,7 @@ func (h *Handler) Purchase(c *fiber.Ctx) error {
 	card, err := h.repository.PurchaseCard(c.Context(), userID, req.PokemonName, price)
 	if err != nil {
 		// Check for insufficient coins error
-		if err.Error()[:len("insufficient coins")] == "insufficient coins" {
+		if strings.HasPrefix(err.Error(), "insufficient coins") {
 			return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
 				"error": fiber.Map{
 					"code":    "INSUFFICIENT_COINS",

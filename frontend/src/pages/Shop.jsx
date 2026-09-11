@@ -92,24 +92,36 @@ export default function Shop() {
     try {
       setIsProcessing(true);
       setPurchaseError(null);
-      
+
       const result = await shopService.purchaseCard(selectedItem.pokemon_name);
-      
+
       // Update user coins
       updateUser({ coins: result.remaining_coins });
-      
+
       // Add to owned Pokemon
       setOwnedPokemon(prev => [...prev, selectedItem.pokemon_name.toLowerCase()]);
-      
+
       // Close modal
       setIsModalOpen(false);
       setSelectedItem(null);
-      
+
       // Show success message
       setSuccessMessage(`Successfully purchased ${selectedItem.pokemon_name}!`);
       setTimeout(() => setSuccessMessage(null), 5000);
-      
+
     } catch (err) {
+      // Timeouts / unreachable servers land here without a status. The
+      // purchase may still complete server-side (coins deducted, card
+      // created), so warn instead of showing a plain failure — a blind
+      // retry can double-charge.
+      if (err.code === 'ECONNABORTED'
+        || err.message?.includes('timeout')
+        || err.message === 'No response from server') {
+        setPurchaseError('Purchase timed out. It may still have completed — reload the page before trying again to avoid buying twice.');
+        console.error('Purchase timed out (result uncertain):', err);
+        return;
+      }
+
       setPurchaseError(err.message || 'Failed to complete purchase');
     } finally {
       setIsProcessing(false);

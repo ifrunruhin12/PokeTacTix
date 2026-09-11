@@ -29,49 +29,96 @@ func getDefaultService() PokemonService {
 	return defaultService
 }
 
-// GetMoves fetches move details from the API
+// GetMoves fetches move details from the API and returns up to 4 moves with
+// positive power.
+//
+// Candidates are drawn in random order like before, but bounded to
+// maxMoveCandidates and fetched concurrently. The previous sequential loop
+// walked the Pokemon's entire move list one HTTP round trip at a time (many
+// are zero-power status moves that get discarded), which regularly exceeded
+// frontend timeouts on the shop purchase path even though the purchase
+// itself succeeded server-side.
 func GetMoves(rawMoves []RawMove) []Move {
-	const maxMoves = 4
+	const (
+		maxMoves          = 4
+		maxMoveCandidates = 24
+		maxConcurrency    = 8
+	)
+
+	if len(rawMoves) == 0 {
+		return nil
+	}
+
 	perm := rand.Perm(len(rawMoves))
-	var gameMoves []Move
+	if len(perm) > maxMoveCandidates {
+		perm = perm[:maxMoveCandidates]
+	}
 
 	// Create HTTP client with timeout
 	client := &http.Client{
 		Timeout: 3 * time.Second,
 	}
 
-	for _, i := range perm {
-		moveURL := rawMoves[i].Move.URL
-		resp, err := client.Get(moveURL)
-		if err != nil {
+	type moveResult struct {
+		move Move
+		ok   bool
+	}
+
+	results := make([]moveResult, len(perm))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxConcurrency)
+
+	for i, idx := range perm {
+		wg.Add(1)
+		go func(slot, rawIdx int) {
+			defer wg.Done()
+
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			moveURL := rawMoves[rawIdx].Move.URL
+			resp, err := client.Get(moveURL)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+
+			var data struct {
+				Name  string `json:"name"`
+				Power int    `json:"power"`
+				Type  struct {
+					Name string `json:"name"`
+				} `json:"type"`
+			}
+
+			if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+				return
+			}
+
+			if data.Power <= 0 {
+				return
+			}
+
+			results[slot] = moveResult{
+				ok: true,
+				move: Move{
+					Name:        data.Name,
+					Power:       data.Power,
+					StaminaCost: data.Power / 3,
+					Type:        data.Type.Name,
+				},
+			}
+		}(i, idx)
+	}
+	wg.Wait()
+
+	// Preserve the shuffled candidate order when picking the final moves.
+	var gameMoves []Move
+	for _, res := range results {
+		if !res.ok {
 			continue
 		}
-
-		var data struct {
-			Name  string `json:"name"`
-			Power int    `json:"power"`
-			Type  struct {
-				Name string `json:"name"`
-			} `json:"type"`
-		}
-
-		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-			resp.Body.Close()
-			continue
-		}
-		resp.Body.Close()
-
-		if data.Power <= 0 {
-			continue
-		}
-
-		gameMoves = append(gameMoves, Move{
-			Name:        data.Name,
-			Power:       data.Power,
-			StaminaCost: data.Power / 3,
-			Type:        data.Type.Name,
-		})
-
+		gameMoves = append(gameMoves, res.move)
 		if len(gameMoves) == maxMoves {
 			break
 		}
