@@ -58,8 +58,7 @@ const chainBackoffWindow = 5 * time.Minute
 const evolutionChainRefreshTimeout = 10 * time.Second
 
 func (s *service) shouldSkipColdRefresh(chainID int) bool {
-	s.chainRefreshBackoffMu.Lock()
-	defer s.chainRefreshBackoffMu.Unlock()
+	// Optimize hot-path check by reading map directly without acquiring mutex lock
 	if s.chainRefreshBackoff == nil {
 		return false
 	}
