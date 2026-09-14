@@ -337,38 +337,7 @@ func (s *service) loadEvolutionChain(ctx context.Context, chainID int) *Evolutio
 	if s.client != nil {
 		key := fmt.Sprintf("evochain_refresh:%d", chainID)
 		result := s.sf.DoChan(key, func() (any, error) {
-			refreshCtx, cancel := context.WithTimeout(context.Background(), evolutionChainRefreshTimeout)
-			defer cancel()
-
-			if s.shouldSkipColdRefresh(chainID) {
-				return nil, nil
-			}
-
-			rawChain, err := s.client.FetchEvolutionChainRaw(refreshCtx, chainID)
-			if err != nil {
-				s.noteRefreshOutcome(chainID, true)
-				return nil, nil
-			}
-			links, memberIDs, err := ExtractEvolutionLinks(rawChain)
-			if err != nil {
-				s.noteRefreshOutcome(chainID, true)
-				return nil, nil
-			}
-
-			ec := &EvolutionChain{
-				ID:               chainID,
-				MemberSpeciesIDs: memberIDs,
-				Links:            links,
-				FetchedAt:        time.Now(),
-			}
-			if s.repo != nil {
-				_ = s.repo.UpsertEvolutionChain(refreshCtx, ec)
-			}
-			if s.cache != nil {
-				_ = s.cache.SetEvolutionChain(refreshCtx, ec)
-			}
-			s.noteRefreshOutcome(chainID, false)
-			return ec, nil
+			return s.refreshEvolutionChain(chainID), nil
 		})
 
 		select {
@@ -384,6 +353,69 @@ func (s *service) loadEvolutionChain(ctx context.Context, chainID int) *Evolutio
 	return stale
 }
 
+// refreshEvolutionChain performs the cold PokéAPI fetch for a chain and
+// persists the result to PostgreSQL and Redis. A failed refresh notes the
+// backoff window; a successful one clears it. Returns nil on any failure —
+// callers treat that as "keep whatever stale data we already have".
+func (s *service) refreshEvolutionChain(chainID int) *EvolutionChain {
+	if s.client == nil {
+		return nil
+	}
+
+	refreshCtx, cancel := context.WithTimeout(context.Background(), evolutionChainRefreshTimeout)
+	defer cancel()
+
+	if s.shouldSkipColdRefresh(chainID) {
+		return nil
+	}
+
+	rawChain, err := s.client.FetchEvolutionChainRaw(refreshCtx, chainID)
+	if err != nil {
+		s.noteRefreshOutcome(chainID, true)
+		return nil
+	}
+	links, memberIDs, err := ExtractEvolutionLinks(rawChain)
+	if err != nil {
+		s.noteRefreshOutcome(chainID, true)
+		return nil
+	}
+
+	ec := &EvolutionChain{
+		ID:               chainID,
+		MemberSpeciesIDs: memberIDs,
+		Links:            links,
+		FetchedAt:        time.Now(),
+	}
+	if s.repo != nil {
+		_ = s.repo.UpsertEvolutionChain(refreshCtx, ec)
+	}
+	if s.cache != nil {
+		_ = s.cache.SetEvolutionChain(refreshCtx, ec)
+	}
+	s.noteRefreshOutcome(chainID, false)
+	return ec
+}
+
+// warmEvolutionChain retries a cold refresh for a chain that came back empty.
+// It runs detached from any request: the refresh outcome is shared state, so
+// tying it to a caller's context would cancel the work for everyone else the
+// moment that one request finishes. Failures are only logged — there is no
+// caller to surface them to, and the next battle will retry anyway.
+func (s *service) warmEvolutionChain(chainID int) {
+	key := fmt.Sprintf("evochain_warm:%d", chainID)
+	result := s.sf.DoChan(key, func() (any, error) {
+		return s.refreshEvolutionChain(chainID), nil
+	})
+	select {
+	case shared := <-result:
+		if _, ok := shared.Val.(*EvolutionChain); !ok {
+			slog.Debug("evolution chain warm-up failed", "chain_id", chainID)
+		}
+	case <-time.After(evolutionChainRefreshTimeout + time.Second):
+		slog.Debug("evolution chain warm-up timed out", "chain_id", chainID)
+	}
+}
+
 // GetEvolutionForLevel returns the target Pokemon if the given pokemon has a
 // level-up evolution whose minimum level has been reached. Branching chains
 // (e.g. Eevee) resolve deterministically to the first qualifying link.
@@ -395,6 +427,9 @@ func (s *service) GetEvolutionForLevel(ctx context.Context, pokemonID int, level
 
 	chain := s.loadEvolutionChain(ctx, p.EvolutionChainID)
 	if chain == nil {
+		// No usable chain data at all — schedule a background retry so the
+		// next battle doesn't hit the same cold miss.
+		go s.warmEvolutionChain(p.EvolutionChainID)
 		return nil, nil
 	}
 
