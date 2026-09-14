@@ -23,6 +23,7 @@ type BattleState struct {
 	BattleOver           bool         `json:"battle_over"`
 	Winner               string       `json:"winner"`             // "player", "ai", "draw"
 	RewardClaimed        bool         `json:"reward_claimed"`     // Track if 5v5 reward has been claimed
+	RewardsSettled       bool         `json:"rewards_settled"`    // Track if coins/XP were paid out for this battle
 	ConsecutivePasses    int          `json:"consecutive_passes"` // Track consecutive passes by both players
 	PendingPlayerMove    string       `json:"pending_player_move"`
 	PendingPlayerMoveIdx int          `json:"pending_player_move_idx"`
@@ -40,6 +41,13 @@ func playerSacrificeKey(deckIndex int) int {
 
 func aiSacrificeKey(deckIndex int) int {
 	return -deckIndex - 1
+}
+
+// needsSettlement reports whether a finished battle still owes its coin/XP
+// payout — either it was never attempted, or the attempt failed and the
+// battle was left unflagged for a later retry.
+func (bs *BattleState) needsSettlement() bool {
+	return bs.BattleOver && !bs.RewardsSettled
 }
 
 // BattleCard represents a Pokemon card in battle with current state
@@ -218,6 +226,7 @@ func BuildBattleResponse(bs *BattleState, logEntries []string, hideAICards bool)
 		"battle_over":       bs.BattleOver,
 		"winner":            bs.Winner,
 		"reward_claimed":    bs.RewardClaimed,
+		"rewards_settled":   bs.RewardsSettled,
 		"log":               logEntries,
 		"created_at":        bs.CreatedAt,
 		"updated_at":        bs.UpdatedAt,
