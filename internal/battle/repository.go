@@ -188,6 +188,41 @@ func (r *Repository) RecordBattleHistory(ctx context.Context, userID int, mode, 
 	return nil
 }
 
+func (r *Repository) GetRecentWinStreak(ctx context.Context, userID int) (int, error) {
+	query := `
+		SELECT result
+		FROM battle_history
+		WHERE user_id = $1
+		ORDER BY created_at DESC
+		LIMIT 50
+	`
+
+	rows, err := r.db.Query(ctx, query, userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get recent battles: %w", err)
+	}
+	defer rows.Close()
+
+	// Walk backwards from the most recent battle; anything that is not a
+	// win breaks the streak
+	streak := 0
+	for rows.Next() {
+		var result string
+		if err := rows.Scan(&result); err != nil {
+			return 0, fmt.Errorf("failed to scan battle result: %w", err)
+		}
+		if result != "win" {
+			continue
+		}
+		streak++
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("error iterating battle results: %w", err)
+	}
+
+	return streak, nil
+}
+
 func (r *Repository) UpdatePlayerStats(ctx context.Context, userID int, mode, result string, coinsEarned int) error {
 	// Validate mode to prevent SQL injection
 	if mode != "1v1" && mode != "5v5" {

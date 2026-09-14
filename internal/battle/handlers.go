@@ -486,6 +486,10 @@ func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
 				// Add comprehensive rewards to response
 				response["coins_earned"] = rewards.CoinsEarned
 				response["xp_gains"] = rewards.XPGains
+				if rewards.StreakBonus > 0 {
+					response["streak_bonus"] = rewards.StreakBonus
+					response["win_streak"] = rewards.WinStreak
+				}
 				if len(rewards.NewlyUnlockedAchievements) > 0 {
 					response["newly_unlocked_achievements"] = rewards.NewlyUnlockedAchievements
 				}
