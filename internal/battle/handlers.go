@@ -483,6 +483,12 @@ func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
 				// Still return partial rewards info if available
 				response["coins_earned"] = rewards.CoinsEarned
 			} else {
+				// Mark the battle as settled so it is never paid out twice.
+				battleState.RewardsSettled = true
+				if err := h.SaveBattleState(c, battleState); err != nil {
+					fmt.Printf("Failed to mark battle as settled: %v\n", err)
+				}
+
 				// Add comprehensive rewards to response
 				response["coins_earned"] = rewards.CoinsEarned
 				response["xp_gains"] = rewards.XPGains
@@ -533,6 +539,10 @@ func (h *Handler) GetBattleStateEnhanced(c *fiber.Ctx) error {
 // most recent unfinished battle (if any) so a timed-out battle start can be
 // resumed instead of double-spending a token on a new one. 404 when the user
 // has no active battle.
+//
+// Finished battles that were never settled (the rewards request failed or the
+// client disappeared before it was sent) are settled here as a retry path:
+// coins/XP are applied and the battle is marked as settled before continuing.
 func (h *Handler) GetActiveBattleHandler(c *fiber.Ctx) error {
 	userID, ok := c.Locals("user_id").(int)
 	if !ok {
@@ -547,7 +557,15 @@ func (h *Handler) GetActiveBattleHandler(c *fiber.Ctx) error {
 	// GetUserBattleSessions is ordered by updated_at DESC; take the newest
 	// battle that hasn't finished yet.
 	for _, state := range states {
-		if state == nil || state.BattleOver {
+		if state == nil {
+			continue
+		}
+		if state.BattleOver {
+			if state.needsSettlement() {
+				if err := h.settleFinishedBattle(c, state); err != nil {
+					fmt.Printf("Failed to settle finished battle %s: %v\n", state.ID, err)
+				}
+			}
 			continue
 		}
 		hideAICards := state.Mode != "5v5" || state.Winner != "player"
@@ -556,6 +574,28 @@ func (h *Handler) GetActiveBattleHandler(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No active battle"})
+}
+
+// settleFinishedBattle applies rewards for a battle that ended without a
+// successful payout and persists the settled flag. Returns nil when the
+// database connection is unavailable on the request context.
+func (h *Handler) settleFinishedBattle(c *fiber.Ctx, state *BattleState) error {
+	db, ok := c.Locals("db").(*pgxpool.Pool)
+	if !ok {
+		return nil
+	}
+
+	rewards := CalculateAllRewards(state)
+	if err := ApplyAllRewards(c.Context(), db, state.UserID, state, rewards, h.statsService, h.repo, h.pokemonService); err != nil {
+		return err
+	}
+
+	state.RewardsSettled = true
+	if err := h.SaveBattleState(c, state); err != nil {
+		return fmt.Errorf("failed to persist settled flag: %w", err)
+	}
+
+	return nil
 }
 
 // SwitchPokemonHandler handles POST /api/battle/switch
