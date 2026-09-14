@@ -119,6 +119,15 @@ var (
 		},
 	)
 
+	// WinStreakBonusTotal counts win-streak coin bonuses paid out, by tier.
+	WinStreakBonusTotal = newCounterVec(
+		prometheus.CounterOpts{
+			Name: "poketactix_win_streak_bonuses_total",
+			Help: "Total number of win-streak coin bonuses paid out",
+		},
+		[]string{"tier"}, // 2, 3, 4, 5+
+	)
+
 	// RegisteredUsers tracks total registered users, refreshed periodically from DB
 	RegisteredUsers = newGauge(
 		prometheus.GaugeOpts{
