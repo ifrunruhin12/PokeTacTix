@@ -32,7 +32,10 @@ type PokemonXPGain struct {
 	NewSprite   string `json:"new_sprite,omitempty"`
 }
 
-// CalculateXPForBattle calculates XP for all Pokemon that participated in battle
+// CalculateXPForBattle calculates XP for all Pokemon that participated in battle.
+// A Pokemon participated if it took damage, was knocked out, or acted at some
+// point during the battle (attack, defend, or sacrifice) — even a flawless
+// win should earn XP.
 func CalculateXPForBattle(bs *BattleState) map[int]int {
 	xpMap := make(map[int]int)
 
@@ -70,12 +73,25 @@ func CalculateXPForBattle(bs *BattleState) map[int]int {
 				break // Only one Pokemon participates in 1v1
 			}
 		}
+		// Otherwise fall back to recorded actions, and finally to the active
+		// card — a 1v1 winner that took no damage still participated
+		if len(xpMap) == 0 {
+			for cardID := range bs.Participants {
+				xpMap[cardID] = baseXP
+				break
+			}
+		}
+		if len(xpMap) == 0 {
+			if card := bs.GetActivePlayerCard(); card != nil {
+				xpMap[card.CardID] = baseXP
+			}
+		}
 	case "5v5":
 		// In 5v5, all Pokemon that participated get XP
-		// A Pokemon participated if it took damage or was knocked out
-		for _, card := range bs.PlayerDeck {
-			// Check if Pokemon participated (HP changed from max or was knocked out)
-			if card.HP < card.HPMax || card.IsKnockedOut {
+		for i, card := range bs.PlayerDeck {
+			// Damage taken, a knockout, or a recorded action all count as
+			// participation
+			if card.HP < card.HPMax || card.IsKnockedOut || bs.Participants[i] {
 				xpMap[card.CardID] = baseXP
 			}
 		}

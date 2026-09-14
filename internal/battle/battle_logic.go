@@ -49,6 +49,7 @@ func StartBattle(userID int, mode string, playerDeck []pokemon.Card, aiDeck []po
 		BattleOver:      false,
 		Winner:          "",
 		SacrificeCount:  make(map[int]int),
+		Participants:    make(map[int]bool),
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
@@ -117,6 +118,7 @@ func ProcessMove(bs *BattleState, move string, moveIdx *int) ([]string, error) {
 			return nil, err
 		}
 		bs.SacrificeCount[sacrificeKey] = sacrificeCount + 1
+		bs.recordParticipant(playerCard.CardID)
 		logEntries = append(logEntries, fmt.Sprintf("Player sacrificed %d HP and gained %d stamina.", result.HPLost, result.StaminaGained))
 		return logEntries, nil
 	}
@@ -143,6 +145,12 @@ func ProcessMove(bs *BattleState, move string, moveIdx *int) ([]string, error) {
 		if playerCard.Stamina < defendCost {
 			return nil, fmt.Errorf("insufficient stamina to defend")
 		}
+	}
+
+	// Mark the acting Pokemon for participation XP. Pass is excluded on
+	// purpose — a lead that only passed never actually fought.
+	if move == "attack" || move == "defend" {
+		bs.recordParticipant(playerCard.CardID)
 	}
 
 	// Store player's move

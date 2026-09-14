@@ -30,6 +30,7 @@ export default function Battle() {
       
       // Handle both snake_case (from backend) and camelCase formats
       return {
+        card_id: pokemon.card_id !== undefined ? pokemon.card_id : pokemon.CardID,
         name: pokemon.name || pokemon.Name,
         pokemon_name: pokemon.name || pokemon.Name,
         hp: pokemon.hp !== undefined ? pokemon.hp : pokemon.HP,
@@ -100,10 +101,21 @@ export default function Battle() {
           sprite: gain.new_sprite || null
         }));
       
+      // Per-card XP badges for the deck view. The backend returns xp_gains
+      // in the same order as the player's deck.
+      const deck = data.player_deck || data.Player?.Deck || [];
+      const xp_by_card_id = {};
+      xpGains.forEach((gain, idx) => {
+        if (deck[idx] && deck[idx].card_id !== undefined) {
+          xp_by_card_id[deck[idx].card_id] = gain.xp_gained;
+        }
+      });
+      
       return {
         pokemon_details,
         level_ups: level_ups.length > 0 ? level_ups : undefined,
-        evolutions: evolutions.length > 0 ? evolutions : undefined
+        evolutions: evolutions.length > 0 ? evolutions : undefined,
+        xp_by_card_id
       };
     };
     
@@ -116,16 +128,16 @@ export default function Battle() {
     }
     
     // Add XP gains
-    if (data.xp_gains && data.xp_gains.length > 0) {
-      const xpData = transformXPGains(data.xp_gains);
-      if (xpData) {
-        rewards.pokemon_details = xpData.pokemon_details;
-        if (xpData.level_ups) {
-          rewards.level_ups = xpData.level_ups;
-        }
-        if (xpData.evolutions) {
-          rewards.evolutions = xpData.evolutions;
-        }
+    const xpData = data.xp_gains && data.xp_gains.length > 0
+      ? transformXPGains(data.xp_gains)
+      : null;
+    if (xpData) {
+      rewards.pokemon_details = xpData.pokemon_details;
+      if (xpData.level_ups) {
+        rewards.level_ups = xpData.level_ups;
+      }
+      if (xpData.evolutions) {
+        rewards.evolutions = xpData.evolutions;
       }
     }
     
@@ -148,6 +160,7 @@ export default function Battle() {
       winner: data.winner || (data.BattleOver ? (data.PlayerSurrendered ? 'ai' : 'player') : null),
       log: data.log || [],
       rewards: Object.keys(rewards).length > 0 ? rewards : undefined,
+      xp_by_card_id: xpData ? xpData.xp_by_card_id : undefined,
       player_sacrifice_count: data.player_sacrifice_count || 0,
       player_sacrifice_cost: data.player_sacrifice_cost ?? null,
     };
