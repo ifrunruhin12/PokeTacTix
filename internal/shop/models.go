@@ -1,6 +1,7 @@
 package shop
 
 import (
+	"pokemon-cli/internal/items"
 	"pokemon-cli/internal/pokemon"
 	"time"
 )
@@ -25,17 +26,20 @@ type ShopItem struct {
 
 // GameTokenItem represents game tokens available for purchase
 type GameTokenItem struct {
-	ItemType           string `json:"item_type"`            // "game_token"
-	Price              int    `json:"price"`                // 100 coins per token
-	AvailableQuantity  int    `json:"available_quantity"`   // 10 - tokens_purchased_today
-	MaxDailyPurchase   int    `json:"max_daily_purchase"`   // 10
-	Description        string `json:"description"`
+	ItemType          string `json:"item_type"`          // "game_token"
+	Price             int    `json:"price"`              // 100 coins per token
+	AvailableQuantity int    `json:"available_quantity"` // 10 - tokens_purchased_today
+	MaxDailyPurchase  int    `json:"max_daily_purchase"` // 10
+	Description       string `json:"description"`
 }
 
-// ShopInventory represents the current shop state
+// ShopInventory represents the current shop state. The shop is organized into
+// categories: Pokemon cards (Items), game tokens (GameTokens) and game items
+// like evolution stones (GameItems).
 type ShopInventory struct {
 	Items           []ShopItem     `json:"items"`
 	GameTokens      *GameTokenItem `json:"game_tokens,omitempty"` // Token purchase option
+	GameItems       []items.Item   `json:"game_items"`            // Purchasable game items (evolution stones, future boosters)
 	DiscountActive  bool           `json:"discount_active"`
 	DiscountPercent int            `json:"discount_percent"`
 	RefreshTime     time.Time      `json:"refresh_time"`

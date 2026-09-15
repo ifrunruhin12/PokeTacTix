@@ -25,6 +25,13 @@ type PokemonService interface {
 	// GetEvolutionForLevel returns the Pokemon the given pokemon (by pokemon ID)
 	// evolves into at the given level, or nil if no level-up evolution applies.
 	GetEvolutionForLevel(ctx context.Context, pokemonID int, level int) (*Pokemon, error)
+	// GetEvolutionForItem returns the Pokemon the given pokemon (by pokemon ID)
+	// evolves into when the given item id (slug) is used, or nil if no use-item
+	// evolution matches.
+	GetEvolutionForItem(ctx context.Context, pokemonID int, itemID string) (*Pokemon, error)
+	// GetEvolutionOptions returns every evolution mechanism available to the
+	// given pokemon (by pokemon ID), with resolved target details.
+	GetEvolutionOptions(ctx context.Context, pokemonID int) ([]EvolutionOption, error)
 }
 
 type service struct {
@@ -268,6 +275,7 @@ func (s *service) EnsureEvolutionChain(ctx context.Context, speciesID int, optio
 						MemberSpeciesIDs: memberIDs,
 						Links:            links,
 						FetchedAt:        time.Now(),
+						Version:          CurrentEvolutionExtractionVersion,
 					}
 					if s.repo != nil {
 						_ = s.repo.UpsertEvolutionChain(ctx, ec)
@@ -304,7 +312,19 @@ func (s *service) loadEvolutionChain(ctx context.Context, chainID int) *Evolutio
 	}
 
 	usable := func(ec *EvolutionChain) bool {
-		return ec != nil && (len(ec.Links) > 0 || len(ec.MemberSpeciesIDs) <= 1)
+		if ec == nil {
+			return false
+		}
+		if len(ec.Links) == 0 || len(ec.MemberSpeciesIDs) <= 1 {
+			return true
+		}
+		// Chains stored/cached before the current extraction code are stale —
+		// their links may be missing data the current extraction produces (item
+		// ids, friendship-synthesized levels) — so they are refreshed on use.
+		if ec.Version < CurrentEvolutionExtractionVersion {
+			return false
+		}
+		return true
 	}
 
 	var stale *EvolutionChain // multi-member chain cached before links existed
@@ -360,6 +380,7 @@ func (s *service) loadEvolutionChain(ctx context.Context, chainID int) *Evolutio
 				MemberSpeciesIDs: memberIDs,
 				Links:            links,
 				FetchedAt:        time.Now(),
+				Version:          CurrentEvolutionExtractionVersion,
 			}
 			if s.repo != nil {
 				_ = s.repo.UpsertEvolutionChain(refreshCtx, ec)
@@ -403,18 +424,82 @@ func (s *service) GetEvolutionForLevel(ctx context.Context, pokemonID int, level
 		return nil, nil
 	}
 
-	// Resolve the target via species_id so the two PokéAPI ID spaces (pokemon
-	// vs species) are never conflated. Falls back to GetByID only when no row
-	// for that species is stored yet (preserves the cold warm-up path).
+	return s.resolveBySpeciesID(ctx, link.ToSpeciesID)
+}
+
+// GetEvolutionForItem returns the target Pokemon if the given pokemon has a
+// use-item evolution that requires the given item id (slug), or nil when no
+// such evolution applies. Level-up edges are never matched, so item evolution
+// cannot be triggered by leveling alone.
+func (s *service) GetEvolutionForItem(ctx context.Context, pokemonID int, itemID string) (*Pokemon, error) {
+	if strings.TrimSpace(itemID) == "" {
+		return nil, fmt.Errorf("item id cannot be empty")
+	}
+
+	p, err := s.GetByID(ctx, pokemonID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load pokemon %d for evolution check: %w", pokemonID, err)
+	}
+
+	chain := s.loadEvolutionChain(ctx, p.EvolutionChainID)
+	if chain == nil {
+		return nil, nil
+	}
+
+	link := PickEvolutionLinkForItem(chain.Links, p.SpeciesID, itemID)
+	if link == nil {
+		return nil, nil
+	}
+
+	return s.resolveBySpeciesID(ctx, link.ToSpeciesID)
+}
+
+// GetEvolutionOptions returns every evolution mechanism available to the given
+// pokemon (by pokemon ID): level-up edges with a usable minimum level and
+// use-item edges naming a required item. Target names and sprites are resolved
+// eagerly; edges whose target cannot be resolved are skipped.
+func (s *service) GetEvolutionOptions(ctx context.Context, pokemonID int) ([]EvolutionOption, error) {
+	p, err := s.GetByID(ctx, pokemonID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load pokemon %d for evolution options: %w", pokemonID, err)
+	}
+
+	chain := s.loadEvolutionChain(ctx, p.EvolutionChainID)
+	if chain == nil {
+		return nil, nil
+	}
+
+	options := EvolutionOptionsFromLinks(chain.Links, p.SpeciesID)
+	resolved := make([]EvolutionOption, 0, len(options))
+	for _, opt := range options {
+		target, err := s.resolveBySpeciesID(ctx, opt.ToSpeciesID)
+		if err != nil || target == nil {
+			slog.Debug("skipping evolution option with unresolvable target",
+				"pokemon_id", pokemonID, "to_species_id", opt.ToSpeciesID, "error", err)
+			continue
+		}
+		opt.TargetName = target.Name
+		opt.TargetSprite = target.SpriteURL
+		resolved = append(resolved, opt)
+	}
+	return resolved, nil
+}
+
+// resolveBySpeciesID resolves an evolution target via species_id so the two
+// PokéAPI ID spaces (pokemon vs species) are never conflated. Falls back to
+// GetByID only when no row for that species is stored yet (preserves the cold
+// warm-up path).
+func (s *service) resolveBySpeciesID(ctx context.Context, speciesID int) (*Pokemon, error) {
 	var target *Pokemon
+	var err error
 	if s.repo != nil {
-		target, err = s.repo.GetPokemonBySpeciesID(ctx, link.ToSpeciesID)
+		target, err = s.repo.GetPokemonBySpeciesID(ctx, speciesID)
 	}
 	if s.repo == nil || errors.Is(err, ErrPokemonNotFound) {
-		target, err = s.GetByID(ctx, link.ToSpeciesID)
+		target, err = s.GetByID(ctx, speciesID)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to load evolution target %d: %w", link.ToSpeciesID, err)
+		return nil, fmt.Errorf("failed to load evolution target %d: %w", speciesID, err)
 	}
 	return target, nil
 }

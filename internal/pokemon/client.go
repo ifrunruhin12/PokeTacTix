@@ -176,6 +176,10 @@ type evolutionDetail struct {
 	Trigger  struct {
 		Name string `json:"name"`
 	} `json:"trigger"`
+	Item *struct {
+		Name string `json:"name"`
+	} `json:"item"`
+	MinHappiness *int `json:"min_happiness"`
 }
 
 // ExtractEvolutionLinks walks the evolution chain tree and returns every edge
@@ -233,6 +237,17 @@ func ExtractEvolutionLinks(chainJSON []byte) ([]EvolutionLink, []int, error) {
 					}
 					if chosen.MinLevel != nil {
 						link.MinLevel = *chosen.MinLevel
+					}
+					// Friendship evolutions (level-up gated by min_happiness, no
+					// min_level) become ordinary level-up evolutions at a fixed
+					// level — this game has no friendship mechanic.
+					if chosen.Trigger.Name == TriggerLevelUp &&
+						link.MinLevel <= 0 &&
+						chosen.MinHappiness != nil && *chosen.MinHappiness > 0 {
+						link.MinLevel = FriendshipEvolutionLevel
+					}
+					if chosen.Item != nil && chosen.Item.Name != "" {
+						link.Item = chosen.Item.Name
 					}
 				}
 				links = append(links, link)

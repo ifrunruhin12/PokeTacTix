@@ -1,12 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import shopService from '../services/shop.service';
+import itemService from '../services/item.service';
 import ShopGrid from '../components/shop/ShopGrid';
 import ShopFilters from '../components/shop/ShopFilters';
 import PurchaseModal from '../components/shop/PurchaseModal';
 import DiscountBanner from '../components/shop/DiscountBanner';
 import TokenPurchaseSection from '../components/shop/TokenPurchaseSection';
+import ItemsGrid from '../components/shop/ItemsGrid';
 import api from '../services/api';
+
+// Shop categories
+const CATEGORIES = [
+  { id: 'pokemon', label: '👤 Pokémon' },
+  { id: 'tokens', label: '🎟️ Game Tokens' },
+  { id: 'items', label: '💎 Items' },
+];
 
 export default function Shop() {
   const { user, updateUser } = useAuth();
@@ -14,6 +23,8 @@ export default function Shop() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [ownedPokemon, setOwnedPokemon] = useState([]);
+  const [itemInventory, setItemInventory] = useState([]);
+  const [activeCategory, setActiveCategory] = useState('pokemon');
   
   // Filter and sort state
   const [searchQuery, setSearchQuery] = useState('');
@@ -25,6 +36,11 @@ export default function Shop() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [purchaseError, setPurchaseError] = useState(null);
+  
+  // Item purchase state
+  const [itemPurchaseError, setItemPurchaseError] = useState(null);
+  const [usingItem, setUsingItem] = useState(null);
+  const [activeBoosts, setActiveBoosts] = useState([]);
   
   // Token purchase state
   const [isTokenProcessing, setIsTokenProcessing] = useState(false);
@@ -41,6 +57,7 @@ export default function Shop() {
   useEffect(() => {
     loadInventory();
     loadOwnedPokemon();
+    loadItemInventory();
   }, []);
 
   const loadInventory = async () => {
@@ -77,6 +94,66 @@ export default function Shop() {
       setOwnedPokemon(owned);
     } catch (err) {
       console.error('Failed to load owned Pokemon:', err);
+    }
+  };
+
+  const loadItemInventory = async () => {
+    try {
+      const { inventory, activeBoosts } = await itemService.getInventory();
+      setItemInventory(inventory);
+      setActiveBoosts(activeBoosts);
+    } catch (err) {
+      console.error('Failed to load item inventory:', err);
+    }
+  };
+
+  const handleUseItem = async (item) => {
+    try {
+      setUsingItem(item.id);
+      setItemPurchaseError(null);
+
+      const result = await itemService.useItem(item.id);
+
+      setSuccessMessage(result.message || `${item.name} activated!`);
+      setTimeout(() => setSuccessMessage(null), 5000);
+
+      // Reload inventory (quantity dropped) and boosts (new active boost)
+      await loadItemInventory();
+    } catch (err) {
+      setItemPurchaseError(err.message || 'Failed to use item');
+    } finally {
+      setUsingItem(null);
+    }
+  };
+
+  const handleItemPurchase = async (item) => {
+    try {
+      setIsProcessing(true);
+      setItemPurchaseError(null);
+
+      const result = await shopService.purchaseItem(item.id, 1);
+
+      // Update user coins and local inventory view
+      updateUser({ coins: result.remaining_coins });
+      setItemInventory(prev => {
+        const existing = prev.find(entry => entry.id === item.id);
+        if (existing) {
+          return prev.map(entry =>
+            entry.id === item.id
+              ? { ...entry, quantity: result.new_quantity }
+              : entry
+          );
+        }
+        return [...prev, { ...item, quantity: result.new_quantity }];
+      });
+
+      setSuccessMessage(`Successfully purchased ${item.name}! You now own ${result.new_quantity}.`);
+      setTimeout(() => setSuccessMessage(null), 5000);
+
+    } catch (err) {
+      setItemPurchaseError(err.message || 'Failed to purchase item');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -225,37 +302,81 @@ export default function Shop() {
           />
         )}
 
-        {/* Token Purchase Section */}
-        <TokenPurchaseSection
-          userCoins={user?.coins || 0}
-          onPurchase={handleTokenPurchase}
-          isProcessing={isTokenProcessing}
-          error={tokenPurchaseError}
-          successMessage={tokenSuccessMessage}
-        />
+        {/* Category Tabs */}
+        <div className="mb-6 flex gap-2 flex-wrap">
+          {CATEGORIES.map(category => (
+            <button
+              key={category.id}
+              onClick={() => setActiveCategory(category.id)}
+              className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                activeCategory === category.id
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
+              }`}
+            >
+              {category.label}
+            </button>
+          ))}
+        </div>
 
-        {/* Filters */}
-        <ShopFilters
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          selectedRarity={selectedRarity}
-          onRarityChange={setSelectedRarity}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-        />
+        {/* Pokemon Card Category */}
+        {activeCategory === 'pokemon' && (
+          <>
+            {/* Filters */}
+            <ShopFilters
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              selectedRarity={selectedRarity}
+              onRarityChange={setSelectedRarity}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+            />
 
-        {/* Shop Grid */}
-        {inventory?.items && (
-          <ShopGrid
-            items={inventory.items}
-            onPurchase={handlePurchaseClick}
+            {/* Shop Grid */}
+            {inventory?.items && (
+              <ShopGrid
+                items={inventory.items}
+                onPurchase={handlePurchaseClick}
+                userCoins={user?.coins || 0}
+                ownedPokemon={ownedPokemon}
+                searchQuery={searchQuery}
+                selectedRarity={selectedRarity}
+                sortBy={sortBy}
+                originalPrices={originalPrices}
+              />
+            )}
+          </>
+        )}
+
+        {/* Game Token Category */}
+        {activeCategory === 'tokens' && (
+          <TokenPurchaseSection
             userCoins={user?.coins || 0}
-            ownedPokemon={ownedPokemon}
-            searchQuery={searchQuery}
-            selectedRarity={selectedRarity}
-            sortBy={sortBy}
-            originalPrices={originalPrices}
+            onPurchase={handleTokenPurchase}
+            isProcessing={isTokenProcessing}
+            error={tokenPurchaseError}
+            successMessage={tokenSuccessMessage}
           />
+        )}
+
+        {/* Items Category */}
+        {activeCategory === 'items' && (
+          <ItemsGrid
+            items={inventory?.game_items || []}
+            onPurchase={handleItemPurchase}
+            onUse={handleUseItem}
+            usingItem={usingItem}
+            userCoins={user?.coins || 0}
+            inventory={itemInventory}
+            activeBoosts={activeBoosts}
+          />
+        )}
+
+        {/* Item purchase error */}
+        {itemPurchaseError && activeCategory === 'items' && (
+          <div className="mt-4 bg-red-900/50 border border-red-500 rounded-lg p-4">
+            <p className="text-red-200 text-center font-semibold">{itemPurchaseError}</p>
+          </div>
         )}
 
         {/* Purchase Modal */}

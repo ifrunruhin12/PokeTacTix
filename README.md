@@ -46,8 +46,8 @@ PokeTactix is a strategic game where you battle, collect, and level up Pokémon 
 <tr>
 <td>
 
-### 🃏 **Card Collection**
-Collect and level up Pokémon through battles and shop purchases
+### 🃏 **Card Collection & Evolution**
+Collect Pokémon, level them up through battles, and evolve them — by level or with evolution stones
 
 </td>
 <td>
@@ -60,18 +60,45 @@ Type advantages, stamina management, and tactical decisions
 <tr>
 <td>
 
-### 🏆 **Progression**
-Earn coins, track stats, unlock achievements
+### 🛍️ **Item System**
+Evolution stones and battle boosters, purchased in the shop and used from your inventory
 
 </td>
 <td>
 
-### 🛒 **Shop System**
-Buy rare Pokémon, build your dream team
+### 🏆 **Progression**
+Earn coins, track stats, unlock achievements
+
+</td>
+</tr>
+<tr>
+<td colspan="2">
+
+### 🛒 **Shop**
+Three categories — Pokémon cards, game tokens, and items — with daily inventory rotation and discounts
 
 </td>
 </tr>
 </table>
+
+---
+
+## 🧬 Item & Evolution System
+
+Pokémon evolve through **data-driven evolution rules** sourced from PokéAPI evolution chains — no Pokémon-specific logic in the code:
+
+| Method | How it works | Example |
+|--------|--------------|--------|
+| **Level** | Applied automatically from battle rewards once the required level is reached | Charmander → Charmeleon at level 16 |
+| **Item** | Player uses the required evolution stone from their deck | Pikachu + Thunder Stone → Raichu |
+| **Friendship** | Friendship-based evolutions become level-up evolutions at a fixed level (the game has no friendship mechanic) | Pichu → Pikachu at level 20 |
+
+**Items** live in a shared catalog (`internal/items`) with two types:
+
+- **Evolution items** (Thunder/Fire/Water Stone) — consumed by item-based evolution, in the same transaction
+- **Booster items** (Attack Booster: +5 attack for 3 battles; HP Booster: +10 HP for 4 battles) — activated from the shop, buff your whole deck, and tick down one battle at a time
+
+Booster magnitudes and durations are data (in the `items.effect` JSONB column), so balancing is a seed change — no code required.
 
 ---
 
@@ -139,6 +166,8 @@ Click the link and start playing [poketactix.netlify.app](https://poketactix.net
 - [x] Shop System
 - [x] Player Stats
 - [x] 5v5 Team Battles
+- [x] Item System (evolution stones & battle boosters)
+- [x] Item-based Pokémon evolution
 - [ ] Multiplayer PvP
 - [ ] Trading System
 - [ ] Mobile App

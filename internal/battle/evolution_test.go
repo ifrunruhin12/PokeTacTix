@@ -42,6 +42,14 @@ func (s *evolutionTestService) GetEvolutionForLevel(_ context.Context, pokemonID
 	return s.targets[pokemonID], nil
 }
 
+func (s *evolutionTestService) GetEvolutionForItem(context.Context, int, string) (*pokemon.Pokemon, error) {
+	return nil, nil
+}
+
+func (s *evolutionTestService) GetEvolutionOptions(context.Context, int) ([]pokemon.EvolutionOption, error) {
+	return nil, nil
+}
+
 type evolutionExecCall struct {
 	arguments []any
 }

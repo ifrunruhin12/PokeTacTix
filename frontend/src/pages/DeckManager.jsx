@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PokemonCard from '../components/battle/PokemonCard';
-import { getUserCards, getUserDeck, updateDeck, transformCardData } from '../services/card.service';
+import EvolveModal from '../components/deck/EvolveModal';
+import { getUserCards, getUserDeck, updateDeck, transformCardData, getEvolutionSummaries } from '../services/card.service';
 
 /**
  * DeckManager Component
@@ -23,6 +24,13 @@ export default function DeckManager() {
   const [rarityFilter, setRarityFilter] = useState('all');
   const [sortBy, setSortBy] = useState('level');
   const [sortOrder, setSortOrder] = useState('desc');
+
+  // Evolution modal state
+  const [evolveCard, setEvolveCard] = useState(null);
+  const [isEvolveOpen, setIsEvolveOpen] = useState(false);
+
+  // Card id -> has_evolution (final-form Pokemon hide the Evolve button)
+  const [evolutionMap, setEvolutionMap] = useState({});
 
   // Load collection and deck on mount
   useEffect(() => {
@@ -46,6 +54,15 @@ export default function DeckManager() {
       setCollection(transformedCards);
       setDeck(transformedDeck);
       setSelectedCards(transformedDeck.map(card => card.id));
+
+      // Best-effort: hides the Evolve button on final-form Pokemon. On
+      // failure every card keeps its button and the modal explains instead.
+      try {
+        const summaries = await getEvolutionSummaries();
+        setEvolutionMap(summaries);
+      } catch (summaryErr) {
+        setEvolutionMap({});
+      }
     } catch (err) {
       setError(err.message || 'Failed to load cards');
     } finally {
@@ -109,6 +126,24 @@ export default function DeckManager() {
     setError(null);
     setSuccess(null);
   };
+
+  // Open the evolution modal for a card
+  const handleEvolveClick = (e, card) => {
+    e.stopPropagation(); // don't toggle deck selection
+    setEvolveCard(card);
+    setIsEvolveOpen(true);
+  };
+
+  // Reload collection after an evolution so stats/species stay fresh
+  const handleEvolved = async () => {
+    await loadData();
+    setSuccess('Pokemon evolved!');
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
+  // Whether a card should show the Evolve action (unknown = show, the modal
+  // handles final forms gracefully)
+  const hasEvolution = (cardId) => evolutionMap[cardId] !== false;
 
   // Get filtered and sorted collection
   const getFilteredCollection = () => {
@@ -388,11 +423,31 @@ export default function DeckManager() {
                       ✓ In Deck
                     </div>
                   )}
+                  {hasEvolution(card.id) && (
+                    <button
+                      onClick={(e) => handleEvolveClick(e, card)}
+                      className="absolute bottom-2 right-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-2 py-1 rounded-full z-10 transition-colors"
+                      title="View evolution options"
+                    >
+                      ⚡ Evolve
+                    </button>
+                  )}
                 </motion.div>
               ))}
             </div>
           )}
         </div>
+
+        {/* Evolution Modal */}
+        <EvolveModal
+          isOpen={isEvolveOpen}
+          onClose={() => {
+            setIsEvolveOpen(false);
+            setEvolveCard(null);
+          }}
+          card={evolveCard}
+          onEvolved={handleEvolved}
+        />
       </div>
     </div>
   );

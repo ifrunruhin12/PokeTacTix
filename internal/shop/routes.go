@@ -25,6 +25,10 @@ func RegisterRoutes(app *fiber.App, handler *Handler, authMiddleware fiber.Handl
 	// POST /api/shop/tokens/purchase - Purchase game tokens
 	// Rate limit: 10 purchases per minute
 	shop.Post("/tokens/purchase", createPurchaseRateLimiter(), handler.PurchaseTokens)
+
+	// POST /api/shop/items/purchase - Purchase a game item (e.g. evolution stone)
+	// Rate limit: 10 purchases per minute
+	shop.Post("/items/purchase", createPurchaseRateLimiter(), handler.PurchaseItem)
 }
 
 // createPurchaseRateLimiter creates a rate limiter for purchase endpoint

@@ -1,29 +1,40 @@
 package shop
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
+	"pokemon-cli/internal/items"
 	"pokemon-cli/internal/tokens"
 
 	"github.com/gofiber/fiber/v2"
 )
+
+// ItemCatalog is the item-catalog surface the shop needs. The shop only sells
+// items; their effects live in the items and evolution domains.
+type ItemCatalog interface {
+	ListItems(ctx context.Context) ([]items.Item, error)
+	Purchase(ctx context.Context, userID int, itemID string, quantity int) (*items.Item, int, error)
+}
 
 // Handler handles shop HTTP requests
 type Handler struct {
 	service      *Service
 	repository   *Repository
 	tokenService *tokens.Service
+	itemCatalog  ItemCatalog
 }
 
 // NewHandler creates a new shop handler
-func NewHandler(service *Service, repository *Repository, tokenService *tokens.Service) *Handler {
+func NewHandler(service *Service, repository *Repository, tokenService *tokens.Service, itemCatalog ItemCatalog) *Handler {
 	return &Handler{
 		service:      service,
 		repository:   repository,
 		tokenService: tokenService,
+		itemCatalog:  itemCatalog,
 	}
 }
 
@@ -72,6 +83,21 @@ func (h *Handler) GetInventory(c *fiber.Ctx) error {
 			MaxDailyPurchase:  dailyPurchaseLimit,
 			Description:       fmt.Sprintf("Game tokens allow you to participate in battles. Each battle costs 1 token. Tokens reset daily at %s.", resetTime),
 		}
+	}
+
+	// Add the game item category (evolution stones, future boosters). The shop
+	// only lists what the catalog contains — no item behavior lives here.
+	if h.itemCatalog != nil {
+		gameItems, err := h.itemCatalog.ListItems(c.Context())
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": fiber.Map{
+					"code":    "INTERNAL_ERROR",
+					"message": "Failed to retrieve shop items",
+				},
+			})
+		}
+		inventory.GameItems = gameItems
 	}
 
 	return c.JSON(inventory)
@@ -315,5 +341,102 @@ func (h *Handler) PurchaseTokens(c *fiber.Ctx) error {
 		RemainingCoins:       newCoinBalance,
 		TokensPurchasedToday: tokensPurchasedToday,
 		DailyLimitRemaining:  dailyPurchaseLimit - tokensPurchasedToday,
+	})
+}
+
+// PurchaseItem handles POST /api/shop/items/purchase
+func (h *Handler) PurchaseItem(c *fiber.Ctx) error {
+	userID, ok := c.Locals("user_id").(int)
+	if !ok {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "UNAUTHORIZED",
+				"message": "User not authenticated",
+			},
+		})
+	}
+
+	if h.itemCatalog == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "ITEM_SHOP_DISABLED",
+				"message": "Item shop is not available",
+			},
+		})
+	}
+
+	var req items.PurchaseRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "INVALID_REQUEST",
+				"message": "Invalid request body",
+			},
+		})
+	}
+
+	req.ItemID = strings.TrimSpace(strings.ToLower(req.ItemID))
+	if req.ItemID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "INVALID_REQUEST",
+				"message": "Item ID is required",
+			},
+		})
+	}
+
+	// Normalize an omitted quantity to one up front so request validation,
+	// purchase and response all agree on what was bought.
+	quantity := req.Quantity
+	if quantity == 0 {
+		quantity = 1
+	}
+
+	// Purchase the item (validates quantity bounds and coin balance)
+	item, newQuantity, err := h.itemCatalog.Purchase(c.Context(), userID, req.ItemID, quantity)
+	if err != nil {
+		if errors.Is(err, items.ErrItemNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": fiber.Map{
+					"code":    "ITEM_NOT_FOUND",
+					"message": "Item not found in shop",
+				},
+			})
+		}
+
+		if errors.Is(err, items.ErrInsufficientCoins) {
+			return c.Status(fiber.StatusPaymentRequired).JSON(fiber.Map{
+				"error": fiber.Map{
+					"code":    "INSUFFICIENT_COINS",
+					"message": "You don't have enough coins to purchase this item",
+					"details": fiber.Map{
+						"item_id": req.ItemID,
+					},
+				},
+			})
+		}
+
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{
+				"code":    "ITEM_PURCHASE_FAILED",
+				"message": err.Error(),
+			},
+		})
+	}
+
+	// Get remaining coins after the purchase
+	remainingCoins, err := h.repository.GetUserCoins(c.Context(), userID)
+	if err != nil {
+		remainingCoins = 0 // Fallback
+	}
+
+	return c.Status(fiber.StatusOK).JSON(items.PurchaseResponse{
+		Success:        true,
+		ItemID:         item.ID,
+		ItemName:       item.Name,
+		QuantityAdded:  quantity,
+		NewQuantity:    newQuantity,
+		CoinsSpent:     item.Price * quantity,
+		RemainingCoins: remainingCoins,
 	})
 }

@@ -51,6 +51,43 @@ export const getCardById = async (cardId) => {
 };
 
 /**
+ * Get evolution info for a card (methods, required level/item, eligibility)
+ * @param {number} cardId - Card ID
+ * @returns {Promise<Object>} Evolution info with options array
+ */
+export const getEvolutionInfo = async (cardId) => {
+  const response = await api.get(`/api/cards/${cardId}/evolution`);
+  return response.data.evolution;
+};
+
+/**
+ * Get which cards have an evolution path at all (hides the Evolve action
+ * for final-form Pokemon)
+ * @returns {Promise<Object>} Map of card id -> has_evolution boolean
+ */
+export const getEvolutionSummaries = async () => {
+  const response = await api.get('/api/cards/evolution-summary');
+  const summaries = response.data.summaries || [];
+  return summaries.reduce((map, s) => {
+    map[s.card_id] = s.has_evolution;
+    return map;
+  }, {});
+};
+
+/**
+ * Evolve a card using an evolution item from the player's inventory
+ * @param {number} cardId - Card ID
+ * @param {string} itemId - Required item id (slug), e.g. 'thunder-stone'
+ * @returns {Promise<Object>} Evolution result with updated card
+ */
+export const evolveCardWithItem = async (cardId, itemId) => {
+  const response = await api.post(`/api/cards/${cardId}/evolve`, {
+    item_id: itemId,
+  });
+  return response.data;
+};
+
+/**
  * Calculate current stats for a card based on level
  * @param {Object} card - Player card object
  * @returns {Object} Current stats
@@ -109,6 +146,9 @@ export default {
   getUserDeck,
   updateDeck,
   getCardById,
+  getEvolutionInfo,
+  getEvolutionSummaries,
+  evolveCardWithItem,
   calculateCurrentStats,
   transformCardData
 };
