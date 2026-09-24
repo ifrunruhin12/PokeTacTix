@@ -55,7 +55,7 @@ const FriendshipEvolutionLevel = 20
 // are treated as stale (e.g. they predate min_happiness synthesis) so they
 // self-heal via a refresh from PokéAPI. Bump this whenever extraction output
 // changes shape in a way older chains must pick up.
-const CurrentEvolutionExtractionVersion = 3
+const CurrentEvolutionExtractionVersion = 4
 
 // EvolutionLink represents a single directed edge in an evolution chain
 // (e.g. charmander -> charmeleon at level 16 via level-up, or pikachu ->

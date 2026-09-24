@@ -146,6 +146,169 @@ func TestExtractEvolutionLinksRetainsDistinctDetails(t *testing.T) {
 	assert.Equal(t, "water-stone", PickEvolutionLinkForItem(links, 1, "water-stone").Item)
 }
 
+// PokéAPI decorates every evolution_details entry with metadata fields
+// (is_default, version_group, and often form/region data). Regression test:
+// they must not flag ordinary edges as unsupported.
+func TestExtractEvolutionLinksIgnoresPokeAPIMetadata(t *testing.T) {
+	chain := `{
+	  "chain": {
+	    "species": { "name": "pichu", "url": "https://pokeapi.co/api/v2/pokemon-species/172/" },
+	    "evolution_details": [],
+	    "evolves_to": [
+	      {
+	        "species": { "name": "pikachu", "url": "https://pokeapi.co/api/v2/pokemon-species/25/" },
+	        "evolution_details": [
+	          {
+	            "gender": null, "held_item": null, "item": null, "known_move": null,
+	            "known_move_type": null, "location": null, "max_happiness": null,
+	            "max_beauty": null, "max_affection": null, "min_affection": null,
+	            "min_beauty": null, "min_happiness": 220, "min_level": null,
+	            "needs_overworld_rain": false, "party_species": null, "party_type": null,
+	            "relative_physical_stats": null, "time_of_day": "", "trade_species": null,
+	            "trigger": { "name": "level-up", "url": "https://pokeapi.co/api/v2/evolution-trigger/1/" },
+	            "turn_upside_down": false,
+	            "is_default": true,
+	            "version_group": { "name": "gold-silver", "url": "https://pokeapi.co/api/v2/version-group/3/" }
+	          }
+	        ],
+	        "evolves_to": [
+	          {
+	            "species": { "name": "raichu", "url": "https://pokeapi.co/api/v2/pokemon-species/26/" },
+	            "evolution_details": [
+	              {
+	                "gender": null, "held_item": null, "item": { "name": "thunder-stone", "url": "https://pokeapi.co/api/v2/item/83/" },
+	                "known_move": null, "known_move_type": null, "location": null,
+	                "max_happiness": null, "max_beauty": null, "max_affection": null,
+	                "min_affection": null, "min_beauty": null, "min_happiness": null,
+	                "min_level": null, "needs_overworld_rain": false,
+	                "party_species": null, "party_type": null,
+	                "relative_physical_stats": null, "time_of_day": "", "trade_species": null,
+	                "trigger": { "name": "use-item", "url": "https://pokeapi.co/api/v2/evolution-trigger/3/" },
+	                "turn_upside_down": false,
+	                "is_default": true,
+	                "version_group": { "name": "red-blue", "url": "https://pokeapi.co/api/v2/version-group/1/" },
+	                "required_pokemon_form": { "name": "pikachu", "url": "https://pokeapi.co/api/v2/pokemon-form/25/" }
+	              },
+	              {
+	                "gender": null, "held_item": null, "item": { "name": "thunder-stone", "url": "https://pokeapi.co/api/v2/item/83/" },
+	                "known_move": null, "known_move_type": null, "location": null,
+	                "max_happiness": null, "max_beauty": null, "max_affection": null,
+	                "min_affection": null, "min_beauty": null, "min_happiness": null,
+	                "min_level": null, "needs_overworld_rain": false,
+	                "party_species": null, "party_type": null,
+	                "relative_physical_stats": null, "time_of_day": "", "trade_species": null,
+	                "trigger": { "name": "use-item", "url": "https://pokeapi.co/api/v2/evolution-trigger/3/" },
+	                "turn_upside_down": false,
+	                "is_default": true,
+	                "version_group": { "name": "sun-moon", "url": "https://pokeapi.co/api/v2/version-group/17/" },
+	                "region": { "name": "alola", "url": "https://pokeapi.co/api/v2/region/7/" },
+	                "required_pokemon_form": { "name": "pikachu", "url": "https://pokeapi.co/api/v2/pokemon-form/25/" },
+	                "evolved_pokemon_form": { "name": "raichu-alola", "url": "https://pokeapi.co/api/v2/pokemon-form/10202/" }
+	              }
+	            ],
+	            "evolves_to": []
+	          }
+	        ]
+	      }
+	    ]
+	  }
+	}`
+	links, _, err := ExtractEvolutionLinks([]byte(chain))
+	require.NoError(t, err)
+
+	// The base edges stay usable; the Alolan-form entry is retained but
+	// flagged unsupported (this game models base forms only).
+	require.Len(t, links, 3)
+	assert.Equal(t, EvolutionLink{
+		FromSpeciesID: 172,
+		ToSpeciesID:   25,
+		MinLevel:      FriendshipEvolutionLevel,
+		Trigger:       "level-up",
+	}, links[0])
+	baseRaichu := EvolutionLink{
+		FromSpeciesID: 25,
+		ToSpeciesID:   26,
+		Trigger:       "use-item",
+		Item:          "thunder-stone",
+	}
+	assert.Equal(t, baseRaichu, links[1])
+	assert.Equal(t, EvolutionLink{
+		FromSpeciesID:         25,
+		ToSpeciesID:           26,
+		Trigger:               "use-item",
+		Item:                  "thunder-stone",
+		UnsupportedConditions: true, // region: alola + evolved_pokemon_form: raichu-alola
+	}, links[2])
+
+	// Base edges stay usable for level/item evolution.
+	assert.NotNil(t, PickEvolutionLink(links, 172, FriendshipEvolutionLevel))
+	assert.Equal(t, "thunder-stone", PickEvolutionLinkForItem(links, 25, "thunder-stone").Item)
+	options := EvolutionOptionsFromLinks(links, 25)
+	require.Len(t, options, 1)
+	assert.Equal(t, MethodItem, options[0].Method)
+}
+
+// Form- and region-conditional edges are unsupported unless they name the
+// base form. required_pokemon_form matching the source species is fine;
+// anything else (regional forms, alternate forms) flags the edge.
+func TestExtractEvolutionLinksFormConditionalEdges(t *testing.T) {
+	chain := `{
+	  "chain": {
+	    "species": { "name": "exeggcute", "url": "https://pokeapi.co/api/v2/pokemon-species/102/" },
+	    "evolution_details": [],
+	    "evolves_to": [
+	      {
+	        "species": { "name": "exeggutor", "url": "https://pokeapi.co/api/v2/pokemon-species/103/" },
+	        "evolution_details": [
+	          {
+	            "item": { "name": "leaf-stone" },
+	            "trigger": { "name": "use-item" },
+	            "is_default": true,
+	            "version_group": { "name": "red-blue" },
+	            "required_pokemon_form": { "name": "exeggcute" }
+	          },
+	          {
+	            "item": { "name": "leaf-stone" },
+	            "trigger": { "name": "use-item" },
+	            "is_default": true,
+	            "version_group": { "name": "sun-moon" },
+	            "region": { "name": "alola" },
+	            "required_pokemon_form": { "name": "exeggcute" },
+	            "evolved_pokemon_form": { "name": "exeggutor-alola" }
+	          }
+	        ],
+	        "evolves_to": []
+	      },
+	      {
+	        "species": { "name": "runerigus", "url": "https://pokeapi.co/api/v2/pokemon-species/867/" },
+	        "evolution_details": [
+	          {
+	            "trigger": { "name": "use-item" },
+	            "item": { "name": "everstone" },
+	            "required_pokemon_form": { "name": "yamask-galar" }
+	          }
+	        ],
+	        "evolves_to": []
+	      }
+	    ]
+	  }
+	}`
+	links, _, err := ExtractEvolutionLinks([]byte(chain))
+	require.NoError(t, err)
+	require.Len(t, links, 3)
+
+	// Base Kanto edge: usable.
+	assert.False(t, links[0].UnsupportedConditions)
+	assert.Equal(t, "leaf-stone", links[0].Item)
+	// Alolan variant edge: flagged.
+	assert.True(t, links[1].UnsupportedConditions)
+	// Non-base required form (yamask-galar): flagged.
+	assert.True(t, links[2].UnsupportedConditions)
+
+	assert.Equal(t, "leaf-stone", PickEvolutionLinkForItem(links, 102, "leaf-stone").Item)
+	assert.Nil(t, PickEvolutionLinkForItem(links, 102, "everstone"))
+}
+
 func TestFriendshipEdgeFeedsLevelHelpers(t *testing.T) {
 	links, _, err := ExtractEvolutionLinks([]byte(pichuChainJSON))
 	require.NoError(t, err)
