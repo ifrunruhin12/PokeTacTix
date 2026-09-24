@@ -78,13 +78,13 @@ export const getEvolutionSummaries = async () => {
  * Evolve a card using an evolution item from the player's inventory
  * @param {number} cardId - Card ID
  * @param {string} itemId - Required item id (slug), e.g. 'thunder-stone'
- * @returns {Promise<Object>} Evolution result with updated card
+ * @returns {Promise<Object>} Evolution result (evolved_from, evolved_into, card, ...)
  */
 export const evolveCardWithItem = async (cardId, itemId) => {
   const response = await api.post(`/api/cards/${cardId}/evolve`, {
     item_id: itemId,
   });
-  return response.data;
+  return response.data.evolution;
 };
 
 /**

@@ -37,32 +37,31 @@ export default function DeckManager() {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (preserveSelection = false) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const [cardsData, deckData] = await Promise.all([
-        getUserCards(),
-        getUserDeck()
-      ]);
-      
-      // Transform card data to include current stats
-      const transformedCards = cardsData.map(transformCardData);
-      const transformedDeck = deckData.map(transformCardData);
-      
-      setCollection(transformedCards);
-      setDeck(transformedDeck);
-      setSelectedCards(transformedDeck.map(card => card.id));
 
       // Best-effort: hides the Evolve button on final-form Pokemon. On
       // failure every card keeps its button and the modal explains instead.
-      try {
-        const summaries = await getEvolutionSummaries();
-        setEvolutionMap(summaries);
-      } catch (summaryErr) {
-        setEvolutionMap({});
+      const [cardsData, deckData, summaries] = await Promise.all([
+        getUserCards(),
+        getUserDeck(),
+        getEvolutionSummaries().catch(() => null),
+      ]);
+
+      // Transform card data to include current stats
+      const transformedCards = cardsData.map(transformCardData);
+      const transformedDeck = deckData.map(transformCardData);
+
+      setCollection(transformedCards);
+      setDeck(transformedDeck);
+      // An evolution reload keeps unsaved deck edits intact; a fresh load
+      // (or one after saving) resets the selection to the persisted deck.
+      if (!preserveSelection) {
+        setSelectedCards(transformedDeck.map(card => card.id));
       }
+      setEvolutionMap(summaries || {});
     } catch (err) {
       setError(err.message || 'Failed to load cards');
     } finally {
@@ -134,9 +133,10 @@ export default function DeckManager() {
     setIsEvolveOpen(true);
   };
 
-  // Reload collection after an evolution so stats/species stay fresh
+  // Reload collection after an evolution so stats/species stay fresh,
+  // keeping any unsaved deck edits
   const handleEvolved = async () => {
-    await loadData();
+    await loadData(true);
     setIsEvolveOpen(false);
     setEvolveCard(null);
     setSuccess('Pokemon evolved!');

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import PropTypes from 'prop-types';
 
@@ -6,6 +7,7 @@ import PropTypes from 'prop-types';
  * Displays a purchasable game item (e.g. evolution stone, booster) in the shop
  */
 function ItemCard({ item, onPurchase, onUse, usingItem, isProcessing, userCoins, ownedQuantity }) {
+  const [iconFailed, setIconFailed] = useState(false);
   const canAfford = userCoins >= item.price;
   const isEvolutionItem = item.item_type === 'evolution';
   const isBooster = item.item_type === 'booster';
@@ -19,6 +21,12 @@ function ItemCard({ item, onPurchase, onUse, usingItem, isProcessing, userCoins,
       return 'border-blue-400 shadow-blue-400/30';
     }
     return 'border-gray-600 shadow-gray-600/30';
+  };
+
+  // Label for the booster Use button
+  const getUseButtonLabel = (canUse, isUsing) => {
+    if (isUsing) return 'Activating...';
+    return canUse ? 'Use' : 'Need to own it';
   };
 
   return (
@@ -45,13 +53,13 @@ function ItemCard({ item, onPurchase, onUse, usingItem, isProcessing, userCoins,
 
       {/* Item icon */}
       <div className="h-32 flex items-center justify-center bg-gray-700/50">
-        {item.icon ? (
+        {item.icon && !iconFailed ? (
           <img
             src={item.icon}
             alt={item.name}
             className="h-20 w-20 object-contain"
             loading="lazy"
-            onError={(e) => { e.target.style.display = 'none'; }}
+            onError={() => setIconFailed(true)}
           />
         ) : (
           <span className="text-4xl">💎</span>
@@ -87,7 +95,7 @@ function ItemCard({ item, onPurchase, onUse, usingItem, isProcessing, userCoins,
 
         {isBooster && (
           <button
-            onClick={() => onUse(item)}
+            onClick={() => onUse?.(item)}
             disabled={!canUse || usingItem === item.id}
             className={`w-full mt-2 py-2 px-3 rounded-lg font-bold text-sm transition-colors ${
               canUse && usingItem !== item.id
@@ -96,7 +104,7 @@ function ItemCard({ item, onPurchase, onUse, usingItem, isProcessing, userCoins,
             }`}
             title={canUse ? 'Activate the booster for your next battles' : 'Buy the booster first to use it'}
           >
-            {usingItem === item.id ? 'Activating...' : canUse ? 'Use' : 'Need to own it'}
+            {getUseButtonLabel(canUse, usingItem === item.id)}
           </button>
         )}
       </div>

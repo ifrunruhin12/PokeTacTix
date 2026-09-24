@@ -56,11 +56,32 @@ export default function Shop() {
   // Store original prices for discount display
   const [originalPrices, setOriginalPrices] = useState({});
 
+  // Auto-clearing success messages. A shared timer per message avoids
+  // overlapping timeouts clearing a newer message early.
+  const successTimerRef = useRef(null);
+  const tokenSuccessTimerRef = useRef(null);
+
+  const showSuccess = (message) => {
+    setSuccessMessage(message);
+    if (successTimerRef.current) clearTimeout(successTimerRef.current);
+    successTimerRef.current = setTimeout(() => setSuccessMessage(null), 5000);
+  };
+
+  const showTokenSuccess = (message) => {
+    setTokenSuccessMessage(message);
+    if (tokenSuccessTimerRef.current) clearTimeout(tokenSuccessTimerRef.current);
+    tokenSuccessTimerRef.current = setTimeout(() => setTokenSuccessMessage(null), 5000);
+  };
+
   // Load shop inventory
   useEffect(() => {
     loadInventory();
     loadOwnedPokemon();
     loadItemInventory();
+    return () => {
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      if (tokenSuccessTimerRef.current) clearTimeout(tokenSuccessTimerRef.current);
+    };
   }, []);
 
   const loadInventory = async () => {
@@ -120,8 +141,7 @@ export default function Shop() {
 
       const result = await itemService.useItem(item.id);
 
-      setSuccessMessage(result.message || `${item.name} activated!`);
-      setTimeout(() => setSuccessMessage(null), 5000);
+      showSuccess(result.message || `${item.name} activated!`);
 
       // Reload inventory (quantity dropped) and boosts (new active boost)
       await loadItemInventory();
@@ -157,8 +177,7 @@ export default function Shop() {
         return [...prev, { ...item, quantity: result.new_quantity }];
       });
 
-      setSuccessMessage(`Successfully purchased ${item.name}! You now own ${result.new_quantity}.`);
-      setTimeout(() => setSuccessMessage(null), 5000);
+      showSuccess(`Successfully purchased ${item.name}! You now own ${result.new_quantity}.`);
 
     } catch (err) {
       if (err.code === 'ECONNABORTED'
@@ -202,8 +221,7 @@ export default function Shop() {
       setSelectedItem(null);
 
       // Show success message
-      setSuccessMessage(`Successfully purchased ${selectedItem.pokemon_name}!`);
-      setTimeout(() => setSuccessMessage(null), 5000);
+      showSuccess(`Successfully purchased ${selectedItem.pokemon_name}!`);
 
     } catch (err) {
       // Timeouts / unreachable servers land here without a status. The
@@ -244,11 +262,10 @@ export default function Shop() {
       updateUser({ coins: result.remaining_coins });
       
       // Show success message
-      setTokenSuccessMessage(
+      showTokenSuccess(
         `Successfully purchased ${result.tokens_added} token${result.tokens_added > 1 ? 's' : ''} for ${result.coins_spent} coins!`
       );
-      setTimeout(() => setTokenSuccessMessage(null), 5000);
-      
+
     } catch (err) {
       setTokenPurchaseError(err.response?.data?.error || err.message || 'Failed to purchase tokens');
     } finally {

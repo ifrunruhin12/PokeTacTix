@@ -3,6 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PropTypes from 'prop-types';
 import { getEvolutionInfo, evolveCardWithItem } from '../../services/card.service';
 
+// Button label for an item-based evolution option
+function getEvolveButtonLabel(eligible, evolving) {
+  if (!eligible) return 'Item required';
+  return evolving ? 'Evolving...' : 'Evolve';
+}
+
 /**
  * EvolveModal Component
  * Shows how a Pokemon can evolve (level-based or item-based) and lets the
@@ -54,15 +60,16 @@ export default function EvolveModal({ isOpen, onClose, card, onEvolved }) {
       setError(null);
       setSuccess(null);
 
-      const result = await evolveCardWithItem(card.id, itemId);
+      const evolution = await evolveCardWithItem(card.id, itemId);
 
-      setSuccess(`${result.evolution.evolved_from} evolved into ${result.evolution.evolved_into}!`);
-
-      // Refresh info to reflect the new species
+      // Refresh info to reflect the new species (loadInfo clears the success
+      // state, so the confirmation is set afterwards).
       await loadInfo();
 
+      setSuccess(`${evolution.evolved_from} evolved into ${evolution.evolved_into}!`);
+
       if (onEvolved) {
-        onEvolved(result.evolution);
+        onEvolved(evolution);
       }
     } catch (err) {
       setError(err.message || 'Evolution failed');
@@ -96,7 +103,7 @@ export default function EvolveModal({ isOpen, onClose, card, onEvolved }) {
           >
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-white">
-                Evolution — {card.pokemon_name}
+                Evolution — {info?.pokemon_name || card.pokemon_name}
               </h2>
               <button
                 onClick={handleClose}
@@ -178,7 +185,7 @@ export default function EvolveModal({ isOpen, onClose, card, onEvolved }) {
                             {option.method === 'item' && (
                               <p className="text-gray-400 text-sm mt-1">
                                 Requires <span className="text-amber-300 font-semibold">{option.required_item_name || option.required_item}</span>
-                                {' '}(owned: {option.owned_quantity})
+                                {' '}(owned: {option.owned_quantity ?? 0})
                               </p>
                             )}
                           </div>
@@ -193,11 +200,7 @@ export default function EvolveModal({ isOpen, onClose, card, onEvolved }) {
                                   : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                               }`}
                             >
-                              {!option.eligible
-                                ? 'Item required'
-                                : evolving
-                                  ? 'Evolving...'
-                                  : 'Evolve'}
+                              {getEvolveButtonLabel(option.eligible, evolving)}
                             </button>
                           )}
                         </div>
