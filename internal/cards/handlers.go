@@ -355,11 +355,11 @@ func evolutionErrorResponse(c *fiber.Ctx, err error) error {
 			},
 		})
 	default:
+		fmt.Printf("Evolution failed: %v\n", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fiber.Map{
 				"code":    "INTERNAL_ERROR",
 				"message": "Evolution failed",
-				"details": err.Error(),
 			},
 		})
 	}

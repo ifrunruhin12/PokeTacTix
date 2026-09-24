@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PropTypes from 'prop-types';
 import { getEvolutionInfo, evolveCardWithItem } from '../../services/card.service';
@@ -10,6 +10,8 @@ import { getEvolutionInfo, evolveCardWithItem } from '../../services/card.servic
  */
 export default function EvolveModal({ isOpen, onClose, card, onEvolved }) {
   const [info, setInfo] = useState(null);
+  const [infoCardId, setInfoCardId] = useState(null);
+  const infoRequest = useRef(0);
   const [loading, setLoading] = useState(false);
   const [evolving, setEvolving] = useState(false);
   const [error, setError] = useState(null);
@@ -19,20 +21,30 @@ export default function EvolveModal({ isOpen, onClose, card, onEvolved }) {
     if (isOpen && card) {
       loadInfo();
     }
+    return () => { infoRequest.current += 1; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, card?.id]);
 
   const loadInfo = async () => {
+    const request = ++infoRequest.current;
     try {
       setLoading(true);
+      setInfo(null);
+      setInfoCardId(null);
       setError(null);
       setSuccess(null);
       const data = await getEvolutionInfo(card.id);
-      setInfo(data);
+      if (request === infoRequest.current) {
+        setInfo(data);
+        setInfoCardId(card.id);
+      }
     } catch (err) {
-      setError(err.message || 'Failed to load evolution info');
+      if (request === infoRequest.current) {
+        setInfo(null);
+        setError(err.message || 'Failed to load evolution info');
+      }
     } finally {
-      setLoading(false);
+      if (request === infoRequest.current) setLoading(false);
     }
   };
 
@@ -114,7 +126,7 @@ export default function EvolveModal({ isOpen, onClose, card, onEvolved }) {
               </div>
             )}
 
-            {!loading && info && (
+            {!loading && info && infoCardId === card.id && (
               <>
                 {(info.options || []).length === 0 ? (
                   <div className="text-center py-6">

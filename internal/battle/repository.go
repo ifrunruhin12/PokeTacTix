@@ -3,8 +3,10 @@ package battle
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"pokemon-cli/internal/database"
+	"pokemon-cli/internal/items"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -43,6 +45,142 @@ func (r *Repository) SaveBattleSession(ctx context.Context, state *BattleState) 
 	}
 
 	return nil
+}
+
+// SaveBattleSessionWithBoosts reserves the player's active boosts and persists
+// the boosted state together. Repeating a battle ID reuses its saved state.
+func (r *Repository) SaveBattleSessionWithBoosts(ctx context.Context, state *BattleState) (bool, bool, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to start battle transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	var reservedID string
+	err = tx.QueryRow(ctx, `
+		INSERT INTO battle_boost_reservations (battle_id, user_id)
+		VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING battle_id
+	`, state.ID, state.UserID).Scan(&reservedID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		var stored []byte
+		var owner int
+		if err := tx.QueryRow(ctx, `SELECT user_id, state_json FROM battle_sessions WHERE session_id = $1`, state.ID).Scan(&owner, &stored); err != nil {
+			return false, false, fmt.Errorf("failed to load reserved battle: %w", err)
+		}
+		if owner != state.UserID {
+			return false, false, fmt.Errorf("battle belongs to another user")
+		}
+		if err := json.Unmarshal(stored, state); err != nil {
+			return false, false, fmt.Errorf("failed to decode reserved battle: %w", err)
+		}
+		var count int
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM battle_boost_reservation_items WHERE battle_id = $1`, state.ID).Scan(&count); err != nil {
+			return false, false, fmt.Errorf("failed to count reserved boosts: %w", err)
+		}
+		return count > 0, false, nil
+	}
+	if err != nil {
+		return false, false, fmt.Errorf("failed to reserve battle: %w", err)
+	}
+
+	rows, err := tx.Query(ctx, `
+		SELECT ab.id, ab.item_id, i.name, ab.stat, ab.bonus, ab.battles_remaining, ab.created_at
+		FROM active_boosts ab JOIN items i ON i.id = ab.item_id
+		WHERE ab.user_id = $1 ORDER BY ab.id FOR UPDATE OF ab
+	`, state.UserID)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to lock active boosts: %w", err)
+	}
+	var boosts []items.ActiveBoost
+	for rows.Next() {
+		var boost items.ActiveBoost
+		if err := rows.Scan(&boost.ID, &boost.ItemID, &boost.ItemName, &boost.Stat, &boost.Bonus, &boost.BattlesRemaining, &boost.CreatedAt); err != nil {
+			rows.Close()
+			return false, false, fmt.Errorf("failed to scan active boost: %w", err)
+		}
+		boosts = append(boosts, boost)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return false, false, fmt.Errorf("failed to load active boosts: %w", err)
+	}
+
+	for _, boost := range boosts {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO battle_boost_reservation_items (battle_id, boost_id, item_id, stat, bonus, created_at)
+			VALUES ($1, $2, $3, $4, $5, $6)
+		`, state.ID, boost.ID, boost.ItemID, boost.Stat, boost.Bonus, boost.CreatedAt)
+		if err != nil {
+			return false, false, fmt.Errorf("failed to record reserved boost: %w", err)
+		}
+		if boost.BattlesRemaining == 1 {
+			_, err = tx.Exec(ctx, `DELETE FROM active_boosts WHERE id = $1 AND battles_remaining = 1`, boost.ID)
+		} else {
+			_, err = tx.Exec(ctx, `UPDATE active_boosts SET battles_remaining = battles_remaining - 1 WHERE id = $1 AND battles_remaining > 1`, boost.ID)
+		}
+		if err != nil {
+			return false, false, fmt.Errorf("failed to reserve boost duration: %w", err)
+		}
+	}
+	ApplyBoosts(state.PlayerDeck, boosts)
+	state.UpdatedAt = time.Now()
+	stateJSON, err := json.Marshal(state)
+	if err != nil {
+		return false, false, fmt.Errorf("failed to marshal boosted battle: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO battle_sessions (session_id, user_id, state_json, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`, state.ID, state.UserID, stateJSON, state.CreatedAt, state.UpdatedAt); err != nil {
+		return false, false, fmt.Errorf("failed to save boosted battle: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, false, fmt.Errorf("failed to commit boosted battle: %w", err)
+	}
+	return len(boosts) > 0, true, nil
+}
+
+// CancelBattleBoostReservation restores reserved duration when a saved battle
+// cannot start because its token charge failed.
+func (r *Repository) CancelBattleBoostReservation(ctx context.Context, battleID string, userID int) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var finalized bool
+	err = tx.QueryRow(ctx, `SELECT finalized FROM battle_boost_reservations WHERE battle_id = $1 AND user_id = $2 FOR UPDATE`, battleID, userID).Scan(&finalized)
+	if errors.Is(err, pgx.ErrNoRows) || finalized {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO active_boosts (id, user_id, item_id, stat, bonus, battles_remaining, created_at)
+		SELECT boost_id, $2, item_id, stat, bonus, 1, created_at
+		FROM battle_boost_reservation_items WHERE battle_id = $1
+		ON CONFLICT (id) DO UPDATE SET battles_remaining = active_boosts.battles_remaining + 1
+	`, battleID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to restore boost duration: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM battle_sessions WHERE session_id = $1 AND user_id = $2`, battleID, userID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM battle_boost_reservations WHERE battle_id = $1 AND user_id = $2`, battleID, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *Repository) FinalizeBattleBoostReservation(ctx context.Context, battleID string, userID int) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE battle_boost_reservations SET finalized = TRUE
+		WHERE battle_id = $1 AND user_id = $2 AND finalized = FALSE
+	`, battleID, userID)
+	return err
 }
 
 // GetBattleSession retrieves a battle state from the database

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import shopService from '../services/shop.service';
 import itemService from '../services/item.service';
@@ -24,6 +24,8 @@ export default function Shop() {
   const [error, setError] = useState(null);
   const [ownedPokemon, setOwnedPokemon] = useState([]);
   const [itemInventory, setItemInventory] = useState([]);
+  const [itemLoadingError, setItemLoadingError] = useState(null);
+  const [requiresItemReload, setRequiresItemReload] = useState(false);
   const [activeCategory, setActiveCategory] = useState('pokemon');
   
   // Filter and sort state
@@ -39,6 +41,7 @@ export default function Shop() {
   
   // Item purchase state
   const [itemPurchaseError, setItemPurchaseError] = useState(null);
+  const itemPurchaseKeys = useRef(new Map());
   const [usingItem, setUsingItem] = useState(null);
   const [activeBoosts, setActiveBoosts] = useState([]);
   
@@ -102,8 +105,11 @@ export default function Shop() {
       const { inventory, activeBoosts } = await itemService.getInventory();
       setItemInventory(inventory);
       setActiveBoosts(activeBoosts);
+      setItemLoadingError(null);
+      setRequiresItemReload(false);
     } catch (err) {
       console.error('Failed to load item inventory:', err);
+      setItemLoadingError('Failed to load item inventory. Reload inventory before using or purchasing items.');
     }
   };
 
@@ -127,11 +133,15 @@ export default function Shop() {
   };
 
   const handleItemPurchase = async (item) => {
+    if (isProcessing || itemLoadingError || requiresItemReload) return;
+    const key = itemPurchaseKeys.current.get(item.id) || crypto.randomUUID();
+    itemPurchaseKeys.current.set(item.id, key);
     try {
       setIsProcessing(true);
       setItemPurchaseError(null);
 
-      const result = await shopService.purchaseItem(item.id, 1);
+      const result = await shopService.purchaseItem(item.id, 1, key);
+      itemPurchaseKeys.current.delete(item.id);
 
       // Update user coins and local inventory view
       updateUser({ coins: result.remaining_coins });
@@ -151,6 +161,15 @@ export default function Shop() {
       setTimeout(() => setSuccessMessage(null), 5000);
 
     } catch (err) {
+      if (err.code === 'ECONNABORTED'
+        || err.message?.includes('timeout')
+        || err.message === 'No response from server') {
+        setItemPurchaseError('Purchase result unknown. Reload inventory before retrying; the purchase may already have completed.');
+        setRequiresItemReload(true);
+        console.error('Item purchase timed out (result uncertain):', err);
+        return;
+      }
+      itemPurchaseKeys.current.delete(item.id);
       setItemPurchaseError(err.message || 'Failed to purchase item');
     } finally {
       setIsProcessing(false);
@@ -366,10 +385,18 @@ export default function Shop() {
             onPurchase={handleItemPurchase}
             onUse={handleUseItem}
             usingItem={usingItem}
+            isProcessing={isProcessing || Boolean(itemLoadingError) || requiresItemReload}
             userCoins={user?.coins || 0}
             inventory={itemInventory}
             activeBoosts={activeBoosts}
           />
+        )}
+
+        {(itemLoadingError || requiresItemReload) && activeCategory === 'items' && (
+          <div className="mt-4 bg-red-900/50 border border-red-500 rounded-lg p-4 text-center">
+            <p className="text-red-200 mb-3">{itemLoadingError || 'Reload inventory before retrying your purchase.'}</p>
+            <button onClick={loadItemInventory} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">Reload inventory</button>
+          </div>
         )}
 
         {/* Item purchase error */}

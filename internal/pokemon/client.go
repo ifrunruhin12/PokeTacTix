@@ -179,13 +179,60 @@ type evolutionDetail struct {
 	Item *struct {
 		Name string `json:"name"`
 	} `json:"item"`
-	MinHappiness *int `json:"min_happiness"`
+	MinHappiness *int                       `json:"min_happiness"`
+	TimeOfDay    string                     `json:"time_of_day"`
+	Conditions   map[string]json.RawMessage `json:"-"`
+}
+
+func (d *evolutionDetail) UnmarshalJSON(data []byte) error {
+	type detail evolutionDetail
+	if err := json.Unmarshal(data, (*detail)(d)); err != nil {
+		return err
+	}
+	return json.Unmarshal(data, &d.Conditions)
+}
+
+func (d evolutionDetail) friendshipOnly() bool {
+	if d.Trigger.Name != TriggerLevelUp || d.MinLevel != nil || d.MinHappiness == nil || *d.MinHappiness <= 0 || d.TimeOfDay != "" {
+		return false
+	}
+	for name, value := range d.Conditions {
+		switch name {
+		case "trigger", "min_level", "min_happiness", "time_of_day":
+		default:
+			if string(value) != "null" && string(value) != `""` && string(value) != "false" {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (d evolutionDetail) hasUnsupportedConditions() bool {
+	if d.MinHappiness != nil && *d.MinHappiness > 0 && !d.friendshipOnly() {
+		return true
+	}
+	if d.Item != nil && d.Item.Name != "" && d.Trigger.Name != TriggerUseItem {
+		return true
+	}
+	if d.MinLevel != nil && *d.MinLevel > 0 && d.Trigger.Name != TriggerLevelUp {
+		return true
+	}
+	for name, value := range d.Conditions {
+		switch name {
+		case "trigger", "min_level", "min_happiness", "item", "time_of_day":
+		default:
+			if string(value) != "null" && string(value) != `""` && string(value) != "false" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ExtractEvolutionLinks walks the evolution chain tree and returns every edge
-// with its trigger details. Each evolves_to entry may carry multiple
-// evolution_details; we keep the first one that has a level-up trigger, or the
-// first detail overall so the edge is not lost.
+// with its trigger details. Each evolves_to entry may carry multiple distinct
+// requirements; retain each branch without inventing an unconditional edge.
 func ExtractEvolutionLinks(chainJSON []byte) ([]EvolutionLink, []int, error) {
 	var payload struct {
 		Chain evolutionChainNode `json:"chain"`
@@ -195,6 +242,7 @@ func ExtractEvolutionLinks(chainJSON []byte) ([]EvolutionLink, []int, error) {
 	}
 
 	var links []EvolutionLink
+	seen := make(map[EvolutionLink]bool)
 	var memberIDs []int
 
 	speciesID := func(n evolutionChainNode) (int, bool) {
@@ -215,42 +263,26 @@ func ExtractEvolutionLinks(chainJSON []byte) ([]EvolutionLink, []int, error) {
 
 			fromID, hasFrom := speciesID(n)
 			if hasFrom {
-				link := EvolutionLink{FromSpeciesID: fromID, ToSpeciesID: toID}
-				// Pick a single detail entry — prefer a level-up trigger, else the
-				// first — so trigger and min_level always come from the same entry.
-				// Merging fields across entries can invent a level requirement for
-				// a level-up edge that doesn't have one.
-				var chosen *evolutionDetail
-				for i := range child.EvolutionDetails {
-					d := &child.EvolutionDetails[i]
-					if d.Trigger.Name == "level-up" {
-						chosen = d
-						break
-					}
-					if chosen == nil {
-						chosen = d
-					}
+				details := child.EvolutionDetails
+				if len(details) == 0 {
+					details = []evolutionDetail{{}}
 				}
-				if chosen != nil {
-					if chosen.Trigger.Name != "" {
-						link.Trigger = chosen.Trigger.Name
+				for _, detail := range details {
+					link := EvolutionLink{FromSpeciesID: fromID, ToSpeciesID: toID, Trigger: detail.Trigger.Name, TimeOfDay: detail.TimeOfDay, UnsupportedConditions: detail.hasUnsupportedConditions()}
+					if detail.MinLevel != nil {
+						link.MinLevel = *detail.MinLevel
 					}
-					if chosen.MinLevel != nil {
-						link.MinLevel = *chosen.MinLevel
-					}
-					// Friendship evolutions (level-up gated by min_happiness, no
-					// min_level) become ordinary level-up evolutions at a fixed
-					// level — this game has no friendship mechanic.
-					if chosen.Trigger.Name == TriggerLevelUp &&
-						link.MinLevel <= 0 &&
-						chosen.MinHappiness != nil && *chosen.MinHappiness > 0 {
+					if detail.friendshipOnly() {
 						link.MinLevel = FriendshipEvolutionLevel
 					}
-					if chosen.Item != nil && chosen.Item.Name != "" {
-						link.Item = chosen.Item.Name
+					if detail.Item != nil {
+						link.Item = detail.Item.Name
+					}
+					if !seen[link] {
+						links = append(links, link)
+						seen[link] = true
 					}
 				}
-				links = append(links, link)
 			}
 			walk(child)
 		}

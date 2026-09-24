@@ -96,7 +96,7 @@ Pokémon evolve through **data-driven evolution rules** sourced from PokéAPI ev
 **Items** live in a shared catalog (`internal/items`) with two types:
 
 - **Evolution items** (Thunder/Fire/Water Stone) — consumed by item-based evolution, in the same transaction
-- **Booster items** (Attack Booster: +5 attack for 3 battles; HP Booster: +10 HP for 4 battles) — activated from the shop, buff your whole deck, and tick down one battle at a time
+- **Booster items** (Attack Booster: +5 attack for 3 battles; HP Booster: +10 HP for 4 battles) — activated from the shop, buff your whole deck, and reserve one duration when each battle starts
 
 Booster magnitudes and durations are data (in the `items.effect` JSONB column), so balancing is a seed change — no code required.
 

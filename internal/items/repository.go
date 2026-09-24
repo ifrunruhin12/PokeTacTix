@@ -21,7 +21,8 @@ var (
 	ErrInsufficientItem = errors.New("insufficient item quantity")
 
 	// ErrNotBooster is returned when the item being used is not a booster
-	ErrNotBooster = errors.New("item is not usable here")
+	ErrNotBooster          = errors.New("item is not usable here")
+	ErrIdempotencyConflict = errors.New("idempotency key already used for a different purchase")
 )
 
 // Repository handles item catalog and player inventory data access
@@ -144,28 +145,64 @@ func (r *Repository) GetQuantity(ctx context.Context, userID int, itemID string)
 // concurrent purchase can never drive the balance negative, and the inventory
 // upsert accumulates quantity.
 func (r *Repository) Purchase(ctx context.Context, userID int, item *Item, quantity int) (newQuantity int, err error) {
+	newQuantity, _, err = r.purchase(ctx, userID, item, quantity, "")
+	return newQuantity, err
+}
+
+func (r *Repository) PurchaseIdempotent(ctx context.Context, userID int, item *Item, quantity int, key string) (int, int, error) {
+	return r.purchase(ctx, userID, item, quantity, key)
+}
+
+func (r *Repository) purchase(ctx context.Context, userID int, item *Item, quantity int, key string) (newQuantity int, remainingCoins int, err error) {
 	if item == nil {
-		return 0, fmt.Errorf("item cannot be nil")
+		return 0, 0, fmt.Errorf("item cannot be nil")
 	}
 
 	totalCost := item.Price * quantity
 
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("failed to start transaction: %w", err)
+		return 0, 0, fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	if key != "" {
+		var inserted string
+		err = tx.QueryRow(ctx, `
+			INSERT INTO item_purchase_requests (user_id, request_key, item_id, quantity)
+			VALUES ($1, $2, $3, $4)
+			ON CONFLICT DO NOTHING RETURNING request_key
+		`, userID, key, item.ID, quantity).Scan(&inserted)
+		if errors.Is(err, pgx.ErrNoRows) {
+			var previousItem string
+			var previousQuantity int
+			err = tx.QueryRow(ctx, `
+				SELECT item_id, quantity, new_quantity, remaining_coins
+				FROM item_purchase_requests WHERE user_id = $1 AND request_key = $2
+			`, userID, key).Scan(&previousItem, &previousQuantity, &newQuantity, &remainingCoins)
+			if err != nil {
+				return 0, 0, fmt.Errorf("failed to load purchase receipt: %w", err)
+			}
+			if previousItem != item.ID || previousQuantity != quantity {
+				return 0, 0, ErrIdempotencyConflict
+			}
+			return newQuantity, remainingCoins, nil
+		}
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to reserve purchase key: %w", err)
+		}
+	}
 
-	tag, err := tx.Exec(ctx, `
+	err = tx.QueryRow(ctx, `
 		UPDATE users
 		SET coins = coins - $1, updated_at = $2
 		WHERE id = $3 AND coins >= $1
-	`, totalCost, time.Now(), userID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to deduct coins: %w", err)
+		RETURNING coins
+	`, totalCost, time.Now(), userID).Scan(&remainingCoins)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, 0, ErrInsufficientCoins
 	}
-	if tag.RowsAffected() == 0 {
-		return 0, ErrInsufficientCoins
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to deduct coins: %w", err)
 	}
 
 	err = tx.QueryRow(ctx, `
@@ -176,23 +213,32 @@ func (r *Repository) Purchase(ctx context.Context, userID int, item *Item, quant
 		RETURNING quantity
 	`, userID, item.ID, quantity, time.Now()).Scan(&newQuantity)
 	if err != nil {
-		return 0, fmt.Errorf("failed to add item to inventory: %w", err)
+		return 0, 0, fmt.Errorf("failed to add item to inventory: %w", err)
+	}
+	if key != "" {
+		_, err = tx.Exec(ctx, `
+			UPDATE item_purchase_requests SET new_quantity = $3, remaining_coins = $4
+			WHERE user_id = $1 AND request_key = $2
+		`, userID, key, newQuantity, remainingCoins)
+		if err != nil {
+			return 0, 0, fmt.Errorf("failed to save purchase receipt: %w", err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return 0, fmt.Errorf("failed to commit transaction: %w", err)
+		return 0, 0, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return newQuantity, nil
+	return newQuantity, remainingCoins, nil
 }
 
 // ActivateBooster consumes one booster from the inventory and inserts the
 // corresponding active boost in a single transaction. The guarded inventory
 // decrement (`quantity > 0`) means a race can never over-consume.
-func (r *Repository) ActivateBooster(ctx context.Context, userID int, item *Item, effect BoosterEffect) error {
+func (r *Repository) ActivateBooster(ctx context.Context, userID int, item *Item, effect BoosterEffect) (*ActiveBoost, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to start transaction: %w", err)
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
@@ -202,24 +248,26 @@ func (r *Repository) ActivateBooster(ctx context.Context, userID int, item *Item
 		WHERE user_id = $1 AND item_id = $2 AND quantity > 0
 	`, userID, item.ID, time.Now())
 	if err != nil {
-		return fmt.Errorf("failed to consume booster: %w", err)
+		return nil, fmt.Errorf("failed to consume booster: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrInsufficientItem
+		return nil, ErrInsufficientItem
 	}
 
-	_, err = tx.Exec(ctx, `
+	boost := &ActiveBoost{ItemID: item.ID, ItemName: item.Name, Stat: effect.Stat, Bonus: effect.Bonus, BattlesRemaining: effect.Battles}
+	err = tx.QueryRow(ctx, `
 		INSERT INTO active_boosts (user_id, item_id, stat, bonus, battles_remaining)
 		VALUES ($1, $2, $3, $4, $5)
-	`, userID, item.ID, effect.Stat, effect.Bonus, effect.Battles)
+		RETURNING id, created_at
+	`, userID, item.ID, effect.Stat, effect.Bonus, effect.Battles).Scan(&boost.ID, &boost.CreatedAt)
 	if err != nil {
-		return fmt.Errorf("failed to insert active boost: %w", err)
+		return nil, fmt.Errorf("failed to insert active boost: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
-	return nil
+	return boost, nil
 }
 
 // ActiveBoosts returns the player's currently applied deck buffs, joined
@@ -249,8 +297,8 @@ func (r *Repository) ActiveBoosts(ctx context.Context, userID int) ([]ActiveBoos
 }
 
 // ConsumeBattleBoosts ticks every active boost of the player down by one
-// battle and removes exhausted ones, in one transaction. Called when a battle
-// ends so boosts always last exactly their configured number of battles.
+// battle and removes exhausted ones, in one transaction. New battle sessions
+// use an atomic, idempotent reservation instead of this standalone tick.
 func (r *Repository) ConsumeBattleBoosts(ctx context.Context, userID int) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
@@ -259,19 +307,19 @@ func (r *Repository) ConsumeBattleBoosts(ctx context.Context, userID int) error 
 	defer tx.Rollback(ctx)
 
 	_, err = tx.Exec(ctx, `
-		UPDATE active_boosts
-		SET battles_remaining = battles_remaining - 1
-		WHERE user_id = $1
-	`, userID)
-	if err != nil {
-		return fmt.Errorf("failed to tick active boosts: %w", err)
-	}
-
-	_, err = tx.Exec(ctx, `
-		DELETE FROM active_boosts WHERE user_id = $1 AND battles_remaining <= 0
+		DELETE FROM active_boosts WHERE user_id = $1 AND battles_remaining = 1
 	`, userID)
 	if err != nil {
 		return fmt.Errorf("failed to remove exhausted boosts: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE active_boosts
+		SET battles_remaining = battles_remaining - 1
+		WHERE user_id = $1 AND battles_remaining > 1
+	`, userID)
+	if err != nil {
+		return fmt.Errorf("failed to tick active boosts: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {

@@ -64,7 +64,15 @@ This directory contains SQL migration files for the PokeTacTix database schema.
 ### 000017 - Create Battle Boosters
 - Seeds two booster items: Attack Booster (+5 attack, 3 battles) and HP Booster (+10 HP, 4 battles)
 - Booster parameters live in `items.effect` JSONB so balancing is a data change
-- Creates `active_boosts` table: per-user boosts that tick down one per completed battle
+- Creates `active_boosts` table: per-user boosts whose duration is reserved when each battle starts
+
+### 000018 - Item Purchase Receipts
+- Creates `item_purchase_requests` to retain a per-user idempotency key, purchased item and quantity, and committed result
+- Repeated requests with the same key return the original result without charging or adding inventory twice
+
+### 000019 - Battle Boost Reservations
+- Creates `battle_boost_reservations` and `battle_boost_reservation_items` to reserve one boost duration per battle ID atomically with session creation
+- Reservations finalize at battle end; failed token charges restore the reserved duration and remove the session
 
 ## Running Migrations
 

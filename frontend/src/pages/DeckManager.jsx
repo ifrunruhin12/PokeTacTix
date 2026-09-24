@@ -137,6 +137,8 @@ export default function DeckManager() {
   // Reload collection after an evolution so stats/species stay fresh
   const handleEvolved = async () => {
     await loadData();
+    setIsEvolveOpen(false);
+    setEvolveCard(null);
     setSuccess('Pokemon evolved!');
     setTimeout(() => setSuccess(null), 3000);
   };

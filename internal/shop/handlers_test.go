@@ -3,6 +3,7 @@ package shop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http/httptest"
 	"sort"
@@ -19,7 +20,8 @@ import (
 // mockItemsRepo backs a real items.Service so the shop handler test exercises
 // genuine purchase validation instead of duplicating it in a mock.
 type mockItemsRepo struct {
-	items map[string]*items.Item
+	items       map[string]*items.Item
+	purchaseErr error
 }
 
 func (m *mockItemsRepo) ListItems(ctx context.Context) ([]items.Item, error) {
@@ -54,11 +56,19 @@ func (m *mockItemsRepo) GetQuantity(ctx context.Context, userID int, itemID stri
 }
 
 func (m *mockItemsRepo) Purchase(ctx context.Context, userID int, item *items.Item, quantity int) (int, error) {
+	if m.purchaseErr != nil {
+		return 0, m.purchaseErr
+	}
 	return 0, items.ErrInsufficientCoins
 }
 
-func (m *mockItemsRepo) ActivateBooster(ctx context.Context, userID int, item *items.Item, effect items.BoosterEffect) error {
-	return nil
+func (m *mockItemsRepo) PurchaseIdempotent(ctx context.Context, userID int, item *items.Item, quantity int, key string) (int, int, error) {
+	newQuantity, err := m.Purchase(ctx, userID, item, quantity)
+	return newQuantity, 0, err
+}
+
+func (m *mockItemsRepo) ActivateBooster(ctx context.Context, userID int, item *items.Item, effect items.BoosterEffect) (*items.ActiveBoost, error) {
+	return nil, nil
 }
 
 func (m *mockItemsRepo) ActiveBoosts(ctx context.Context, userID int) ([]items.ActiveBoost, error) {
@@ -158,15 +168,34 @@ func TestPurchaseItemValidation(t *testing.T) {
 		{name: "unknown item", body: `{"item_id":"moon-stone"}`, wantStatus: fiber.StatusNotFound},
 		{name: "invalid quantity", body: `{"item_id":"thunder-stone","quantity":1000}`, wantStatus: fiber.StatusBadRequest},
 		{name: "insufficient coins", body: `{"item_id":"thunder-stone"}`, wantStatus: fiber.StatusPaymentRequired},
+		{name: "bad idempotency key", body: `{"item_id":"thunder-stone"}`, wantStatus: fiber.StatusBadRequest},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("POST", "/api/shop/items/purchase", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
+			if tt.name == "bad idempotency key" {
+				req.Header.Set("Idempotency-Key", "not-a-uuid")
+			}
 			resp, err := app.Test(req)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 		})
 	}
+}
+
+func TestPurchaseItemDoesNotExposeRepositoryError(t *testing.T) {
+	repo := &mockItemsRepo{items: newTestItems(), purchaseErr: errors.New("private database diagnostic")}
+	app := newTestApp(t, items.NewService(repo), true)
+	req := httptest.NewRequest("POST", "/api/shop/items/purchase", strings.NewReader(`{"item_id":"thunder-stone"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+	content, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "private database diagnostic")
+	assert.Contains(t, string(content), "Failed to purchase item")
 }

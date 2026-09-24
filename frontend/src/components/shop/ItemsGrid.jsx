@@ -5,7 +5,7 @@ import PropTypes from 'prop-types';
  * ItemCard Component
  * Displays a purchasable game item (e.g. evolution stone, booster) in the shop
  */
-function ItemCard({ item, onPurchase, onUse, usingItem, userCoins, ownedQuantity }) {
+function ItemCard({ item, onPurchase, onUse, usingItem, isProcessing, userCoins, ownedQuantity }) {
   const canAfford = userCoins >= item.price;
   const isEvolutionItem = item.item_type === 'evolution';
   const isBooster = item.item_type === 'booster';
@@ -75,9 +75,9 @@ function ItemCard({ item, onPurchase, onUse, usingItem, userCoins, ownedQuantity
 
         <button
           onClick={() => onPurchase(item)}
-          disabled={!canAfford}
+          disabled={!canAfford || isProcessing}
           className={`w-full py-2 px-3 rounded-lg font-bold text-sm transition-colors ${
-            canAfford
+            canAfford && !isProcessing
               ? 'bg-blue-600 hover:bg-blue-700 text-white'
               : 'bg-gray-600 text-gray-400 cursor-not-allowed'
           }`}
@@ -116,6 +116,7 @@ ItemCard.propTypes = {
   onPurchase: PropTypes.func.isRequired,
   onUse: PropTypes.func,
   usingItem: PropTypes.string,
+  isProcessing: PropTypes.bool,
   userCoins: PropTypes.number.isRequired,
   ownedQuantity: PropTypes.number,
 };
@@ -163,12 +164,15 @@ ActiveBoostsPanel.propTypes = {
  * ItemsGrid Component
  * Displays the shop's game item category (evolution stones, boosters)
  */
-export default function ItemsGrid({ items, onPurchase, onUse, usingItem, userCoins, inventory, activeBoosts }) {
+export default function ItemsGrid({ items, onPurchase, onUse, usingItem, isProcessing, userCoins, inventory, activeBoosts }) {
   if (!items || items.length === 0) {
     return (
-      <div className="text-center py-12 bg-gray-800 rounded-lg">
-        <p className="text-gray-400 text-lg">No items available in the shop right now</p>
-      </div>
+      <>
+        <ActiveBoostsPanel boosts={activeBoosts} />
+        <div className="text-center py-12 bg-gray-800 rounded-lg">
+          <p className="text-gray-400 text-lg">No items available in the shop right now</p>
+        </div>
+      </>
     );
   }
 
@@ -189,6 +193,7 @@ export default function ItemsGrid({ items, onPurchase, onUse, usingItem, userCoi
             onPurchase={onPurchase}
             onUse={onUse}
             usingItem={usingItem}
+            isProcessing={isProcessing}
             userCoins={userCoins}
             ownedQuantity={ownedQuantity(item.id)}
           />
@@ -203,6 +208,7 @@ ItemsGrid.propTypes = {
   onPurchase: PropTypes.func.isRequired,
   onUse: PropTypes.func,
   usingItem: PropTypes.string,
+  isProcessing: PropTypes.bool,
   userCoins: PropTypes.number.isRequired,
   inventory: PropTypes.arrayOf(PropTypes.object),
   activeBoosts: PropTypes.arrayOf(PropTypes.object),

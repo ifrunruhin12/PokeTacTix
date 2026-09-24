@@ -78,7 +78,7 @@ func TestExtractEvolutionLinksBranchingChain(t *testing.T) {
 	require.Len(t, links, 2)
 	assert.Equal(t, EvolutionLink{FromSpeciesID: 133, ToSpeciesID: 135, Trigger: "use-item"}, links[0])
 	// level-up edge without a min_level is kept but unusable for our purposes
-	assert.Equal(t, EvolutionLink{FromSpeciesID: 133, ToSpeciesID: 196, Trigger: "level-up"}, links[1])
+	assert.Equal(t, EvolutionLink{FromSpeciesID: 133, ToSpeciesID: 196, Trigger: "level-up", TimeOfDay: "day"}, links[1])
 }
 
 // Pichu family (chain id 10 extended): pichu evolves into pikachu via
@@ -127,6 +127,23 @@ func TestExtractEvolutionLinksFriendshipSynthesizesLevel(t *testing.T) {
 		Trigger:       "use-item",
 		Item:          "thunder-stone",
 	}, links[1])
+}
+
+func TestExtractEvolutionLinksRetainsDistinctDetails(t *testing.T) {
+	chain := `{"chain":{"species":{"url":"https://pokeapi.co/api/v2/pokemon-species/1/"},"evolves_to":[{"species":{"url":"https://pokeapi.co/api/v2/pokemon-species/2/"},"evolution_details":[{"trigger":{"name":"use-item"},"item":{"name":"fire-stone"}},{"trigger":{"name":"use-item"},"item":{"name":"water-stone"}},{"trigger":{"name":"level-up"},"min_happiness":220},{"trigger":{"name":"level-up"},"min_happiness":220,"time_of_day":"day"},{"trigger":{"name":"level-up"},"min_happiness":220,"known_move":{"name":"tackle"}},{"trigger":{"name":"level-up"},"min_happiness":220,"time_of_day":"night"}]}]}}`
+	links, _, err := ExtractEvolutionLinks([]byte(chain))
+	require.NoError(t, err)
+	require.Len(t, links, 6)
+	assert.Equal(t, "fire-stone", links[0].Item)
+	assert.Equal(t, "water-stone", links[1].Item)
+	assert.Equal(t, FriendshipEvolutionLevel, links[2].MinLevel)
+	assert.Equal(t, "day", links[3].TimeOfDay)
+	assert.Zero(t, links[3].MinLevel)
+	assert.Zero(t, links[4].MinLevel)
+	assert.True(t, links[4].UnsupportedConditions)
+	assert.Equal(t, "night", links[5].TimeOfDay)
+	assert.Nil(t, PickEvolutionLink(links[3:], 1, FriendshipEvolutionLevel))
+	assert.Equal(t, "water-stone", PickEvolutionLinkForItem(links, 1, "water-stone").Item)
 }
 
 func TestFriendshipEdgeFeedsLevelHelpers(t *testing.T) {

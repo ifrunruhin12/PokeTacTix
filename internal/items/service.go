@@ -20,7 +20,7 @@ type catalogRepository interface {
 	GetInventory(ctx context.Context, userID int) ([]InventoryEntry, error)
 	GetQuantity(ctx context.Context, userID int, itemID string) (int, error)
 	Purchase(ctx context.Context, userID int, item *Item, quantity int) (int, error)
-	ActivateBooster(ctx context.Context, userID int, item *Item, effect BoosterEffect) error
+	ActivateBooster(ctx context.Context, userID int, item *Item, effect BoosterEffect) (*ActiveBoost, error)
 	ActiveBoosts(ctx context.Context, userID int) ([]ActiveBoost, error)
 	ConsumeBattleBoosts(ctx context.Context, userID int) error
 }
@@ -78,13 +78,34 @@ func (s *Service) Purchase(ctx context.Context, userID int, itemID string, quant
 	return item, newQuantity, nil
 }
 
+func (s *Service) PurchaseWithKey(ctx context.Context, userID int, itemID string, quantity int, key string) (*Item, int, int, error) {
+	if quantity == 0 {
+		quantity = 1
+	}
+	if quantity < MinPurchaseQuantity || quantity > MaxPurchaseQuantity {
+		return nil, 0, 0, fmt.Errorf("invalid quantity: must be between %d and %d", MinPurchaseQuantity, MaxPurchaseQuantity)
+	}
+	item, err := s.repository.GetItem(ctx, itemID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	keyed, ok := s.repository.(interface {
+		PurchaseIdempotent(context.Context, int, *Item, int, string) (int, int, error)
+	})
+	if !ok {
+		return nil, 0, 0, fmt.Errorf("idempotent purchases unavailable")
+	}
+	newQuantity, coins, err := keyed.PurchaseIdempotent(ctx, userID, item, quantity, key)
+	return item, newQuantity, coins, err
+}
+
 // ActiveBoosts returns the player's currently applied deck buffs.
 func (s *Service) ActiveBoosts(ctx context.Context, userID int) ([]ActiveBoost, error) {
 	return s.repository.ActiveBoosts(ctx, userID)
 }
 
-// ConsumeBattleBoosts ticks the player's boosts down by one battle. Called by
-// the battle system when a battle ends.
+// ConsumeBattleBoosts is a standalone legacy tick. New battle sessions reserve
+// boost duration atomically with the session in the battle repository.
 func (s *Service) ConsumeBattleBoosts(ctx context.Context, userID int) error {
 	return s.repository.ConsumeBattleBoosts(ctx, userID)
 }
@@ -118,22 +139,7 @@ func (s *Service) UseItem(ctx context.Context, userID int, itemID string) (*Acti
 		return nil, fmt.Errorf("%w: you own 0 of %s", ErrInsufficientItem, item.Name)
 	}
 
-	if err := s.repository.ActivateBooster(ctx, userID, item, effect); err != nil {
-		return nil, err
-	}
-
-	boosts, err := s.repository.ActiveBoosts(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to reload active boosts: %w", err)
-	}
-	// The most recently created boost is the one just activated.
-	var latest *ActiveBoost
-	for i := range boosts {
-		if boosts[i].ItemID == itemID {
-			latest = &boosts[i]
-		}
-	}
-	return latest, nil
+	return s.repository.ActivateBooster(ctx, userID, item, effect)
 }
 
 // ParseBoosterEffect decodes and validates a booster item's effect payload.

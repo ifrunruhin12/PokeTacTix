@@ -11,6 +11,7 @@ import (
 	"pokemon-cli/internal/tokens"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 // ItemCatalog is the item-catalog surface the shop needs. The shop only sells
@@ -18,6 +19,7 @@ import (
 type ItemCatalog interface {
 	ListItems(ctx context.Context) ([]items.Item, error)
 	Purchase(ctx context.Context, userID int, itemID string, quantity int) (*items.Item, int, error)
+	PurchaseWithKey(ctx context.Context, userID int, itemID string, quantity int, key string) (*items.Item, int, int, error)
 }
 
 // Handler handles shop HTTP requests
@@ -384,6 +386,16 @@ func (h *Handler) PurchaseItem(c *fiber.Ctx) error {
 			},
 		})
 	}
+	key := strings.TrimSpace(c.Get("Idempotency-Key"))
+	if key != "" {
+		parsed, err := uuid.Parse(key)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": fiber.Map{"code": "INVALID_REQUEST", "message": "Invalid idempotency key"},
+			})
+		}
+		key = parsed.String()
+	}
 
 	// Normalize an omitted quantity to one up front so request validation,
 	// purchase and response all agree on what was bought.
@@ -391,9 +403,21 @@ func (h *Handler) PurchaseItem(c *fiber.Ctx) error {
 	if quantity == 0 {
 		quantity = 1
 	}
+	if quantity < items.MinPurchaseQuantity || quantity > items.MaxPurchaseQuantity {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fiber.Map{"code": "INVALID_QUANTITY", "message": "Quantity must be between 1 and 99"},
+		})
+	}
 
 	// Purchase the item (validates quantity bounds and coin balance)
-	item, newQuantity, err := h.itemCatalog.Purchase(c.Context(), userID, req.ItemID, quantity)
+	var item *items.Item
+	var newQuantity, remainingCoins int
+	var err error
+	if key != "" {
+		item, newQuantity, remainingCoins, err = h.itemCatalog.PurchaseWithKey(c.Context(), userID, req.ItemID, quantity, key)
+	} else {
+		item, newQuantity, err = h.itemCatalog.Purchase(c.Context(), userID, req.ItemID, quantity)
+	}
 	if err != nil {
 		if errors.Is(err, items.ErrItemNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
@@ -415,19 +439,27 @@ func (h *Handler) PurchaseItem(c *fiber.Ctx) error {
 				},
 			})
 		}
+		if errors.Is(err, items.ErrIdempotencyConflict) {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"error": fiber.Map{"code": "IDEMPOTENCY_CONFLICT", "message": "This purchase key was used for another item or quantity"},
+			})
+		}
 
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		fmt.Printf("Item purchase failed: %v\n", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fiber.Map{
 				"code":    "ITEM_PURCHASE_FAILED",
-				"message": err.Error(),
+				"message": "Failed to purchase item. Please try again.",
 			},
 		})
 	}
 
 	// Get remaining coins after the purchase
-	remainingCoins, err := h.repository.GetUserCoins(c.Context(), userID)
-	if err != nil {
-		remainingCoins = 0 // Fallback
+	if key == "" {
+		remainingCoins, err = h.repository.GetUserCoins(c.Context(), userID)
+		if err != nil {
+			remainingCoins = 0 // Fallback
+		}
 	}
 
 	return c.Status(fiber.StatusOK).JSON(items.PurchaseResponse{

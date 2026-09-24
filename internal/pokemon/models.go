@@ -55,17 +55,19 @@ const FriendshipEvolutionLevel = 20
 // are treated as stale (e.g. they predate min_happiness synthesis) so they
 // self-heal via a refresh from PokéAPI. Bump this whenever extraction output
 // changes shape in a way older chains must pick up.
-const CurrentEvolutionExtractionVersion = 2
+const CurrentEvolutionExtractionVersion = 3
 
 // EvolutionLink represents a single directed edge in an evolution chain
 // (e.g. charmander -> charmeleon at level 16 via level-up, or pikachu ->
 // raichu via use-item with a thunder-stone).
 type EvolutionLink struct {
-	FromSpeciesID int    `json:"from"`
-	ToSpeciesID   int    `json:"to"`
-	MinLevel      int    `json:"min_level,omitempty"`
-	Trigger       string `json:"trigger,omitempty"` // e.g. "level-up", "use-item", "trade"
-	Item          string `json:"item,omitempty"`    // required item id (slug) for "use-item" triggers, e.g. "thunder-stone"
+	FromSpeciesID         int    `json:"from"`
+	ToSpeciesID           int    `json:"to"`
+	MinLevel              int    `json:"min_level,omitempty"`
+	Trigger               string `json:"trigger,omitempty"` // e.g. "level-up", "use-item", "trade"
+	Item                  string `json:"item,omitempty"`    // required item id (slug) for "use-item" triggers, e.g. "thunder-stone"
+	TimeOfDay             string `json:"time_of_day,omitempty"`
+	UnsupportedConditions bool   `json:"unsupported_conditions,omitempty"`
 }
 
 // PickEvolutionLink returns the level-up evolution edge from speciesID whose
@@ -80,7 +82,7 @@ func PickEvolutionLink(links []EvolutionLink, speciesID int, level int) *Evoluti
 		if l.FromSpeciesID != speciesID {
 			continue
 		}
-		if l.Trigger != "level-up" || l.MinLevel <= 0 {
+		if l.Trigger != "level-up" || l.MinLevel <= 0 || l.TimeOfDay != "" || l.UnsupportedConditions {
 			continue
 		}
 		if level < l.MinLevel {
@@ -104,7 +106,7 @@ func PickEvolutionLinkForItem(links []EvolutionLink, speciesID int, itemID strin
 		if l.FromSpeciesID != speciesID {
 			continue
 		}
-		if l.Trigger != TriggerUseItem || l.Item == "" {
+		if l.Trigger != TriggerUseItem || l.Item == "" || l.TimeOfDay != "" || l.UnsupportedConditions {
 			continue
 		}
 		if l.Item != itemID {
@@ -138,13 +140,13 @@ func EvolutionOptionsFromLinks(links []EvolutionLink, speciesID int) []Evolution
 			continue
 		}
 		switch {
-		case l.Trigger == TriggerLevelUp && l.MinLevel > 0:
+		case l.Trigger == TriggerLevelUp && l.MinLevel > 0 && l.TimeOfDay == "" && !l.UnsupportedConditions:
 			options = append(options, EvolutionOption{
 				Method:      MethodLevel,
 				ToSpeciesID: l.ToSpeciesID,
 				MinLevel:    l.MinLevel,
 			})
-		case l.Trigger == TriggerUseItem && l.Item != "":
+		case l.Trigger == TriggerUseItem && l.Item != "" && l.TimeOfDay == "" && !l.UnsupportedConditions:
 			options = append(options, EvolutionOption{
 				Method:      MethodItem,
 				ToSpeciesID: l.ToSpeciesID,

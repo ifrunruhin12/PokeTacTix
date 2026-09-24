@@ -6,12 +6,10 @@ import (
 	"pokemon-cli/internal/items"
 )
 
-// BoostProvider is the item-domain surface the battle system needs: the
-// player's active deck buffs, and the per-battle tick that expires them.
-// Implemented by the items service.
+// BoostProvider identifies the configured item service. The battle repository
+// reserves durations with session creation; it does not tick boosts at battle end.
 type BoostProvider interface {
 	ActiveBoosts(ctx context.Context, userID int) ([]items.ActiveBoost, error)
-	ConsumeBattleBoosts(ctx context.Context, userID int) error
 }
 
 // ApplyBoosts mutates the player's deck in place, adding every active boost's

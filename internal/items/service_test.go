@@ -21,10 +21,11 @@ type mockCatalogRepository struct {
 	purchases   []purchaseRecord
 	purchaseErr error
 
-	boosts        []ActiveBoost
-	activated     []string // item ids activated via ActivateBooster
-	activateErr   error
-	tickedBattles []int // user ids passed to ConsumeBattleBoosts
+	boosts          []ActiveBoost
+	activated       []string // item ids activated via ActivateBooster
+	activateErr     error
+	activeBoostsErr error
+	tickedBattles   []int // user ids passed to ConsumeBattleBoosts
 }
 
 func (m *mockCatalogRepository) ListItems(ctx context.Context) ([]Item, error) {
@@ -72,12 +73,12 @@ func (m *mockCatalogRepository) Purchase(ctx context.Context, userID int, item *
 
 // ActivateBooster simulates the SQL transaction: consume one from the
 // inventory and append the active boost.
-func (m *mockCatalogRepository) ActivateBooster(ctx context.Context, userID int, item *Item, effect BoosterEffect) error {
+func (m *mockCatalogRepository) ActivateBooster(ctx context.Context, userID int, item *Item, effect BoosterEffect) (*ActiveBoost, error) {
 	if m.activateErr != nil {
-		return m.activateErr
+		return nil, m.activateErr
 	}
 	if m.quantities[userID][item.ID] <= 0 {
-		return ErrInsufficientItem
+		return nil, ErrInsufficientItem
 	}
 	m.quantities[userID][item.ID]--
 	m.activated = append(m.activated, item.ID)
@@ -85,10 +86,13 @@ func (m *mockCatalogRepository) ActivateBooster(ctx context.Context, userID int,
 		ID: len(m.boosts) + 1, ItemID: item.ID, ItemName: item.Name,
 		Stat: effect.Stat, Bonus: effect.Bonus, BattlesRemaining: effect.Battles,
 	})
-	return nil
+	return &m.boosts[len(m.boosts)-1], nil
 }
 
 func (m *mockCatalogRepository) ActiveBoosts(ctx context.Context, userID int) ([]ActiveBoost, error) {
+	if m.activeBoostsErr != nil {
+		return nil, m.activeBoostsErr
+	}
 	return m.boosts, nil
 }
 
@@ -208,6 +212,15 @@ func TestErrorSentinels(t *testing.T) {
 }
 
 func TestUseItem(t *testing.T) {
+	t.Run("activation returns committed boost without reloading active boosts", func(t *testing.T) {
+		svc, repo := newTestService()
+		repo.quantities[1] = map[string]int{"attack-booster": 1}
+		repo.activeBoostsErr = errors.New("active boosts unavailable")
+		boost, err := svc.UseItem(context.Background(), 1, "attack-booster")
+		require.NoError(t, err)
+		assert.Equal(t, "attack-booster", boost.ItemID)
+		assert.Zero(t, repo.quantities[1]["attack-booster"])
+	})
 	t.Run("using a booster activates it and consumes one from inventory", func(t *testing.T) {
 		svc, repo := newTestService()
 		repo.quantities[1] = map[string]int{"attack-booster": 2}
