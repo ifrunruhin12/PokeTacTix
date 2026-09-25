@@ -110,7 +110,7 @@ var (
 		[]string{"event"}, // login_success, login_failure, register
 	)
 
-	// EvolutionTotal counts Pokemon evolutions triggered by leveling up.
+	// EvolutionTotal counts Pokemon evolutions (level-up and item-based).
 	// Plain counter (not a vec) so it is exposed at 0 on fresh deployments.
 	EvolutionTotal = newCounter(
 		prometheus.CounterOpts{

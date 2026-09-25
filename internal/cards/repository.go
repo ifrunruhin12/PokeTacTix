@@ -2,8 +2,12 @@ package cards
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"pokemon-cli/internal/database"
+	"pokemon-cli/internal/items"
+	"pokemon-cli/internal/pokemon"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -63,8 +67,8 @@ func (r *Repository) GetByID(ctx context.Context, id int) (*database.PlayerCard,
 		&card.CreatedAt, &card.UpdatedAt,
 	)
 
-	if err == pgx.ErrNoRows {
-		return nil, fmt.Errorf("card not found")
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrCardNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get card: %w", err)
@@ -306,4 +310,111 @@ func (r *Repository) CountMythical(ctx context.Context, userID int) (int, error)
 	}
 
 	return count, nil
+}
+
+// GetPokemonID returns the card's canonical pokemon row id, or nil for legacy
+// cards created before the link column existed.
+func (r *Repository) GetPokemonID(ctx context.Context, cardID, userID int) (*int, error) {
+	var pokemonID *int
+	err := r.db.QueryRow(ctx, `
+		SELECT pokemon_id FROM player_cards WHERE id = $1 AND user_id = $2
+	`, cardID, userID).Scan(&pokemonID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrCardNotFound
+		}
+		return nil, fmt.Errorf("failed to get pokemon_id: %w", err)
+	}
+	return pokemonID, nil
+}
+
+// SetPokemonID backfills the canonical pokemon link on a legacy card
+func (r *Repository) SetPokemonID(ctx context.Context, cardID, userID, pokemonID int) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE player_cards SET pokemon_id = $1 WHERE id = $2 AND user_id = $3
+	`, pokemonID, cardID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to set pokemon_id: %w", err)
+	}
+	return nil
+}
+
+// EvolveWithItem applies an item-based evolution and consumes one unit of the
+// item in a single transaction:
+//
+//  1. The card row is locked (FOR UPDATE) and its pokemon_id re-verified, so a
+//     concurrent evolution of the same card cannot double-apply.
+//  2. The item is consumed with a guarded UPDATE (quantity > 0), so inventory
+//     can never go negative and a failed evolution consumes nothing (any later
+//     failure rolls the whole transaction back).
+//  3. The card's species is updated with the target's base stats, exactly like
+//     the level-up path in the battle package (moves carry over).
+func (r *Repository) EvolveWithItem(ctx context.Context, userID, cardID, expectedPokemonID int, target *pokemon.Pokemon, itemID string) (int, error) {
+	baseHP, baseAttack, baseDefense, baseSpeed := target.CardBaseStats()
+
+	typesJSON, err := json.Marshal(target.Types)
+	if err != nil {
+		return 0, fmt.Errorf("failed to marshal evolved types: %w", err)
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Lock the card and re-verify it is still the species the evolution rule
+	// was resolved for.
+	var currentPokemonID *int
+	err = tx.QueryRow(ctx, `
+		SELECT pokemon_id FROM player_cards WHERE id = $1 AND user_id = $2 FOR UPDATE
+	`, cardID, userID).Scan(&currentPokemonID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, ErrCardNotFound
+		}
+		return 0, fmt.Errorf("failed to lock card %d: %w", cardID, err)
+	}
+	if currentPokemonID == nil || *currentPokemonID != expectedPokemonID {
+		return 0, ErrConcurrentEvolution
+	}
+
+	// Consume one unit of the item; the quantity > 0 guard makes this safe
+	// under concurrent use.
+	var remaining int
+	err = tx.QueryRow(ctx, `
+		UPDATE player_inventory
+		SET quantity = quantity - 1, updated_at = $1
+		WHERE user_id = $2 AND item_id = $3 AND quantity > 0
+		RETURNING quantity
+	`, time.Now(), userID, itemID).Scan(&remaining)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, fmt.Errorf("%w: %s", items.ErrInsufficientItem, itemID)
+		}
+		return 0, fmt.Errorf("failed to consume item %s: %w", itemID, err)
+	}
+
+	// Apply the species change. Moves intentionally carry over: evolution is a
+	// species change with new base stats, not a move-set reset (same policy as
+	// level-up evolution).
+	_, err = tx.Exec(ctx, `
+		UPDATE player_cards
+		SET pokemon_name = $1, pokemon_id = $2, sprite = $3, types = $4,
+		    base_hp = $5, base_attack = $6, base_defense = $7, base_speed = $8
+		WHERE id = $9 AND user_id = $10
+	`,
+		target.Name, target.ID, target.SpriteURL, typesJSON,
+		baseHP, baseAttack, baseDefense, baseSpeed,
+		cardID, userID,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to evolve card %d into %s: %w", cardID, target.Name, err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return remaining, nil
 }

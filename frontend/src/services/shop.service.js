@@ -38,10 +38,26 @@ export const purchaseTokens = async (quantity) => {
   return response.data;
 };
 
+/**
+ * Purchase a game item (e.g. evolution stone) from the shop
+ * @param {string} itemId - Item id (slug), e.g. 'thunder-stone'
+ * @param {number} [quantity=1] - Quantity to purchase (1-99)
+ * @param {string} idempotencyKey - Stable key for retries of this purchase
+ * @returns {Promise<Object>} Purchase result with new quantity and remaining coins
+ */
+export const purchaseItem = async (itemId, quantity = 1, idempotencyKey) => {
+  const response = await api.post('/api/shop/items/purchase', {
+    item_id: itemId,
+    quantity,
+  }, { headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} });
+  return response.data;
+};
+
 const shopService = {
   getInventory,
   purchaseCard,
   purchaseTokens,
+  purchaseItem,
 };
 
 export default shopService;

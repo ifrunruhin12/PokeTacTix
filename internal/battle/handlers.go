@@ -26,6 +26,7 @@ type Handler struct {
 	tokenService   TokenService           // Token service for token management
 	enemySelector  EnemySelector          // Anti-repeat enemy selection service
 	pokemonService pokemon.PokemonService // Tiered pokemon fetch service
+	boosts         BoostProvider          // Active booster items (optional)
 	mu             sync.RWMutex           // Mutex for thread-safe access to legacy sessions
 }
 
@@ -66,6 +67,11 @@ func (h *Handler) SetEnemySelector(selector EnemySelector) {
 // SetPokemonService configures the PokemonService for the Handler
 func (h *Handler) SetPokemonService(ps pokemon.PokemonService) {
 	h.pokemonService = ps
+}
+
+// SetBoostProvider configures booster item support for the Handler
+func (h *Handler) SetBoostProvider(bp BoostProvider) {
+	h.boosts = bp
 }
 
 // ConvertPlayerCardToPokemonCard converts a database PlayerCard to a pokemon.Card for battles
@@ -263,9 +269,24 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Save battle state to database BEFORE consuming tokens
-	// This ensures we only consume tokens if the battle is successfully persisted
-	if err := h.SaveBattleState(c, battleState); err != nil {
+	boostLog := fmt.Sprintf("Battle started! Mode: %s", req.Mode)
+	if h.boosts != nil {
+		boosted, created, err := h.repo.SaveBattleSessionWithBoosts(c.Context(), battleState)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": fiber.Map{
+					"code":    "DATABASE_ERROR",
+					"message": "Failed to save battle session and reserve boosts",
+				},
+			})
+		}
+		if boosted {
+			boostLog = fmt.Sprintf("Battle started! Mode: %s. Booster active: your Pokemon are boosted for this battle!", req.Mode)
+		}
+		if !created {
+			return c.JSON(BuildBattleResponse(battleState, []string{boostLog}, true))
+		}
+	} else if err := h.SaveBattleState(c, battleState); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fiber.Map{
 				"code":    "DATABASE_ERROR",
@@ -279,7 +300,13 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 	if err := h.tokenService.ConsumeToken(c.Context(), userID, req.Mode); err != nil {
 		// Token consumption failed after battle was saved
 		// Delete the battle state to maintain consistency
-		_ = h.DeleteBattleState(c, battleState.ID)
+		if h.boosts != nil {
+			if cancelErr := h.repo.CancelBattleBoostReservation(c.Context(), battleState.ID, userID); cancelErr != nil {
+				fmt.Printf("Failed to release battle boosts after token failure: %v\n", cancelErr)
+			}
+		} else {
+			_ = h.DeleteBattleState(c, battleState.ID)
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": fiber.Map{
 				"code":    "TOKEN_CONSUMPTION_FAILED",
@@ -290,7 +317,7 @@ func (h *Handler) StartBattleEnhanced(c *fiber.Ctx) error {
 
 	// Return battle state with card visibility
 	middleware.BattleStartTotal.WithLabelValues(req.Mode).Inc()
-	response := BuildBattleResponse(battleState, []string{fmt.Sprintf("Battle started! Mode: %s", req.Mode)}, true)
+	response := BuildBattleResponse(battleState, []string{boostLog}, true)
 
 	return c.JSON(response)
 }
@@ -491,6 +518,13 @@ func (h *Handler) MakeMoveEnhanced(c *fiber.Ctx) error {
 				}
 				response["battle_history_recorded"] = rewards.BattleHistoryRecorded
 				response["stats_updated"] = rewards.StatsUpdated
+			}
+		}
+
+		// The duration was reserved at battle creation; do not tick it again.
+		if h.boosts != nil {
+			if err := h.repo.FinalizeBattleBoostReservation(c.Context(), battleState.ID, userID); err != nil {
+				fmt.Printf("Failed to finalize battle boosts: %v\n", err)
 			}
 		}
 	}

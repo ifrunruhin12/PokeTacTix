@@ -55,6 +55,25 @@ This directory contains SQL migration files for the PokeTacTix database schema.
 - Adds `tokens_purchased_today` column to enforce daily purchase limits
 - Creates index on `last_token_reset` for efficient reset queries
 
+### 000016 - Create Items and Player Inventory Tables
+- Creates `items` table: purchasable game-item catalog (evolution stones, future boosters)
+- Creates `player_inventory` table: per-user item quantities with `(user_id, item_id)` primary key
+- Seeds three evolution stones (Thunder Stone, Fire Stone, Water Stone)
+- Item ids match PokéAPI item slugs so evolution chain links reference them directly
+
+### 000017 - Create Battle Boosters
+- Seeds two booster items: Attack Booster (+5 attack, 3 battles) and HP Booster (+10 HP, 4 battles)
+- Booster parameters live in `items.effect` JSONB so balancing is a data change
+- Creates `active_boosts` table: per-user boosts whose duration is reserved when each battle starts
+
+### 000018 - Item Purchase Receipts
+- Creates `item_purchase_requests` to retain a per-user idempotency key, purchased item and quantity, and committed result
+- Repeated requests with the same key return the original result without charging or adding inventory twice
+
+### 000019 - Battle Boost Reservations
+- Creates `battle_boost_reservations` and `battle_boost_reservation_items` to reserve one boost duration per battle ID atomically with session creation
+- Reservations finalize at battle end; failed token charges restore the reserved duration and remove the session
+
 ## Running Migrations
 
 ### Using Docker Compose
@@ -102,6 +121,8 @@ psql -U pokemon -d poketactix
 users (id, username, email, password_hash, coins, created_at, updated_at)
   ↓ CASCADE DELETE
   ├── player_cards (id, user_id, pokemon_name, level, xp, stats, ...)
+  ├── player_inventory (user_id, item_id, quantity) → items (id, name, price, item_type, ...)
+  ├── active_boosts (id, user_id, item_id, stat, bonus, battles_remaining)
   ├── battle_history (id, user_id, mode, result, coins_earned, ...)
   ├── player_stats (user_id, wins, losses, draws, total_coins_earned, ...)
   ├── battle_sessions (id, user_id, mode, state, ...)

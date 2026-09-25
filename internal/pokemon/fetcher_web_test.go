@@ -35,6 +35,14 @@ func (s staticPokemonService) GetEvolutionForLevel(context.Context, int, int) (*
 	return nil, nil
 }
 
+func (s staticPokemonService) GetEvolutionForItem(context.Context, int, string) (*Pokemon, error) {
+	return nil, nil
+}
+
+func (s staticPokemonService) GetEvolutionOptions(context.Context, int) ([]EvolutionOption, error) {
+	return nil, nil
+}
+
 func TestFetchPokemonPreservesServiceRawData(t *testing.T) {
 	moveServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

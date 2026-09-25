@@ -363,6 +363,13 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ShopItem'
+        game_tokens:
+          $ref: '#/components/schemas/GameTokenItem'
+        game_items:
+          type: array
+          description: Purchasable game items (evolution stones, future boosters)
+          items:
+            $ref: '#/components/schemas/Item'
         discount_active:
           type: boolean
           example: false
@@ -477,6 +484,72 @@ components:
           type: integer
           description: Maximum tokens that can be purchased per day
           example: 10
+
+    Item:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Item id (slug)
+          example: thunder-stone
+        name:
+          type: string
+          example: Thunder Stone
+        description:
+          type: string
+          example: A stone that evolves certain species of Pokemon.
+        item_type:
+          type: string
+          enum: [evolution, booster]
+          example: evolution
+        price:
+          type: integer
+          example: 800
+        icon:
+          type: string
+          example: "\ud83d\udd31"
+
+    ActiveBoost:
+      type: object
+      properties:
+        id:
+          type: integer
+        item_id:
+          type: string
+          example: attack-booster
+        item_name:
+          type: string
+          example: Attack Booster
+        stat:
+          type: string
+          enum: [attack, hp]
+        bonus:
+          type: integer
+          example: 5
+        battles_remaining:
+          type: integer
+          example: 3
+        created_at:
+          type: string
+          format: date-time
+
+    GameTokenItem:
+      type: object
+      properties:
+        item_type:
+          type: string
+          example: game_token
+        price:
+          type: integer
+          example: 100
+        available_quantity:
+          type: integer
+          example: 10
+        max_daily_purchase:
+          type: integer
+          example: 10
+        description:
+          type: string
 
     TokenPurchaseRequest:
       type: object
@@ -874,6 +947,237 @@ paths:
                       message: One or more cards not found or don't belong to user
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/cards/evolution-summary:
+    get:
+      tags:
+        - Cards
+      summary: Get evolution availability for all cards
+      description: |
+        Reports, for every card owned by the authenticated user, whether its
+        species has any evolution path. Used to hide the Evolve action on
+        final-form Pokemon.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Evolution summaries retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summaries:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        card_id:
+                          type: integer
+                        has_evolution:
+                          type: boolean
+              example:
+                summaries:
+                  - card_id: 101
+                    has_evolution: true
+                  - card_id: 102
+                    has_evolution: false
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/cards/{id}/evolution:
+    get:
+      tags:
+        - Cards
+      summary: Get evolution options for a card
+      description: |
+        Describes every way a card can evolve (level-up or item), including the
+        required level or item and whether the player can act on it now.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Card ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Evolution info retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  evolution:
+                    type: object
+                    properties:
+                      card_id:
+                        type: integer
+                      pokemon_name:
+                        type: string
+                      level:
+                        type: integer
+                      can_evolve_now:
+                        type: boolean
+                      options:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            method:
+                              type: string
+                              enum: [level, item]
+                            target_name:
+                              type: string
+                            target_sprite:
+                              type: string
+                            min_level:
+                              type: integer
+                            required_item:
+                              type: string
+                            required_item_name:
+                              type: string
+                            owned_quantity:
+                              type: integer
+                            eligible:
+                              type: boolean
+              example:
+                evolution:
+                  card_id: 101
+                  pokemon_name: pikachu
+                  level: 12
+                  can_evolve_now: true
+                  options:
+                    - method: item
+                      target_name: raichu
+                      required_item: thunder-stone
+                      required_item_name: Thunder Stone
+                      owned_quantity: 1
+                      eligible: true
+        '400':
+          description: Invalid card ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Card belongs to another user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Card not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/cards/{id}/evolve:
+    post:
+      tags:
+        - Cards
+      summary: Evolve a card using an evolution item
+      description: |
+        Evolves the card using the given evolution item from the player's
+        inventory. The item must match the card's item-based evolution rule;
+        it is consumed in the same transaction as the evolution.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Card ID
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - item_id
+              properties:
+                item_id:
+                  type: string
+                  example: thunder-stone
+      responses:
+        '200':
+          description: Evolution completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  evolution:
+                    type: object
+                    properties:
+                      card_id:
+                        type: integer
+                      evolved_from:
+                        type: string
+                      evolved_into:
+                        type: string
+                      item_consumed:
+                        type: string
+                      remaining_item_quantity:
+                        type: integer
+                      card:
+                        $ref: '#/components/schemas/PlayerCard'
+              example:
+                message: pikachu evolved into raichu!
+                evolution:
+                  card_id: 101
+                  evolved_from: pikachu
+                  evolved_into: raichu
+                  item_consumed: thunder-stone
+                  remaining_item_quantity: 0
+        '400':
+          description: Evolution not eligible or insufficient item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Card belongs to another user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Card or item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Concurrent evolution conflict
           content:
             application/json:
               schema:
@@ -1457,6 +1761,231 @@ paths:
                 $ref: '#/components/schemas/Error'
         '429':
           description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/shop/items/purchase:
+    post:
+      tags:
+        - Shop
+        - Items
+      summary: Purchase a game item
+      description: |
+        Purchase an item (e.g. an evolution stone) with coins. Purchased items
+        enter the player's inventory and are consumed only when used.
+
+        **Rate Limit:** 10 requests per minute
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: |
+            Optional UUID key that makes the purchase retry-safe: reusing the
+            same key for the same item and quantity returns the original
+            result instead of charging again, while a mismatched reuse is
+            rejected with 409.
+          schema:
+            type: string
+            format: uuid
+          example: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - item_id
+              properties:
+                item_id:
+                  type: string
+                  example: thunder-stone
+                quantity:
+                  type: integer
+                  minimum: 1
+                  maximum: 99
+                  default: 1
+                  example: 1
+      responses:
+        '200':
+          description: Item purchase successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  item_id:
+                    type: string
+                  item_name:
+                    type: string
+                  quantity_added:
+                    type: integer
+                    description: Quantity bought in this request
+                  new_quantity:
+                    type: integer
+                    description: Total quantity now owned
+                  coins_spent:
+                    type: integer
+                  remaining_coins:
+                    type: integer
+              example:
+                success: true
+                item_id: thunder-stone
+                item_name: Thunder Stone
+                quantity_added: 1
+                new_quantity: 2
+                coins_spent: 800
+                remaining_coins: 1200
+        '400':
+          description: Invalid request or quantity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '402':
+          description: Insufficient coins
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Idempotency key was already used for a different item or quantity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/items/inventory:
+    get:
+      tags:
+        - Items
+      summary: Get the player's item inventory
+      description: Lists all items owned by the authenticated user with quantities, plus any active booster boosts
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Inventory retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inventory:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Item'
+                        - type: object
+                          properties:
+                            quantity:
+                              type: integer
+                              description: Quantity owned
+                  active_boosts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ActiveBoost'
+              example:
+                inventory:
+                  - id: thunder-stone
+                    name: Thunder Stone
+                    item_type: evolution
+                    price: 800
+                    quantity: 2
+                active_boosts:
+                  - id: 1
+                    item_id: attack-booster
+                    item_name: Attack Booster
+                    stat: attack
+                    bonus: 5
+                    battles_remaining: 3
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/items/{id}/use:
+    post:
+      tags:
+        - Items
+      summary: Use (activate) a booster item
+      description: |
+        Activates a booster from the player's inventory. The booster's effect
+        (e.g. +5 attack for the next 3 battles) applies to every Pokemon in the
+        player's deck at the start of each battle and ticks down by one battle
+        when a battle ends. Evolution items are rejected here — they are used
+        through the deck's evolution flow.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Item id (slug)
+          schema:
+            type: string
+          example: attack-booster
+      responses:
+        '200':
+          description: Booster activated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  boost:
+                    $ref: '#/components/schemas/ActiveBoost'
+              example:
+                message: Attack Booster activated! It applies to your next battles.
+                boost:
+                  id: 1
+                  item_id: attack-booster
+                  item_name: Attack Booster
+                  stat: attack
+                  bonus: 5
+                  battles_remaining: 3
+        '400':
+          description: Not a booster, or none left in inventory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Item not found
           content:
             application/json:
               schema:

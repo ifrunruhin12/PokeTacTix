@@ -164,10 +164,15 @@ func ExtractMemberSpeciesIDs(chainJSON []byte) ([]int, error) {
 // evolutionChainNode mirrors one node of the PokéAPI evolution chain tree.
 type evolutionChainNode struct {
 	Species struct {
-		URL string `json:"url"`
+		Name string `json:"name"`
+		URL  string `json:"url"`
 	} `json:"species"`
 	EvolutionDetails []evolutionDetail    `json:"evolution_details"`
 	EvolvesTo        []evolutionChainNode `json:"evolves_to"`
+}
+
+type namedRef struct {
+	Name string `json:"name"`
 }
 
 // evolutionDetail holds the trigger conditions for a single evolution edge.
@@ -176,12 +181,115 @@ type evolutionDetail struct {
 	Trigger  struct {
 		Name string `json:"name"`
 	} `json:"trigger"`
+	Item *struct {
+		Name string `json:"name"`
+	} `json:"item"`
+	MinHappiness *int   `json:"min_happiness"`
+	TimeOfDay    string `json:"time_of_day"`
+	// Form/region fields are objects in PokéAPI; the game models base forms
+	// only, so non-base names here make the edge unsupported.
+	Region              *namedRef                  `json:"region"`
+	RequiredPokemonForm *namedRef                  `json:"required_pokemon_form"`
+	EvolvedPokemonForm  *namedRef                  `json:"evolved_pokemon_form"`
+	Conditions          map[string]json.RawMessage `json:"-"`
+}
+
+func (d *evolutionDetail) UnmarshalJSON(data []byte) error {
+	type detail evolutionDetail
+	if err := json.Unmarshal(data, (*detail)(d)); err != nil {
+		return err
+	}
+	return json.Unmarshal(data, &d.Conditions)
+}
+
+// conditionMetadataFields are PokéAPI evolution-detail fields that carry
+// pure entry metadata (version coverage and the is_default marker present on
+// every entry) rather than a requirement this game would have to enforce.
+// They appear on ordinary edges — e.g. Pikachu→Raichu lists version_group and
+// is_default — and must not mark an edge as unsupported. Form/region fields
+// are handled separately as typed fields: see regionalVariantEdge.
+var conditionMetadataFields = map[string]bool{
+	"is_default":    true,
+	"version_group": true,
+}
+
+// regionalVariantEdge reports whether the detail describes a regional or
+// form-variant evolution this game does not model (base forms only): an edge
+// locked to a specific region, restricted to a non-base source form, or
+// producing a non-base target form. Form names equal to the plain species
+// name (e.g. required_pokemon_form "pikachu" on Pikachu→Raichu) are the base
+// form and therefore fine.
+func (d evolutionDetail) regionalVariantEdge(fromSpecies, toSpecies string) bool {
+	if d.Region != nil && d.Region.Name != "" {
+		return true
+	}
+	if d.RequiredPokemonForm != nil && d.RequiredPokemonForm.Name != "" && d.RequiredPokemonForm.Name != fromSpecies {
+		return true
+	}
+	if d.EvolvedPokemonForm != nil && d.EvolvedPokemonForm.Name != "" && d.EvolvedPokemonForm.Name != toSpecies {
+		return true
+	}
+	return false
+}
+
+// nonEmptyCondition reports whether an unknown evolution-detail field holds
+// an actual (non-null, non-empty, non-false) value, ignoring metadata fields.
+func nonEmptyCondition(name string, value json.RawMessage) bool {
+	if conditionMetadataFields[name] {
+		return false
+	}
+	return string(value) != "null" && string(value) != `""` && string(value) != "false"
+}
+
+func (d evolutionDetail) friendshipOnly(fromSpecies, toSpecies string) bool {
+	if d.Trigger.Name != TriggerLevelUp || d.MinLevel != nil || d.MinHappiness == nil || *d.MinHappiness <= 0 || d.TimeOfDay != "" {
+		return false
+	}
+	if d.regionalVariantEdge(fromSpecies, toSpecies) {
+		return false
+	}
+	for name, value := range d.Conditions {
+		switch name {
+		case "trigger", "min_level", "min_happiness", "time_of_day",
+			"region", "required_pokemon_form", "evolved_pokemon_form":
+		default:
+			if nonEmptyCondition(name, value) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (d evolutionDetail) hasUnsupportedConditions(fromSpecies, toSpecies string) bool {
+	if d.MinHappiness != nil && *d.MinHappiness > 0 && !d.friendshipOnly(fromSpecies, toSpecies) {
+		return true
+	}
+	if d.Item != nil && d.Item.Name != "" && d.Trigger.Name != TriggerUseItem {
+		return true
+	}
+	if d.MinLevel != nil && *d.MinLevel > 0 && d.Trigger.Name != TriggerLevelUp {
+		return true
+	}
+	if d.regionalVariantEdge(fromSpecies, toSpecies) {
+		return true
+	}
+	for name, value := range d.Conditions {
+		switch name {
+		case "trigger", "min_level", "min_happiness", "item", "time_of_day",
+			"region", "required_pokemon_form", "evolved_pokemon_form":
+		default:
+			if nonEmptyCondition(name, value) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ExtractEvolutionLinks walks the evolution chain tree and returns every edge
-// with its trigger details. Each evolves_to entry may carry multiple
-// evolution_details; we keep the first one that has a level-up trigger, or the
-// first detail overall so the edge is not lost.
+// with its trigger details. Each evolves_to entry may carry multiple distinct
+// requirements; retain each branch without inventing an unconditional edge.
 func ExtractEvolutionLinks(chainJSON []byte) ([]EvolutionLink, []int, error) {
 	var payload struct {
 		Chain evolutionChainNode `json:"chain"`
@@ -191,6 +299,7 @@ func ExtractEvolutionLinks(chainJSON []byte) ([]EvolutionLink, []int, error) {
 	}
 
 	var links []EvolutionLink
+	seen := make(map[EvolutionLink]bool)
 	var memberIDs []int
 
 	speciesID := func(n evolutionChainNode) (int, bool) {
@@ -211,31 +320,32 @@ func ExtractEvolutionLinks(chainJSON []byte) ([]EvolutionLink, []int, error) {
 
 			fromID, hasFrom := speciesID(n)
 			if hasFrom {
-				link := EvolutionLink{FromSpeciesID: fromID, ToSpeciesID: toID}
-				// Pick a single detail entry — prefer a level-up trigger, else the
-				// first — so trigger and min_level always come from the same entry.
-				// Merging fields across entries can invent a level requirement for
-				// a level-up edge that doesn't have one.
-				var chosen *evolutionDetail
-				for i := range child.EvolutionDetails {
-					d := &child.EvolutionDetails[i]
-					if d.Trigger.Name == "level-up" {
-						chosen = d
-						break
+				details := child.EvolutionDetails
+				if len(details) == 0 {
+					details = []evolutionDetail{{}}
+				}
+				for _, detail := range details {
+					link := EvolutionLink{
+						FromSpeciesID:         fromID,
+						ToSpeciesID:           toID,
+						Trigger:               detail.Trigger.Name,
+						TimeOfDay:             detail.TimeOfDay,
+						UnsupportedConditions: detail.hasUnsupportedConditions(n.Species.Name, child.Species.Name),
 					}
-					if chosen == nil {
-						chosen = d
+					if detail.MinLevel != nil {
+						link.MinLevel = *detail.MinLevel
+					}
+					if detail.friendshipOnly(n.Species.Name, child.Species.Name) {
+						link.MinLevel = FriendshipEvolutionLevel
+					}
+					if detail.Item != nil {
+						link.Item = detail.Item.Name
+					}
+					if !seen[link] {
+						links = append(links, link)
+						seen[link] = true
 					}
 				}
-				if chosen != nil {
-					if chosen.Trigger.Name != "" {
-						link.Trigger = chosen.Trigger.Name
-					}
-					if chosen.MinLevel != nil {
-						link.MinLevel = *chosen.MinLevel
-					}
-				}
-				links = append(links, link)
 			}
 			walk(child)
 		}

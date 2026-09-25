@@ -10,6 +10,7 @@ import (
 	"pokemon-cli/internal/battle"
 	"pokemon-cli/internal/cards"
 	"pokemon-cli/internal/database"
+	"pokemon-cli/internal/items"
 	"pokemon-cli/internal/middleware"
 	"pokemon-cli/internal/pokemon"
 	"pokemon-cli/internal/shop"
@@ -103,10 +104,14 @@ func main() {
 	cardsRepo := cards.NewRepository(database.GetDB())
 	shopRepo := shop.NewRepository(database.GetDB())
 	statsRepo := stats.NewRepository(database.GetDB())
+	itemsRepo := items.NewRepository(database.GetDB())
 
 	// Initialize services
 	authService := auth.NewService()
-	cardsService := cards.NewService(cardsRepo)
+	itemsService := items.NewService(itemsRepo)
+	// The card service consumes the item catalog and the (data-driven)
+	// evolution rules from the pokemon service for item-based evolution.
+	cardsService := cards.NewService(cardsRepo, pokemonService, itemsService)
 	shopService := shop.NewService()
 	statsService := stats.NewService(statsRepo)
 	tokenService := tokens.NewService(database.GetDB())
@@ -148,10 +153,12 @@ func main() {
 	battleHandler := battle.NewHandler(database.GetDB(), statsService, tokenService)
 	battleHandler.SetEnemySelector(enemySelector)
 	battleHandler.SetPokemonService(pokemonService)
+	battleHandler.SetBoostProvider(itemsService)
 
-	shopHandler := shop.NewHandler(shopService, shopRepo, tokenService)
+	shopHandler := shop.NewHandler(shopService, shopRepo, tokenService, itemsService)
 	statsHandler := stats.NewHandler(statsService)
 	tokenHandler := tokens.NewHandler(tokenService)
+	itemsHandler := items.NewHandler(itemsService)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -188,7 +195,7 @@ func main() {
 	// Configure CORS properly based on environment
 	corsConfig := cors.Config{
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization",
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,Idempotency-Key",
 		AllowCredentials: true,
 		MaxAge:           3600,
 	}
@@ -291,6 +298,7 @@ func main() {
 	// Register routes
 	auth.RegisterRoutes(app, authHandler, jwtService)
 	cards.RegisterRoutes(app, cardsHandler, jwtService)
+	items.RegisterRoutes(app, itemsHandler, jwtService)
 
 	// Create auth middleware for protected routes
 	authMiddleware := auth.Middleware(jwtService)
