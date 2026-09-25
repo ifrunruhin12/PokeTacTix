@@ -195,7 +195,7 @@ func main() {
 	// Configure CORS properly based on environment
 	corsConfig := cors.Config{
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization",
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,Idempotency-Key",
 		AllowCredentials: true,
 		MaxAge:           3600,
 	}
