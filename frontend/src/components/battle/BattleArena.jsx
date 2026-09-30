@@ -44,7 +44,8 @@ const BattleArena = ({
     battle_over = false,
     winner = null,
     round_number = 1,
-    log = []
+    log = [],
+    xp_by_card_id = {}
   } = battleState || {};
 
   const playerActive = player_deck[player_active_idx];
@@ -329,7 +330,7 @@ const BattleArena = ({
                   key={index}
                   whileHover={!pokemon.is_knocked_out && index !== player_active_idx ? { scale: 1.05, y: -5 } : {}}
                   onClick={() => handleSwitchPokemon(index)}
-                  className={`cursor-pointer ${index === player_active_idx ? 'opacity-50' : ''}`}
+                  className={`relative cursor-pointer ${index === player_active_idx ? 'opacity-50' : ''}`}
                 >
                   <div className="w-24 h-32">
                     <AnimatedPokemonCard
@@ -341,6 +342,11 @@ const BattleArena = ({
                       compact={true}
                     />
                   </div>
+                  {battle_over && xp_by_card_id[pokemon.card_id] ? (
+                    <div className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow">
+                      +{xp_by_card_id[pokemon.card_id]} XP
+                    </div>
+                  ) : null}
                 </motion.div>
               ))}
             </div>
@@ -407,7 +413,8 @@ BattleArena.propTypes = {
     winner: PropTypes.string,
     round_number: PropTypes.number,
     log: PropTypes.array,
-    rewards: PropTypes.object
+    rewards: PropTypes.object,
+    xp_by_card_id: PropTypes.object
   }),
   onMove: PropTypes.func,
   onSwitchPokemon: PropTypes.func,

@@ -29,8 +29,19 @@ type BattleState struct {
 	PendingAIMove        string       `json:"pending_ai_move"`
 	PendingAIMoveIdx     int          `json:"pending_ai_move_idx"`
 	SacrificeCount       map[int]int  `json:"sacrifice_count"` // Track sacrifices per side and deck index
+	Participants         map[int]bool `json:"participants"`    // Player card IDs that acted this battle (participation XP)
 	CreatedAt            time.Time    `json:"created_at"`
 	UpdatedAt            time.Time    `json:"updated_at"`
+}
+
+// recordParticipant marks a player Pokemon as having acted, so it earns
+// participation XP even if it never took damage. Lazily initializes the map
+// because legacy sessions deserialize without it.
+func (bs *BattleState) recordParticipant(cardID int) {
+	if bs.Participants == nil {
+		bs.Participants = make(map[int]bool)
+	}
+	bs.Participants[cardID] = true
 }
 
 // Player keys retain their deck indexes; AI keys use negative indexes to avoid collisions.
