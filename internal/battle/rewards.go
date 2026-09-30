@@ -8,6 +8,7 @@ import (
 	"pokemon-cli/internal/database"
 	"pokemon-cli/internal/middleware"
 	"pokemon-cli/internal/pokemon"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,8 @@ const xpPerLevel = 100
 
 type ComprehensiveRewards struct {
 	CoinsEarned               int                              `json:"coins_earned"`
+	StreakBonus               int                              `json:"streak_bonus,omitempty"`
+	WinStreak                 int                              `json:"win_streak,omitempty"`
 	XPGains                   []PokemonXPGain                  `json:"xp_gains"`
 	NewlyUnlockedAchievements []database.AchievementWithStatus `json:"newly_unlocked_achievements,omitempty"`
 	BattleHistoryRecorded     bool                             `json:"battle_history_recorded"`
@@ -80,6 +83,29 @@ func CalculateAllRewards(bs *BattleState) *ComprehensiveRewards {
 	// Note: Achievements will be populated after checking achievements
 
 	return rewards
+}
+
+// streakBonusCoins returns the coin bonus for extending a win streak.
+// Each consecutive win beyond the first earns 10 extra coins, capped at +50,
+// so long streaks stay valuable without becoming an economy problem.
+func streakBonusCoins(streak int) int {
+	if streak <= 1 {
+		return 0
+	}
+	bonus := (streak - 1) * 10
+	if bonus > 50 {
+		bonus = 50
+	}
+	return bonus
+}
+
+// streakTier labels the bonus tier for metrics, collapsing long streaks
+// into a single "5+" bucket.
+func streakTier(streak int) string {
+	if streak >= 5 {
+		return "5+"
+	}
+	return strconv.Itoa(streak)
 }
 
 // CalculateRewards calculates coins and XP rewards based on battle outcome (legacy)
@@ -447,6 +473,25 @@ func ApplyAllRewards(ctx context.Context, db *pgxpool.Pool, userID int, bs *Batt
 		result = "draw"
 	}
 	middleware.BattleResultTotal.WithLabelValues(result).Inc()
+
+	// Win-streak bonus: consecutive victories pay extra coins. The streak is
+	// read before this battle's history row is inserted, so it counts only
+	// prior battles; the current win extends it by one.
+	if result == "win" && repo != nil {
+		priorStreak, streakErr := repo.GetRecentWinStreak(ctx, userID)
+		if streakErr != nil {
+			slog.Warn("failed to read win streak; skipping bonus", "user_id", userID, "error", streakErr)
+		} else {
+			rewards.WinStreak = priorStreak + 1
+			rewards.StreakBonus = streakBonusCoins(rewards.WinStreak)
+			rewards.CoinsEarned += rewards.StreakBonus
+			if rewards.StreakBonus > 0 {
+				middleware.WinStreakBonusTotal.WithLabelValues(streakTier(rewards.WinStreak)).Inc()
+				slog.Info("win streak bonus awarded",
+					"user_id", userID, "streak", rewards.WinStreak, "bonus_coins", rewards.StreakBonus)
+			}
+		}
+	}
 
 	_, err = tx.Exec(ctx, `
 		INSERT INTO battle_history (user_id, mode, result, coins_earned, duration)
