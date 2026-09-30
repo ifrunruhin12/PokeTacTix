@@ -35,7 +35,11 @@ func NewService() *Service {
 	return s
 }
 
-// GetInventory returns the current shop inventory
+// GetInventory returns a snapshot of the current shop inventory.
+//
+// The snapshot is a deep copy: callers may annotate it freely (per-request
+// discount pricing, per-user token availability) without corrupting the
+// service's shared inventory state or racing other requests.
 func (s *Service) GetInventory() *ShopInventory {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -61,7 +65,29 @@ func (s *Service) GetInventory() *ShopInventory {
 		s.mu.RLock()
 	}
 
-	return s.inventory
+	return s.inventory.snapshot()
+}
+
+// snapshot returns a deep copy of the inventory. Slice fields (Types, Moves)
+// are copied so callers annotating an item can't reach the originals through
+// shared backing arrays. Must be called with s.mu held (it only reads).
+func (inv *ShopInventory) snapshot() *ShopInventory {
+	copyInv := &ShopInventory{
+		Items:           make([]ShopItem, len(inv.Items)),
+		DiscountActive:  inv.DiscountActive,
+		DiscountPercent: inv.DiscountPercent,
+		RefreshTime:     inv.RefreshTime,
+	}
+	for i, item := range inv.Items {
+		item.Types = append([]string(nil), item.Types...)
+		item.Moves = append([]pokemon.Move(nil), item.Moves...)
+		copyInv.Items[i] = item
+	}
+	if inv.GameTokens != nil {
+		tokens := *inv.GameTokens
+		copyInv.GameTokens = &tokens
+	}
+	return copyInv
 }
 
 // generateInventory creates a new shop inventory
