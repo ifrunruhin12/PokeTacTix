@@ -53,29 +53,38 @@ func (c *pokeAPIClient) FetchEvolutionChainRaw(ctx context.Context, chainID int)
 }
 
 func (c *pokeAPIClient) get(ctx context.Context, endpoint string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("http request failed for %s: %w", endpoint, err)
-	}
-	defer resp.Body.Close()
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			lastErr = err
+			continue
+		}
 
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("resource not found at %s", endpoint)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d from %s", resp.StatusCode, endpoint)
-	}
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, fmt.Errorf("resource not found at %s", endpoint)
+		}
+		if resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("server error %d", resp.StatusCode)
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("unexpected status code %d from %s", resp.StatusCode, endpoint)
+		}
 
-	var data json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, fmt.Errorf("failed to decode json response: %w", err)
+		defer resp.Body.Close()
+		var data json.RawMessage
+		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+			return nil, fmt.Errorf("failed to decode json response: %w", err)
+		}
+		return data, nil
 	}
-	return data, nil
+	return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
 }
 
 // Helpers for parsing PokéAPI payloads
