@@ -6,7 +6,8 @@ import (
 
 // UpdateDeckRequest represents the request body for updating a deck
 type UpdateDeckRequest struct {
-	CardIDs []int `json:"card_ids"`
+	CardIDs      []int `json:"card_ids"`
+	TargetUserID int   `json:"target_user_id,omitempty"`
 }
 
 // EvolveRequest represents the request body for evolving a card with an item
