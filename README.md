@@ -14,7 +14,7 @@
 
 ---
 
-## 🎯 What is PokeTacTix?
+## What is PokeTacTix?
 
 PokeTactix is a strategic game where you battle, collect, and level up Pokémon cards in strategic turn-based combat. Build your perfect deck, master type advantages, and climb the ranks.
 
@@ -23,16 +23,16 @@ PokeTactix is a strategic game where you battle, collect, and level up Pokémon 
 <td width="50%">
 
 ### 🎮 **Play Anywhere**
-- 🌐 **Web** - Play in browser
-- 📱 **Mobile** - Coming soon
+- **Web** - Play in browser
+- **Mobile** - Coming soon
 
 </td>
 <td width="50%">
 
-### ⚔️ **Battle Modes**
-- 🥊 **1v1** - Quick battles
-- 👥 **5v5** - Team strategy
-- 🤖 **AI** - Smart opponents
+###  **Battle Modes**
+- **1v1** - Quick battles
+- **5v5** - Team strategy
+- **AI** - Smart opponents
 
 </td>
 </tr>
@@ -40,19 +40,19 @@ PokeTactix is a strategic game where you battle, collect, and level up Pokémon 
 
 ---
 
-## ✨ Features
+## Features
 
 <table>
 <tr>
 <td>
 
-### 🃏 **Card Collection & Evolution**
+### **Card Collection & Evolution**
 Collect Pokémon, level them up through battles, and evolve them — by level or with evolution stones
 
 </td>
 <td>
 
-### 🎲 **Strategic Combat**
+### **Strategic Combat**
 Type advantages, stamina management, and tactical decisions
 
 </td>
@@ -60,13 +60,13 @@ Type advantages, stamina management, and tactical decisions
 <tr>
 <td>
 
-### 🛍️ **Item System**
+### **Item System**
 Evolution stones and battle boosters, purchased in the shop and used from your inventory
 
 </td>
 <td>
 
-### 🏆 **Progression**
+### **Progression**
 Earn coins, track stats, unlock achievements
 
 </td>
@@ -74,7 +74,7 @@ Earn coins, track stats, unlock achievements
 <tr>
 <td colspan="2">
 
-### 🛒 **Shop**
+### **Shop**
 Three categories — Pokémon cards, game tokens, and items — with daily inventory rotation and discounts
 
 </td>
@@ -83,7 +83,7 @@ Three categories — Pokémon cards, game tokens, and items — with daily inven
 
 ---
 
-## 🧬 Item & Evolution System
+## Item & Evolution System
 
 Pokémon evolve through **data-driven evolution rules** sourced from PokéAPI evolution chains — no Pokémon-specific logic in the code:
 
@@ -102,21 +102,21 @@ Booster magnitudes and durations are data (in the `items.effect` JSONB column), 
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### 🌐 Web Version
+### Web Version
 
-Click the link and start playing [poketactix.netlify.app](https://poketactix.netlify.app/) 🎉
+Click the link and start playing [poketactix.netlify.app](https://poketactix.netlify.app/) (Currently not available and server is down)
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 <table>
 <tr>
 <td align="center" width="25%">
 
-### ⚡ [Quick Start](docs/quick-start.md)
+### [Quick Start](docs/quick-start.md)
 *60 seconds to running*
 
 </td>
@@ -128,13 +128,13 @@ Click the link and start playing [poketactix.netlify.app](https://poketactix.net
 </td>
 <td align="center" width="25%">
 
-### 🚀 [Get Started](docs/get-started.md)
+### [Get Started](docs/get-started.md)
 *How to kick off things*
 
 </td>
 <td align="center" width="25%">
 
-### 📡 [API Docs](http://localhost:3000/api/docs)
+### [API Docs](http://localhost:3000/api/docs)
 *Interactive API*
 
 </td>
@@ -143,7 +143,7 @@ Click the link and start playing [poketactix.netlify.app](https://poketactix.net
 
 ---
 
-## 🏗️ Tech Stack
+## Tech Stack
 
 <div align="center">
 
@@ -159,7 +159,7 @@ Click the link and start playing [poketactix.netlify.app](https://poketactix.net
 
 ---
 
-## 🎯 Roadmap
+## Roadmap
 
 - [x] 1v1 Battles
 - [x] Card Collection
@@ -175,7 +175,7 @@ Click the link and start playing [poketactix.netlify.app](https://poketactix.net
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! Feel free to open issues or submit PRs.
 
@@ -183,13 +183,13 @@ Contributions welcome! Feel free to open issues or submit PRs.
 
 <div align="center">
 
-### 👨‍💻 Built by **Ifrun Kader Ruhin**
+### Built by **Ifrun Kader Ruhin**
 
 *Self-taught engineer & constant learner*
 
 ---
 
-### 📄 License
+### License
 
 **CC BY-NC 4.0** - Free for non-commercial use  
 [View License](https://creativecommons.org/licenses/by-nc/4.0/)
